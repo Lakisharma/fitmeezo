@@ -1,0 +1,501 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Store Management{% endblock %} — Fitmeezo Admin</title>
+  
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="{% static 'images/brand/favicon.svg' %}">
+
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5.3.3 CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+  <!-- Bootstrap Icons 1.11.3 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <style>
+    :root {
+      --fm-primary: #FF6B00;
+      --fm-primary-hover: #E05E00;
+      --fm-primary-subtle: #FFF2E8;
+      --fm-dark: #121212;
+      --fm-dark-surface: #1E1E1E;
+      --fm-dark-elevated: #282828;
+      --fm-light: #F5F6F8;
+      --fm-light-surface: #FFFFFF;
+      --fm-border: #E5E7EB;
+      --fm-border-strong: #D1D5DB;
+      --fm-text: #1F2937;
+      --fm-text-muted: #6B7280;
+      --fm-font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      font-family: var(--fm-font);
+      background-color: var(--fm-light);
+      color: var(--fm-text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Layout */
+    .admin-wrapper {
+      display: flex;
+      flex: 1;
+      width: 100%;
+    }
+
+    .admin-sidebar {
+      width: 260px;
+      background-color: var(--fm-dark);
+      color: #FFFFFF;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 1020;
+      transition: transform 0.3s ease;
+    }
+
+    .admin-sidebar-brand {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .admin-sidebar-brand a {
+      color: #FFFFFF;
+      text-decoration: none;
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: -0.5px;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .admin-sidebar-brand .brand-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      background-color: var(--fm-primary);
+      color: #FFFFFF;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .admin-nav {
+      padding: 1rem 0.75rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+      flex: 1;
+    }
+
+    .admin-nav-heading {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.75px;
+      color: #9CA3AF;
+      padding: 0.75rem 0.75rem 0.25rem 0.75rem;
+    }
+
+    .admin-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.65rem 0.85rem;
+      color: #D1D5DB;
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .admin-nav-link i {
+      font-size: 1.15rem;
+      color: #9CA3AF;
+      transition: color 0.2s ease;
+    }
+
+    .admin-nav-link:hover {
+      background-color: var(--fm-dark-surface);
+      color: #FFFFFF;
+    }
+
+    .admin-nav-link:hover i {
+      color: var(--fm-primary);
+    }
+
+    .admin-nav-link.active {
+      background-color: var(--fm-primary);
+      color: #FFFFFF;
+      font-weight: 600;
+    }
+
+    .admin-nav-link.active i {
+      color: #FFFFFF;
+    }
+
+    .admin-sidebar-footer {
+      padding: 1rem 1.25rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background-color: rgba(0, 0, 0, 0.2);
+    }
+
+    /* Content Area */
+    .admin-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .admin-topbar {
+      height: 64px;
+      background-color: var(--fm-light-surface);
+      border-bottom: 1px solid var(--fm-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 1010;
+    }
+
+    .admin-content {
+      padding: 1.75rem;
+      flex: 1;
+    }
+
+    /* Cards & Components */
+    .fm-card {
+      background: var(--fm-light-surface);
+      border: 1px solid var(--fm-border);
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      transition: box-shadow 0.2s ease;
+    }
+
+    .fm-card:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .fm-card-header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--fm-border);
+      font-weight: 700;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .fm-card-body {
+      padding: 1.25rem;
+    }
+
+    .btn-fm-primary {
+      background-color: var(--fm-primary);
+      color: #FFFFFF;
+      border: none;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      transition: background-color 0.2s ease;
+    }
+
+    .btn-fm-primary:hover, .btn-fm-primary:focus {
+      background-color: var(--fm-primary-hover);
+      color: #FFFFFF;
+    }
+
+    .btn-fm-dark {
+      background-color: var(--fm-dark);
+      color: #FFFFFF;
+      border: none;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+    }
+
+    .btn-fm-dark:hover {
+      background-color: var(--fm-dark-surface);
+      color: #FFFFFF;
+    }
+
+    .badge-status {
+      font-weight: 600;
+      padding: 0.35rem 0.65rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      text-transform: capitalize;
+    }
+
+    .badge-status-pending { background-color: #FEF3C7; color: #92400E; }
+    .badge-status-processing { background-color: #DBEAFE; color: #1E40AF; }
+    .badge-status-shipped { background-color: #EDE9FE; color: #5B21B6; }
+    .badge-status-delivered { background-color: #D1FAE5; color: #065F46; }
+    .badge-status-cancelled { background-color: #FEE2E2; color: #991B1B; }
+
+    .badge-pay-paid { background-color: #D1FAE5; color: #065F46; }
+    .badge-pay-unpaid { background-color: #FEE2E2; color: #991B1B; }
+    .badge-pay-failed { background-color: #FEE2E2; color: #991B1B; }
+    .badge-pay-refunded { background-color: #E5E7EB; color: #374151; }
+
+    .table thead th {
+      background-color: #F9FAFB;
+      color: #4B5563;
+      font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--fm-border);
+      padding: 0.75rem 1rem;
+    }
+
+    .table tbody td {
+      padding: 0.85rem 1rem;
+      vertical-align: middle;
+      font-size: 0.875rem;
+      border-bottom: 1px solid #F3F4F6;
+    }
+
+    .table tbody tr:hover {
+      background-color: #F9FAFB;
+    }
+
+    /* Mobile offcanvas sidebar */
+    @media (max-width: 991.98px) {
+      .admin-sidebar {
+        position: fixed;
+        transform: translateX(-100%);
+      }
+      .admin-sidebar.show {
+        transform: translateX(0);
+      }
+      .admin-sidebar-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: 1015;
+        display: none;
+      }
+      .admin-sidebar-backdrop.show {
+        display: block;
+      }
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<div class="admin-sidebar-backdrop" id="sidebarBackdrop"></div>
+
+<div class="admin-wrapper">
+  <!-- Sidebar -->
+  <aside class="admin-sidebar" id="adminSidebar">
+    <div class="admin-sidebar-brand">
+      <a href="{% url 'custom_admin:dashboard' %}">
+        <span style="color: var(--fm-primary);">FITMEEZO</span>
+        <span class="brand-badge">ADMIN</span>
+      </a>
+      <button class="btn btn-sm btn-dark text-white d-lg-none" id="sidebarCloseBtn" type="button" aria-label="Close menu">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+
+    <nav class="admin-nav">
+      <span class="admin-nav-heading">Overview</span>
+      <a href="{% url 'custom_admin:dashboard' %}" class="admin-nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+        <i class="bi bi-speedometer2"></i>
+        <span>Dashboard</span>
+      </a>
+
+      <span class="admin-nav-heading">Catalogue</span>
+      <a href="{% url 'custom_admin:product_list' %}" class="admin-nav-link {% if 'product' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-box-seam"></i>
+        <span>Products</span>
+      </a>
+      <a href="{% url 'custom_admin:category_list' %}" class="admin-nav-link {% if 'category' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-grid-fill"></i>
+        <span>Categories</span>
+      </a>
+
+      <span class="admin-nav-heading">Fulfillment</span>
+      <a href="{% url 'custom_admin:order_list' %}" class="admin-nav-link {% if 'order' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-cart-check-fill"></i>
+        <span>Customer Orders</span>
+      </a>
+      <a href="{% url 'custom_admin:return_list' %}" class="admin-nav-link {% if 'return' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-arrow-return-left"></i>
+        <span>Return Requests</span>
+        {% if admin_pending_returns_count %}
+          <span class="badge bg-warning text-dark ms-auto font-monospace px-1.5 py-0.5" style="font-size: 10px;">{{ admin_pending_returns_count }}</span>
+        {% endif %}
+      </a>
+      <a href="{% url 'custom_admin:invoice_list' %}" class="admin-nav-link {% if 'invoice' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-file-earmark-pdf"></i>
+        <span>Tax &amp; Invoices</span>
+      </a>
+
+      <span class="admin-nav-heading">Finance &amp; Payouts</span>
+      <a href="{% url 'custom_admin:seller_payout_management' %}" class="admin-nav-link {% if 'seller_payout' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-wallet2"></i>
+        <span>Seller Payouts</span>
+      </a>
+      <a href="{% url 'custom_admin:ledger_list' %}" class="admin-nav-link {% if 'ledger' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-journal-text"></i>
+        <span>Financial Ledger</span>
+      </a>
+      <a href="{% url 'custom_admin:cod_reconcile' %}" class="admin-nav-link {% if 'cod' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-cash-coin"></i>
+        <span>COD Reconciliation</span>
+      </a>
+      <a href="{% url 'custom_admin:payout_list' %}" class="admin-nav-link {% if 'payout_list' in request.resolver_match.url_name or 'payout_detail' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-cash-stack"></i>
+        <span>Payout Batches</span>
+      </a>
+      <a href="{% url 'custom_admin:payout_create' %}" class="admin-nav-link {% if 'payout_create' in request.resolver_match.url_name or 'seller_bank_verify' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-bank2"></i>
+        <span>Bank Verifications</span>
+        {% if admin_pending_bank_verifications_count %}
+          <span class="badge bg-warning text-dark ms-auto font-monospace px-1.5 py-0.5" style="font-size: 10px;">{{ admin_pending_bank_verifications_count }}</span>
+        {% endif %}
+      </a>
+      <a href="{% url 'custom_admin:manual_adjustment' %}" class="admin-nav-link {% if 'adjustment' in request.resolver_match.url_name %}active{% endif %}">
+        <i class="bi bi-sliders"></i>
+        <span>Manual Adjustment</span>
+      </a>
+
+      <span class="admin-nav-heading">System Shortcuts</span>
+
+      <a href="{% url 'core:home' %}" target="_blank" class="admin-nav-link">
+        <i class="bi bi-box-arrow-up-right"></i>
+        <span>View Storefront</span>
+      </a>
+      <a href="/admin/" target="_blank" class="admin-nav-link">
+        <i class="bi bi-shield-lock"></i>
+        <span>Django Admin</span>
+      </a>
+    </nav>
+
+    <div class="admin-sidebar-footer">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white" style="width: 32px; height: 32px; font-weight: 700; font-size: 0.8rem;">
+          {{ request.user.username|slice:":1"|upper }}
+        </div>
+        <div class="overflow-hidden">
+          <div class="text-white text-truncate fw-semibold small">{{ request.user.get_full_name|default:request.user.username }}</div>
+          <div class="text-secondary small" style="font-size: 0.7rem;">Administrator</div>
+        </div>
+      </div>
+      <form method="post" action="{% url 'custom_admin:logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-outline-danger w-100 d-flex align-items-center justify-content-center gap-1">
+          <i class="bi bi-box-arrow-right"></i> Sign Out
+        </button>
+      </form>
+    </div>
+  </aside>
+
+  <!-- Main Content Area -->
+  <div class="admin-main">
+    <!-- Top Navigation Bar -->
+    <header class="admin-topbar">
+      <div class="d-flex align-items-center gap-3">
+        <button class="btn btn-light d-lg-none" id="sidebarToggleBtn" type="button" aria-label="Toggle menu">
+          <i class="bi bi-list fs-5"></i>
+        </button>
+        <h5 class="mb-0 fw-bold">{% block page_title %}Dashboard{% endblock %}</h5>
+      </div>
+
+      <div class="d-flex align-items-center gap-3">
+        <a href="{% url 'core:home' %}" target="_blank" class="btn btn-sm btn-outline-secondary d-none d-sm-inline-flex align-items-center gap-1">
+          <i class="bi bi-shop"></i> Storefront
+        </a>
+        <div class="vr d-none d-sm-block"></div>
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-dark text-white fw-medium px-2 py-1">
+            <i class="bi bi-shield-check text-warning me-1"></i>Staff
+          </span>
+          <span class="small fw-semibold text-secondary d-none d-md-inline">{{ request.user.username }}</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Page Content -->
+    <main class="admin-content">
+      {% if messages %}
+        <div class="mb-4">
+          {% for message in messages %}
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags %}{{ message.tags }}{% else %}info{% endif %} alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm" role="alert">
+              {% if message.tags == 'success' %}
+                <i class="bi bi-check-circle-fill text-success fs-5"></i>
+              {% elif message.tags == 'error' or message.tags == 'danger' %}
+                <i class="bi bi-exclamation-triangle-fill text-danger fs-5"></i>
+              {% elif message.tags == 'warning' %}
+                <i class="bi bi-exclamation-circle-fill text-warning fs-5"></i>
+              {% else %}
+                <i class="bi bi-info-circle-fill text-info fs-5"></i>
+              {% endif %}
+              <div class="flex-grow-1">{{ message }}</div>
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+<script>
+  // Mobile sidebar toggle
+  const sidebar = document.getElementById('adminSidebar');
+  const backdrop = document.getElementById('sidebarBackdrop');
+  const toggleBtn = document.getElementById('sidebarToggleBtn');
+  const closeBtn = document.getElementById('sidebarCloseBtn');
+
+  function openSidebar() {
+    sidebar.classList.add('show');
+    backdrop.classList.add('show');
+  }
+
+  function closeSidebar() {
+    sidebar.classList.remove('show');
+    backdrop.classList.remove('show');
+  }
+
+  if (toggleBtn) toggleBtn.addEventListener('click', openSidebar);
+  if (closeBtn) closeBtn.addEventListener('click', closeSidebar);
+  if (backdrop) backdrop.addEventListener('click', closeSidebar);
+</script>
+
+{% block extra_js %}{% endblock %}
+</body>
+</html>

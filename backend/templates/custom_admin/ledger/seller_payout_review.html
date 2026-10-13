@@ -1,0 +1,478 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Payout Review: {{ seller.store_name }} ({{ canonical_cycle }}) — Fitmeezo Admin{% endblock %}
+
+{% block page_title %}Seller Payout Reconciliation &amp; Eligibility Review{% endblock %}
+
+{% block header_actions %}
+<div class="d-flex align-items-center gap-2">
+  <a href="{% url 'custom_admin:seller_payout_management' %}?cycle={{ canonical_cycle }}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+    <i class="bi bi-arrow-left"></i> Back to Payouts
+  </a>
+  <a href="{% url 'custom_admin:seller_payout_history' seller.id %}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+    <i class="bi bi-clock-history"></i> Payout History
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Subsystem Safety Status Warning -->
+<div class="alert alert-warning border-warning border-start border-4 d-flex align-items-start gap-3 shadow-sm mb-4" role="alert">
+  <i class="bi bi-shield-exclamation fs-3 text-warning-emphasis mt-1"></i>
+  <div class="flex-grow-1">
+    <h6 class="alert-heading fw-bold mb-1 text-warning-emphasis">
+      <span class="badge {{ payout_system_status.badge_class }} me-2">{{ payout_system_status.status_label }}</span>
+      Live Transfer Safety Guard
+    </h6>
+    <p class="mb-0 small text-secondary">
+      Live disbursements are disabled. All calculations use immutable double-entry ledger entries and enforced 7-day delivery cooling.
+    </p>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- Left Column: Seller & Reconciliation Cards -->
+  <div class="col-12 col-lg-8">
+    <!-- Merchant Overview Card -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-start border-bottom pb-3 mb-3">
+          <div>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle mb-1">Cycle {{ canonical_cycle }}</span>
+            <h4 class="fw-bold mb-0 text-dark">{{ seller.store_name }}</h4>
+            <span class="text-muted small">{{ seller.business_name|default:seller.user.get_full_name }} &bull; {{ seller.registered_email|default:seller.user.email }}</span>
+          </div>
+          <div class="text-end">
+            <span class="text-muted small d-block">Cycle Net Payable</span>
+            <div class="display-6 fw-bold {% if eligibility.net_eligible_balance > 0 %}text-success{% else %}text-muted{% endif %}">
+              ₹{{ eligibility.net_eligible_balance|floatformat:2 }}
+            </div>
+            <div>
+              {% if active_batch %}
+                {% if active_batch.status == 'on_hold' %}
+                  <span class="badge bg-warning text-dark fs-6">Batch On Hold</span>
+                {% elif active_batch.status == 'completed' %}
+                  <span class="badge bg-success fs-6">Paid (Simulated)</span>
+                {% elif active_batch.approved_at %}
+                  <span class="badge bg-info text-dark fs-6">Approved for Settlement</span>
+                {% else %}
+                  <span class="badge bg-secondary fs-6">Draft Batch Prepared</span>
+                {% endif %}
+              {% else %}
+                {% if eligibility.is_above_threshold and eligibility.is_bank_verified %}
+                  <span class="badge bg-primary fs-6">Eligible for Batch Creation</span>
+                {% elif not eligibility.is_bank_verified %}
+                  <span class="badge bg-warning text-dark fs-6">Ineligible (Bank Unverified)</span>
+                {% else %}
+                  <span class="badge bg-light text-muted border fs-6">No Balance / Below Threshold</span>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3 small">
+          <div class="col-6 col-md-3">
+            <span class="text-muted d-block">Calculation Cycle</span>
+            <span class="fw-bold text-dark">{{ canonical_cycle }} (5th of Month)</span>
+          </div>
+          <div class="col-6 col-md-3">
+            <span class="text-muted d-block">Evaluated Window</span>
+            <span class="fw-semibold text-dark">{{ prev_month_start|date:"d M" }} - {{ prev_month_end|date:"d M Y" }}</span>
+          </div>
+          <div class="col-6 col-md-3">
+            <span class="text-muted d-block">Delivery Cooling</span>
+            <span class="fw-bold text-dark">7 Complete Days</span>
+          </div>
+          <div class="col-6 col-md-3">
+            <span class="text-muted d-block">Active Batch Ref</span>
+            {% if active_batch %}
+              <a href="{% url 'custom_admin:payout_detail' active_batch.batch_reference %}" class="fw-bold font-monospace text-decoration-none">
+                #{{ active_batch.batch_reference }}
+              </a>
+            {% else %}
+              <span class="text-muted">None prepared</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Financial Breakdown Cards -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-calculator me-2 text-primary"></i>Cycle Financial Accounting Breakdown</h6>
+      </div>
+      <div class="card-body p-4">
+        <div class="table-responsive">
+          <table class="table align-middle table-sm mb-0">
+            <tbody>
+              <tr>
+                <td><strong>Gross Eligible Sales (GMV)</strong></td>
+                <td class="text-muted small">Matured order items delivered &gt;7 days prior</td>
+                <td class="text-end fw-bold text-success">+₹{{ eligibility.eligible_sales|floatformat:2 }}</td>
+              </tr>
+              <tr>
+                <td><strong>Platform Commissions</strong></td>
+                <td class="text-muted small">Marketplace fee agreed upon per category</td>
+                <td class="text-end fw-semibold text-danger">-₹{{ eligibility.eligible_commission|floatformat:2 }}</td>
+              </tr>
+              {% if eligibility.eligible_shipping_credit > 0 or eligibility.eligible_shipping_debit > 0 %}
+                <tr>
+                  <td><strong>Shipping Credit / Debit</strong></td>
+                  <td class="text-muted small">Collected customer courier allocation vs cost</td>
+                  <td class="text-end fw-semibold text-dark">
+                    +₹{{ eligibility.eligible_shipping_credit|floatformat:2 }} / -₹{{ eligibility.eligible_shipping_debit|floatformat:2 }}
+                  </td>
+                </tr>
+              {% endif %}
+              <tr>
+                <td><strong>Refunds &amp; Cancellations</strong></td>
+                <td class="text-muted small">Returns, customer cancellations and adjustments</td>
+                <td class="text-end fw-semibold text-danger">-₹{{ eligibility.refunds_and_adjustments|floatformat:2 }}</td>
+              </tr>
+              {% if eligibility.eligible_adjustments != 0 %}
+                <tr>
+                  <td><strong>Manual Adjustments</strong></td>
+                  <td class="text-muted small">Audited admin credit/debit entries</td>
+                  <td class="text-end fw-semibold {% if eligibility.eligible_adjustments > 0 %}text-success{% else %}text-danger{% endif %}">
+                    {% if eligibility.eligible_adjustments > 0 %}+{% endif %}₹{{ eligibility.eligible_adjustments|floatformat:2 }}
+                  </td>
+                </tr>
+              {% endif %}
+              <tr class="table-light fw-bold border-top border-dark">
+                <td>Net Eligible Payable for Cycle</td>
+                <td>Double-entry reconciled balance</td>
+                <td class="text-end fs-6 text-dark">₹{{ eligibility.net_eligible_balance|floatformat:2 }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Held / Excluded Entries (Cooling Period, Unresolved Returns, COD) -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold text-warning-emphasis">
+          <i class="bi bi-pause-circle me-2 text-warning"></i>Ineligible / Held Orders &amp; Entries ({{ eligibility.held_count }})
+        </h6>
+        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+          Held Amount: ₹{{ eligibility.held_balance|floatformat:2 }}
+        </span>
+      </div>
+      <div class="card-body p-0">
+        {% if eligibility.held_entry_details %}
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0 small">
+              <thead class="table-light">
+                <tr>
+                  <th>Entry #</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Hold / Ineligibility Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in eligibility.held_entry_details %}
+                  <tr>
+                    <td class="font-monospace text-muted">#{{ item.entry_id }}</td>
+                    <td>
+                      {% if item.type == 'credit' %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle">+ Credit</span>
+                      {% else %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle">- Debit</span>
+                      {% endif %}
+                    </td>
+                    <td class="fw-semibold text-dark">₹{{ item.amount }}</td>
+                    <td class="text-danger fw-semibold">{{ item.reason }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="p-4 text-center text-muted small">
+            <i class="bi bi-check-circle text-success fs-3 d-block mb-1"></i>
+            No orders or entries are currently on hold for this seller in this cycle.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Covered / Matured Ledger Entries Table -->
+    <div class="card border-0 shadow-sm overflow-hidden mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-list-check me-2 text-primary"></i>Matured Ledger Entries ({{ eligibility.eligible_count }})</h6>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 small">
+          <thead class="table-light">
+            <tr>
+              <th>Date</th>
+              <th>Category</th>
+              <th>Description</th>
+              <th class="text-end">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in eligibility.eligible_entries_queryset %}
+              <tr>
+                <td class="text-muted text-nowrap">{{ entry.created_at|date:"d M Y, H:i" }}</td>
+                <td><span class="badge bg-light text-dark border">{{ entry.get_category_display }}</span></td>
+                <td>
+                  <div class="fw-semibold text-dark">{{ entry.description }}</div>
+                  {% if entry.seller_order %}
+                    <span class="text-muted">Pkg #{{ entry.seller_order.sub_order_number }}</span>
+                  {% endif %}
+                </td>
+                <td class="text-end fw-bold {% if entry.entry_type == 'credit' %}text-success{% else %}text-danger{% endif %}">
+                  {% if entry.entry_type == 'credit' %}+{% else %}-{% endif %}₹{{ entry.amount }}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="text-center py-4 text-muted">No matured ledger entries for this cycle.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Bank Details & Operational Controls -->
+  <div class="col-12 col-lg-4">
+    <!-- Verified Bank Beneficiary Card -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-bank2 me-2 text-primary"></i>Bank Beneficiary Details</h6>
+        <a href="{% url 'custom_admin:seller_bank_verify' seller.id %}" class="btn btn-sm btn-outline-primary" style="font-size: 11px;">
+          Inspect / Verify
+        </a>
+      </div>
+      <div class="card-body p-4 small">
+        <div class="mb-3">
+          <span class="text-muted d-block">Verification Status</span>
+          {% if seller.bank_verification_status == 'verified' %}
+            <span class="badge bg-success fs-6"><i class="bi bi-check-circle-fill me-1"></i>Verified &amp; Approved</span>
+            <div class="text-muted mt-1" style="font-size: 11px;">
+              Approved by {{ seller.bank_verified_by.username|default:"Admin" }} on {{ seller.bank_verified_at|date:"d M Y" }}
+            </div>
+          {% elif seller.bank_verification_status == 'pending' %}
+            <span class="badge bg-warning text-dark fs-6"><i class="bi bi-clock-history me-1"></i>Pending Admin Verification</span>
+          {% else %}
+            <span class="badge bg-danger fs-6"><i class="bi bi-x-circle-fill me-1"></i>Rejected / Unverified</span>
+            {% if seller.bank_rejection_reason %}
+              <div class="text-danger mt-1 small">Reason: {{ seller.bank_rejection_reason }}</div>
+            {% endif %}
+          {% endif %}
+        </div>
+
+        <div class="mb-2">
+          <span class="text-muted d-block">Account Holder</span>
+          <span class="fw-bold text-dark">{{ seller.bank_account_holder_name|default:"Not specified" }}</span>
+        </div>
+
+        <div class="mb-2">
+          <span class="text-muted d-block">Masked Account Number</span>
+          <code class="fw-bold fs-6 text-dark">{{ seller.get_masked_account_number }}</code>
+        </div>
+
+        <div class="mb-2">
+          <span class="text-muted d-block">IFSC Code</span>
+          <span class="fw-semibold text-dark">{{ seller.bank_ifsc_code|default:"Not specified" }}</span>
+        </div>
+
+        <div class="mb-0">
+          <span class="text-muted d-block">Bank Name</span>
+          <span class="fw-semibold text-dark">{{ seller.bank_name|default:"Not specified" }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Active Batch Operational Actions -->
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-gear-wide-connected me-2 text-primary"></i>Operational Controls</h6>
+      </div>
+      <div class="card-body p-4">
+        {% if not active_batch %}
+          <p class="small text-muted mb-3">
+            No active payout batch exists for cycle <strong>{{ canonical_cycle }}</strong>.
+          </p>
+
+          {% if eligibility.is_above_threshold and seller.is_bank_payout_eligible %}
+            <form method="post" action="{% url 'custom_admin:seller_payout_generate' %}">
+              {% csrf_token %}
+              <input type="hidden" name="seller_id" value="{{ seller.id }}">
+              <input type="hidden" name="cycle" value="{{ canonical_cycle }}">
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Preparation Notes</label>
+                <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Optional notes for this batch"></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary w-100 fw-semibold" onclick="return confirm('Prepare locked payout batch for {{ seller.store_name }} for ₹{{ eligibility.net_eligible_balance }}?');">
+                <i class="bi bi-plus-circle me-1"></i>Prepare Cycle Payout Batch
+              </button>
+            </form>
+          {% elif not seller.is_bank_payout_eligible %}
+            <div class="alert alert-warning py-2 small mb-0">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Cannot generate batch: Bank account must be verified by admin first.
+            </div>
+          {% else %}
+            <div class="alert alert-secondary py-2 small mb-0">
+              <i class="bi bi-info-circle me-1"></i>
+              Balance is below the minimum threshold of ₹1.00.
+            </div>
+          {% endif %}
+        {% else %}
+          <!-- Batch exists: Approve / Hold / Release / Reject actions -->
+          <div class="mb-3 p-3 bg-light rounded border small">
+            <div><strong>Batch Reference:</strong> <code>#{{ active_batch.batch_reference }}</code></div>
+            <div><strong>Status:</strong> <span class="badge bg-secondary">{{ active_batch.get_status_display }}</span></div>
+            <div><strong>Batch Amount:</strong> ₹{{ active_batch.amount }}</div>
+            {% if active_batch.hold_reason %}
+              <div class="text-danger mt-1"><strong>Hold Reason:</strong> {{ active_batch.hold_reason }}</div>
+            {% endif %}
+          </div>
+
+          <!-- Approve Button (if draft and not held) -->
+          {% if active_batch.status in 'draft,processing' and not active_batch.approved_at and not active_batch.status == 'on_hold' %}
+            <form method="post" action="{% url 'custom_admin:payout_approve' active_batch.batch_reference %}" class="mb-2">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="btn btn-success w-100 fw-semibold mb-2" onclick="return confirm('Approve batch #{{ active_batch.batch_reference }} for settlement?');">
+                <i class="bi bi-check-circle me-1"></i>Approve for Settlement
+              </button>
+            </form>
+          {% endif %}
+
+          <!-- Hold / Release Actions -->
+          {% if active_batch.status == 'on_hold' %}
+            <form method="post" action="{% url 'custom_admin:payout_release' active_batch.batch_reference %}" class="mb-2">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="btn btn-info w-100 fw-semibold mb-2" onclick="return confirm('Release hold on batch #{{ active_batch.batch_reference }}?');">
+                <i class="bi bi-play-circle me-1"></i>Release Hold
+              </button>
+            </form>
+          {% elif active_batch.status not in 'completed,reversed' %}
+            <button type="button" class="btn btn-outline-warning text-dark w-100 fw-semibold mb-2" data-bs-toggle="modal" data-bs-target="#holdReviewModal">
+              <i class="bi bi-pause-circle me-1"></i>Place Batch On Hold
+            </button>
+          {% endif %}
+
+          <!-- Reject Action -->
+          {% if active_batch.status in 'draft,processing,on_hold' %}
+            <button type="button" class="btn btn-outline-danger w-100 fw-semibold mb-2" data-bs-toggle="modal" data-bs-target="#rejectReviewModal">
+              <i class="bi bi-x-circle me-1"></i>Reject Payout Batch
+            </button>
+          {% endif %}
+
+          <!-- Link to detailed batch execution -->
+          <a href="{% url 'custom_admin:payout_detail' active_batch.batch_reference %}" class="btn btn-outline-secondary w-100 btn-sm">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Open Dedicated Batch Detail
+          </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Audit Timeline for Active Batch -->
+    {% if audit_logs %}
+      <div class="card border-0 shadow-sm">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold"><i class="bi bi-shield-check me-2 text-primary"></i>Batch Audit Timeline</h6>
+        </div>
+        <div class="card-body p-3">
+          <ul class="list-unstyled mb-0 small">
+            {% for log in audit_logs %}
+              <li class="border-bottom pb-2 mb-2">
+                <div class="d-flex justify-content-between align-items-center">
+                  <span class="badge bg-light text-dark border fw-bold">{{ log.get_action_display }}</span>
+                  <span class="text-muted" style="font-size: 11px;">{{ log.created_at|date:"d M H:i" }}</span>
+                </div>
+                <div class="text-secondary mt-1">
+                  By: <strong>{{ log.actor.username|default:"System" }}</strong>
+                </div>
+                {% if log.reason %}
+                  <div class="text-muted mt-1"><em>"{{ log.reason }}"</em></div>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal: Hold Review Batch -->
+{% if active_batch %}
+<div class="modal fade" id="holdReviewModal" tabindex="-1" aria-labelledby="holdReviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <form method="post" action="{% url 'custom_admin:payout_hold' active_batch.batch_reference %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold text-warning-emphasis" id="holdReviewModalLabel">
+            <i class="bi bi-pause-circle text-warning me-2"></i>Hold Payout Batch #{{ active_batch.batch_reference }}
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Placing this payment on hold isolates this seller without blocking other eligible merchants.
+          </p>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Mandatory Hold Reason *</label>
+            <textarea name="reason" class="form-control" rows="3" placeholder="Provide reason for holding this payout" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-warning text-dark fw-semibold">
+            <i class="bi bi-pause-fill"></i> Confirm Hold
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Reject Review Batch -->
+<div class="modal fade" id="rejectReviewModal" tabindex="-1" aria-labelledby="rejectReviewModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <form method="post" action="{% url 'custom_admin:payout_reject' active_batch.batch_reference %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold text-danger" id="rejectReviewModalLabel">
+            <i class="bi bi-x-circle text-danger me-2"></i>Reject Payout Batch #{{ active_batch.batch_reference }}
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Rejecting marks the batch as failed and releases covered entries back to the seller ledger for future review.
+          </p>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Mandatory Rejection Reason *</label>
+            <textarea name="reason" class="form-control" rows="3" placeholder="Provide reason for rejecting this payout" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-danger fw-semibold">
+            <i class="bi bi-x-lg"></i> Confirm Rejection
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Returns & Exchanges — {{ BRAND_NAME }}{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4">
+  <!-- Breadcrumbs -->
+  <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <a href="{% url 'core:account_dashboard' %}" class="fm-breadcrumb-item">
+      <span>My Account</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Returns & Exchanges</span>
+  </nav>
+
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h3 fw-bold text-dark mb-1">
+        <i class="bi bi-arrow-counterclockwise text-primary me-2"></i>My Returns & Exchanges
+      </h1>
+      <p class="text-muted small mb-0">Track status, inspection results, and refund vouchers for returned items.</p>
+    </div>
+    <a href="{% url 'core:account_orders' %}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-bag me-1"></i> View All Orders
+    </a>
+  </div>
+
+  {% if not return_requests %}
+    <div class="card border shadow-sm rounded-3 bg-white text-center p-5">
+      <div class="display-6 text-muted mb-3"><i class="bi bi-box-arrow-left"></i></div>
+      <h4 class="fw-bold text-dark">No Return Requests Found</h4>
+      <p class="text-muted mb-4">You have not initiated any returns or exchanges for your orders.</p>
+      <div>
+        <a href="{% url 'core:account_orders' %}" class="btn btn-primary">
+          <i class="bi bi-bag me-1"></i> Browse Your Orders
+        </a>
+      </div>
+    </div>
+  {% else %}
+    <div class="card border shadow-sm rounded-3 bg-white">
+      <div class="table-responsive">
+        <table class="table align-middle mb-0">
+          <thead class="table-light small text-secondary">
+            <tr>
+              <th scope="col" class="ps-4">Request Details</th>
+              <th scope="col">Parent Order</th>
+              <th scope="col">Type</th>
+              <th scope="col" class="text-center">Items</th>
+              <th scope="col" class="text-center">Status</th>
+              <th scope="col" class="text-end pe-4">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ret in return_requests %}
+              <tr>
+                <td class="ps-4 py-3">
+                  <div class="fw-bold font-monospace text-dark">{{ ret.request_number }}</div>
+                  <div class="small text-muted">{{ ret.created_at|date:"d M Y, h:i A" }}</div>
+                </td>
+                <td>
+                  <a href="{% url 'core:order_detail' order_number=ret.order.order_number %}" class="fw-semibold text-decoration-none">
+                    #{{ ret.order.order_number }}
+                  </a>
+                  <div class="small text-muted font-monospace">{{ ret.seller_order.sub_order_number }}</div>
+                </td>
+                <td>
+                  <span class="badge {% if ret.request_type == 'return' %}bg-info-subtle text-info border border-info-subtle{% else %}bg-primary-subtle text-primary border border-primary-subtle{% endif %}">
+                    {{ ret.get_request_type_display }}
+                  </span>
+                </td>
+                <td class="text-center fw-semibold">
+                  {{ ret.total_quantity }} unit(s)
+                </td>
+                <td class="text-center">
+                  {% if ret.status == 'requested' %}
+                    <span class="badge bg-warning-subtle text-dark border border-warning-subtle">Requested</span>
+                  {% elif ret.status == 'approved' %}
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Approved</span>
+                  {% elif ret.status == 'pickup_pending' %}
+                    <span class="badge bg-info-subtle text-info border border-info-subtle">Pickup Scheduled</span>
+                  {% elif ret.status == 'item_received' %}
+                    <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">Received</span>
+                  {% elif ret.status == 'inspection' %}
+                    <span class="badge bg-warning-subtle text-dark border border-warning-subtle">Inspection</span>
+                  {% elif ret.status == 'processing' %}
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Processing</span>
+                  {% elif ret.status == 'completed' %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">Completed</span>
+                  {% elif ret.status == 'rejected' %}
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Rejected</span>
+                  {% elif ret.status == 'cancelled' %}
+                    <span class="badge bg-secondary-subtle text-muted border border-secondary-subtle">Cancelled</span>
+                  {% endif %}
+                </td>
+                <td class="text-end pe-4">
+                  <a href="{% url 'core:customer_return_detail' request_number=ret.request_number %}" class="btn btn-sm btn-outline-primary">
+                    View Details <i class="bi bi-chevron-right ms-1"></i>
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

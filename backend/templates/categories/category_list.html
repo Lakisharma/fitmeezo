@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}All Product Categories — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Browse all active product categories on Fitmeezo. Explore Electronics, Fashion, Home & Living, Beauty, Sports, and Baby & Kids with smart savings across India.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-3">
+  <!-- Breadcrumbs -->
+  <nav class="fm-breadcrumbs" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">All Categories</span>
+  </nav>
+
+  <!-- Category Index Hero Header -->
+  <header class="fm-category-hero" aria-labelledby="all-categories-heading">
+    <div class="fm-category-hero-inner">
+      <span class="fm-category-pretitle">
+        <i class="bi bi-grid-3x3-gap-fill" aria-hidden="true"></i>
+        <span>Explore Department Stores</span>
+      </span>
+      <h1 id="all-categories-heading" class="fm-category-hero-title">All Product Categories</h1>
+      <p class="fm-category-hero-desc">
+        Discover Fitmeezo’s curated department catalogue. Every category features genuine products,
+        transparent Indian Rupee pricing, and fast delivery to over 19,000 pin codes.
+      </p>
+      <div class="fm-category-hero-meta">
+        <div class="fm-category-meta-pill">
+          <i class="bi bi-layers-fill text-warning" aria-hidden="true"></i>
+          <span>{{ categories|length }} Active Department{{ categories|length|pluralize }}</span>
+        </div>
+        <div class="fm-category-meta-pill">
+          <i class="bi bi-shield-check text-success" aria-hidden="true"></i>
+          <span>100% Genuine Assured</span>
+        </div>
+        <div class="fm-category-meta-pill">
+          <i class="bi bi-truck text-info" aria-hidden="true"></i>
+          <span>Pan-India Delivery</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Category Cards Grid -->
+  {% if categories %}
+    <div class="fm-category-index-grid" role="list">
+      {% for cat in categories %}
+        <article class="fm-category-index-card" role="listitem">
+          <div class="fm-category-index-top">
+            <div class="fm-category-index-icon" aria-hidden="true">
+              <i class="bi {{ cat.icon_class|default:'bi-tag' }}"></i>
+            </div>
+            {% if cat.badge %}
+              <span class="fm-badge fm-badge-primary">{{ cat.badge }}</span>
+            {% endif %}
+          </div>
+
+          <h2 class="fm-category-index-name">
+            <a href="{% url 'core:category_detail' slug=cat.slug %}" class="stretched-link text-decoration-none text-dark">
+              {{ cat.name }}
+            </a>
+          </h2>
+
+          <p class="fm-category-index-desc">
+            {% if cat.description %}
+              {{ cat.description }}
+            {% else %}
+              Explore trending selections and top deals in {{ cat.name }}.
+            {% endif %}
+          </p>
+
+          <div class="fm-category-index-footer">
+            <span>Explore Department</span>
+            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <!-- Empty State if no categories are active -->
+    <div class="fm-category-empty-state">
+      <div class="fm-empty-icon-bubble">
+        <i class="bi bi-folder2-open" aria-hidden="true"></i>
+      </div>
+      <h2 class="fm-empty-title">No Categories Found</h2>
+      <p class="fm-empty-desc">
+        There are currently no active categories published on the storefront.
+        Please check back shortly or return to the homepage.
+      </p>
+      <div class="fm-empty-actions">
+        <a href="{% url 'core:home' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-house-door me-1" aria-hidden="true"></i> Return to Homepage
+        </a>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

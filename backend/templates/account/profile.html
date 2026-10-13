@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Profile — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Manage and update your Fitmeezo customer profile details.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4">
+  <!-- Breadcrumbs -->
+  <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <a href="{% url 'core:account_dashboard' %}" class="fm-breadcrumb-item">
+      <span>My Account</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Profile</span>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-9 col-lg-7">
+      <div class="card border shadow-sm rounded-3 bg-white">
+        <div class="card-header bg-white border-bottom p-4">
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+              <h1 class="h4 fw-bold text-dark mb-1">
+                <i class="bi bi-person-gear me-2" style="color: var(--fm-primary);"></i>Customer Profile
+              </h1>
+              <p class="text-secondary small mb-0">Update your account name, contact email, and phone number</p>
+            </div>
+            <a href="{% url 'core:account_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+            </a>
+          </div>
+        </div>
+
+        <div class="card-body p-4">
+          <!-- Account Metadata Info Box -->
+          <div class="p-3 mb-4 rounded-3 border bg-light d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div>
+              <div class="text-secondary small">Account Username:</div>
+              <div class="fw-bold text-dark">{{ user.username }}</div>
+            </div>
+            <div>
+              <div class="text-secondary small">Registered On:</div>
+              <div class="fw-semibold text-dark">{{ user.date_joined|date:"F d, Y" }}</div>
+            </div>
+            <div>
+              <div class="text-secondary small">Account Status:</div>
+              <span class="badge bg-success-subtle text-success border border-success-subtle">Active Customer</span>
+            </div>
+          </div>
+
+          <form action="{% url 'core:account_profile' %}" method="post" id="fmProfileForm" novalidate>
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+              <div class="alert alert-danger small mb-3">
+                {% for err in form.non_field_errors %}
+                  <div>{{ err }}</div>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            <!-- Full Name -->
+            <div class="mb-3">
+              <label for="{{ form.full_name.id_for_label }}" class="form-label fw-semibold text-dark small">
+                Full Name <span class="text-danger">*</span>
+              </label>
+              {{ form.full_name }}
+              {% if form.full_name.errors %}
+                <div class="text-danger small mt-1">
+                  {{ form.full_name.errors.0 }}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Email Address -->
+            <div class="mb-3">
+              <label for="{{ form.email.id_for_label }}" class="form-label fw-semibold text-dark small">
+                Email Address <span class="text-danger">*</span>
+              </label>
+              {{ form.email }}
+              {% if form.email.errors %}
+                <div class="text-danger small mt-1">
+                  {{ form.email.errors.0 }}
+                </div>
+              {% else %}
+                <div class="form-text text-muted" style="font-size: 11px;">
+                  Used for order receipts and password reset notices.
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Phone Number -->
+            <div class="mb-4">
+              <label for="{{ form.phone_number.id_for_label }}" class="form-label fw-semibold text-dark small">
+                Phone Number <span class="text-muted">(Optional)</span>
+              </label>
+              {{ form.phone_number }}
+              {% if form.phone_number.errors %}
+                <div class="text-danger small mt-1">
+                  {{ form.phone_number.errors.0 }}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Submit -->
+            <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+              <a href="{% url 'core:account_dashboard' %}" class="btn btn-outline-secondary">
+                Cancel
+              </a>
+              <button type="submit" class="fm-btn fm-btn-primary" id="fmSaveProfileBtn">
+                <i class="bi bi-check2 me-1"></i> Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Connected Social Accounts (Prompt 11) -->
+      <div class="card border shadow-sm rounded-3 bg-white mt-4">
+        <div class="card-header bg-white border-bottom p-4">
+          <h2 class="h5 fw-bold text-dark mb-1">
+            <i class="bi bi-shield-lock me-2" style="color: var(--fm-primary);"></i>Connected Social Accounts
+          </h2>
+          <p class="text-secondary small mb-0">Single sign-on providers linked to your {{ BRAND_NAME }} account</p>
+        </div>
+        <div class="card-body p-4">
+          <div class="d-flex flex-column gap-3">
+            <!-- Google Status -->
+            <div class="d-flex align-items-center justify-content-between p-3 border rounded-3 bg-light">
+              <div class="d-flex align-items-center gap-3">
+                <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <div>
+                  <div class="fw-semibold text-dark">Google</div>
+                  <div class="small text-muted">
+                    {% for sa in social_accounts %}
+                      {% if sa.provider == "google" %}
+                        Connected as {{ sa.extra_data.email|default:user.email }}
+                      {% endif %}
+                    {% empty %}
+                      Not connected
+                    {% endfor %}
+                    {% if not social_accounts %}
+                      Not connected
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+              <div>
+                {% for sa in social_accounts %}
+                  {% if sa.provider == "google" %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                      <i class="bi bi-check-circle me-1"></i> Connected
+                    </span>
+                  {% endif %}
+                {% empty %}
+                  <span class="badge bg-secondary-subtle text-secondary border">Not linked</span>
+                {% endfor %}
+                {% if not social_accounts %}
+                  <span class="badge bg-secondary-subtle text-secondary border">Not linked</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- Facebook Status -->
+            <div class="d-flex align-items-center justify-content-between p-3 border rounded-3 bg-light">
+              <div class="d-flex align-items-center gap-3">
+                <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" fill="#1877F2">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                <div>
+                  <div class="fw-semibold text-dark">Facebook</div>
+                  <div class="small text-muted">
+                    {% for sa in social_accounts %}
+                      {% if sa.provider == "facebook" %}
+                        Connected as {{ sa.extra_data.name|default:user.username }}
+                      {% endif %}
+                    {% empty %}
+                      Not connected
+                    {% endfor %}
+                    {% if not social_accounts %}
+                      Not connected
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+              <div>
+                {% for sa in social_accounts %}
+                  {% if sa.provider == "facebook" %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                      <i class="bi bi-check-circle me-1"></i> Connected
+                    </span>
+                  {% endif %}
+                {% empty %}
+                  <span class="badge bg-secondary-subtle text-secondary border">Not linked</span>
+                {% endfor %}
+                {% if not social_accounts %}
+                  <span class="badge bg-secondary-subtle text-secondary border">Not linked</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

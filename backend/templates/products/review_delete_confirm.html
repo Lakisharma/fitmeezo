@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Delete Review Confirmation — {{ BRAND_NAME }}{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4">
+  <!-- Breadcrumbs -->
+  <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <a href="{{ product.get_absolute_url }}" class="fm-breadcrumb-item">
+      <span>{{ product.name }}</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Delete Review</span>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-7 col-lg-6">
+      <div class="card border border-danger-subtle shadow-sm rounded-3 bg-white p-4 p-md-5 text-center">
+        <div class="mx-auto p-3 rounded-circle mb-3 bg-danger-subtle text-danger" style="width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;">
+          <i class="bi bi-trash fs-3"></i>
+        </div>
+
+        <h1 class="h5 fw-bold text-dark mb-2">Delete Your Review?</h1>
+        <p class="text-secondary small mb-4">
+          Are you sure you want to permanently remove your review for <strong>{{ product.name }}</strong>? This action cannot be reversed.
+        </p>
+
+        <!-- Review Snapshot Card -->
+        <div class="card bg-light border-0 p-3 rounded-3 text-start mb-4">
+          <div class="d-flex align-items-center gap-2 mb-1">
+            <span class="text-warning">
+              {% for i in "12345" %}
+                {% if forloop.counter <= review.rating %}
+                  <i class="bi bi-star-fill"></i>
+                {% else %}
+                  <i class="bi bi-star text-muted"></i>
+                {% endif %}
+              {% endfor %}
+            </span>
+            <strong class="text-dark small">{{ review.title }}</strong>
+          </div>
+          <div class="text-secondary small text-truncate">{{ review.comment }}</div>
+          <div class="text-muted small mt-2">Submitted on {{ review.created_at|date:"F d, Y" }}</div>
+        </div>
+
+        <form action="" method="post">
+          {% csrf_token %}
+          {% if next %}
+            <input type="hidden" name="next" value="{{ next }}">
+          {% endif %}
+          <div class="d-flex justify-content-center gap-2">
+            <a href="{% if next %}{{ next }}{% else %}{{ product.get_absolute_url }}#reviews{% endif %}" class="fm-btn fm-btn-outline fm-btn-sm">
+              <i class="bi bi-arrow-left me-1"></i> Cancel
+            </a>
+            <button type="submit" class="btn btn-danger btn-sm px-3">
+              <i class="bi bi-trash me-1"></i> Confirm &amp; Delete Review
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

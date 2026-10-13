@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 56" width="240" height="56" fill="none" role="img" aria-label="Fitmeezo Logo">
+  <!-- Fitmeezo Brand Emblem -->
+  <g transform="translate(4, 6)">
+    <!-- Rounded Background Hex/Shield -->
+    <rect x="0" y="0" width="44" height="44" rx="12" fill="#121212" />
+    <!-- Dynamic Accent Shape (F & Smart Shopping Arrow) -->
+    <path d="M12 12 H32 V18 H18 V22 H28 V27 H18 V33 H12 Z" fill="#FFFFFF" />
+    <circle cx="28" cy="30" r="3.5" fill="#FF6B00" />
+    <path d="M28 12 L35 12 L35 18 Z" fill="#FF6B00" />
+  </g>
+
+  <!-- Fitmeezo Typography Wordmark -->
+  <text x="58" y="32" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="25" font-weight="800" fill="#121212" letter-spacing="-0.5">
+    Fitmee<tspan fill="#FF6B00">zo</tspan>
+  </text>
+  
+  <!-- Fitmeezo Tagline -->
+  <text x="59" y="45" font-family="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif" font-size="7.5" font-weight="700" fill="#666666" letter-spacing="1.4">
+    SHOP SMART • LIVE BETTER
+  </text>
+</svg>

@@ -1,0 +1,189 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Payout History: {{ seller.store_name }} — Admin Console | Fitmeezo{% endblock %}
+
+{% block page_title %}Seller Payout History &amp; Audit Trail{% endblock %}
+
+{% block header_actions %}
+<div class="d-flex align-items-center gap-2">
+  <a href="{% url 'custom_admin:seller_payout_management' %}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+    <i class="bi bi-arrow-left"></i> Back to Payouts
+  </a>
+  <a href="{% url 'custom_admin:seller_payout_review' seller.id %}" class="btn btn-sm btn-primary d-flex align-items-center gap-1">
+    <i class="bi bi-calculator"></i> Current Cycle Review
+  </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Merchant Summary Header Card -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body p-4">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+      <div>
+        <div class="d-flex align-items-center gap-2">
+          <h4 class="fw-bold mb-0 text-dark">{{ seller.store_name }}</h4>
+          {% if seller.bank_verification_status == 'verified' %}
+            <span class="badge bg-success-subtle text-success border border-success-subtle">
+              <i class="bi bi-patch-check-fill me-1"></i>Verified Beneficiary
+            </span>
+          {% else %}
+            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">
+              {{ seller.get_bank_verification_status_display }}
+            </span>
+          {% endif %}
+        </div>
+        <div class="text-muted small mt-1">
+          {{ seller.business_name|default:seller.user.get_full_name }} &bull; {{ seller.registered_email|default:seller.user.email }}
+        </div>
+      </div>
+      <div class="text-end">
+        <span class="text-muted small d-block">Bank Account</span>
+        <code class="fw-bold text-dark fs-6">{{ masked_account }}</code>
+        <div class="text-muted small">{{ seller.bank_name|default:"IFSC: " }}{{ seller.bank_ifsc_code|default:"" }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Historical Payout Batches Table -->
+<div class="card border-0 shadow-sm overflow-hidden mb-4">
+  <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+    <h6 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2 text-primary"></i>Historical Payout Batches ({{ page_obj.paginator.count }})</h6>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Batch Reference</th>
+          <th>Cycle</th>
+          <th>Created</th>
+          <th>Status</th>
+          <th class="text-end">Amount</th>
+          <th>Approved By</th>
+          <th>Processed Date</th>
+          <th>Simulated Ref</th>
+          <th class="text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in page_obj %}
+          <tr>
+            <td>
+              <a href="{% url 'custom_admin:payout_detail' b.batch_reference %}" class="fw-bold font-monospace text-decoration-none text-dark">
+                #{{ b.batch_reference }}
+              </a>
+            </td>
+            <td>
+              <span class="badge bg-light text-dark border font-monospace">{{ b.payout_cycle|default:"Ad-hoc" }}</span>
+            </td>
+            <td class="text-muted small text-nowrap">{{ b.created_at|date:"d M Y, H:i" }}</td>
+            <td>
+              {% if b.status == 'completed' %}
+                <span class="badge bg-success">Paid (Simulated)</span>
+              {% elif b.status == 'on_hold' %}
+                <span class="badge bg-warning text-dark">On Hold</span>
+              {% elif b.status == 'failed' %}
+                <span class="badge bg-danger">Failed</span>
+              {% elif b.status == 'reversed' %}
+                <span class="badge text-white" style="background:#7c3aed;">Reversed</span>
+              {% elif b.approved_at %}
+                <span class="badge bg-info text-dark">Approved</span>
+              {% else %}
+                <span class="badge bg-secondary">Draft</span>
+              {% endif %}
+            </td>
+            <td class="text-end fw-bold text-dark">₹{{ b.amount|floatformat:2 }}</td>
+            <td class="small text-muted">
+              {{ b.approved_by.username|default:"—" }}
+              {% if b.approved_at %}<br><span style="font-size: 11px;">{{ b.approved_at|date:"d M Y" }}</span>{% endif %}
+            </td>
+            <td class="small text-muted text-nowrap">
+              {{ b.processed_at|date:"d M Y, H:i"|default:"Pending" }}
+            </td>
+            <td class="small font-monospace text-muted">
+              {{ b.external_reference|default:"—" }}
+            </td>
+            <td class="text-end">
+              <a href="{% url 'custom_admin:payout_detail' b.batch_reference %}" class="btn btn-sm btn-outline-secondary">
+                View
+              </a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="9" class="text-center py-4 text-muted">No payout batches recorded for this seller yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+    <div class="card-footer bg-white border-top py-3 d-flex justify-content-between align-items-center">
+      <span class="small text-muted">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+      <ul class="pagination pagination-sm mb-0">
+        {% if page_obj.has_previous %}
+          <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+        {% endif %}
+        {% for p in page_obj.paginator.page_range %}
+          {% if p == page_obj.number %}
+            <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+          {% elif p >= page_obj.number|add:"-2" and p <= page_obj.number|add:"2" %}
+            <li class="page-item"><a class="page-link" href="?page={{ p }}">{{ p }}</a></li>
+          {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+          <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
+        {% endif %}
+      </ul>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Detailed Audit Trail -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white border-bottom py-3">
+    <h6 class="mb-0 fw-bold"><i class="bi bi-shield-check me-2 text-primary"></i>Audit Log Activity Trail</h6>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0 small">
+      <thead class="table-light">
+        <tr>
+          <th>Timestamp</th>
+          <th>Batch Ref</th>
+          <th>Action</th>
+          <th>From &rarr; To Status</th>
+          <th>Actor</th>
+          <th>Explanation / Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in audit_logs %}
+          <tr>
+            <td class="text-muted text-nowrap">{{ log.created_at|date:"d M Y, H:i:s" }}</td>
+            <td class="font-monospace fw-bold">
+              <a href="{% url 'custom_admin:payout_detail' log.payout_batch.batch_reference %}" class="text-decoration-none">
+                #{{ log.payout_batch.batch_reference }}
+              </a>
+            </td>
+            <td><span class="badge bg-light text-dark border">{{ log.get_action_display }}</span></td>
+            <td>
+              <span class="text-muted">{{ log.from_status }}</span>
+              <i class="bi bi-arrow-right mx-1 text-secondary"></i>
+              <span class="fw-semibold text-dark">{{ log.to_status }}</span>
+            </td>
+            <td><strong>{{ log.actor.username|default:"System" }}</strong></td>
+            <td class="text-secondary">{{ log.reason|default:"—" }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-4 text-muted">No audit logs recorded yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

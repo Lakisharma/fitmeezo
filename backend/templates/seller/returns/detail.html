@@ -1,0 +1,284 @@
+{% extends "seller/base.html" %}
+{% load static %}
+
+{% block title %}Manage Return #{{ return_request.request_number }} — Seller Portal — {{ BRAND_NAME }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+    <div>
+      <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+        <h1 class="h3 fw-bold text-dark mb-0 font-monospace">Return #{{ return_request.request_number }}</h1>
+        <span class="badge {% if return_request.status == 'completed' %}bg-success{% elif return_request.status == 'rejected' or return_request.status == 'cancelled' %}bg-danger{% else %}bg-warning text-dark{% endif %} fs-6">
+          {{ return_request.get_status_display }}
+        </span>
+      </div>
+      <p class="text-muted small mb-0">
+        Package: <strong class="font-monospace text-dark">{{ return_request.seller_order.sub_order_number }}</strong> •
+        Customer: <strong>{{ return_request.customer.get_full_name|default:return_request.customer.username }}</strong> ({{ return_request.customer.email }})
+      </p>
+    </div>
+
+    <a href="{% url 'core:seller_return_list' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i> Back to Returns List
+    </a>
+  </div>
+
+  <div class="row g-4">
+    <div class="col-lg-8">
+      <!-- Items Card -->
+      <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-header bg-white border-bottom py-3">
+          <h5 class="fw-bold text-dark mb-0">
+            <i class="bi bi-box-seam me-2 text-primary"></i>Returned Merchandise
+          </h5>
+        </div>
+        <div class="card-body p-0">
+          <div class="table-responsive">
+            <table class="table align-middle mb-0 seller-table">
+              <thead>
+                <tr>
+                  <th class="ps-4">Item Details</th>
+                  <th class="text-center">Return Qty</th>
+                  <th class="text-center">Unit Price</th>
+                  <th class="text-center">Refund Subtotal</th>
+                  <th class="text-center">Inspection Decision</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in return_request.items.all %}
+                  <tr>
+                    <td class="ps-4 py-3">
+                      <div class="fw-bold text-dark">{{ item.order_item.product_name }}</div>
+                      {% if item.order_item.variant_label %}
+                        <div class="small text-muted">{{ item.order_item.variant_label }}</div>
+                      {% endif %}
+                      <div class="small text-muted font-monospace">SKU: {{ item.order_item.sku }}</div>
+                      {% if item.exchange_variant %}
+                        <div class="small text-primary mt-1">
+                          <i class="bi bi-arrow-left-right me-1"></i> Requested Exchange: <strong>{{ item.exchange_variant.option_type }}: {{ item.exchange_variant.option_value }}</strong>
+                        </div>
+                      {% endif %}
+                    </td>
+                    <td class="text-center fw-bold">{{ item.quantity }}</td>
+                    <td class="text-center">{{ CURRENCY_SYMBOL }}{{ item.item_unit_price }}</td>
+                    <td class="text-center fw-bold text-success">{{ CURRENCY_SYMBOL }}{{ item.refund_eligible_amount }}</td>
+                    <td class="text-center">
+                      {% if item.inspection_status == 'passed' %}
+                        <span class="badge bg-success">Passed</span>
+                        {% if item.restock_inventory %}<div class="small text-muted">Restocked</div>{% endif %}
+                      {% elif item.inspection_status == 'failed' %}
+                        <span class="badge bg-danger">Failed / Damaged</span>
+                      {% else %}
+                        <span class="badge bg-secondary">Pending Inspection</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Card: Status Update & Inspection Form -->
+      {% if allowed_transitions %}
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+          <div class="card-header bg-white border-bottom py-3">
+            <h5 class="fw-bold text-dark mb-0">
+              <i class="bi bi-gear-fill me-2 text-warning"></i>Process Lifecycle Transition
+            </h5>
+          </div>
+          <div class="card-body p-4">
+            <form method="post" action="{% url 'core:seller_return_action' request_number=return_request.request_number %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="transition">
+
+              {% if return_request.status == 'inspection' or return_request.status == 'item_received' %}
+                <div class="p-3 bg-light rounded border mb-4">
+                  <h6 class="fw-bold mb-3"><i class="bi bi-clipboard-check me-2"></i>Physical Inspection Results</h6>
+                  {% for item in return_request.items.all %}
+                    <div class="row g-2 align-items-center mb-3 pb-3 border-bottom">
+                      <div class="col-md-5">
+                        <strong>{{ item.order_item.product_name }}</strong> (x{{ item.quantity }})
+                      </div>
+                      <div class="col-md-3">
+                        <select name="item_{{ item.id }}_inspection_status" class="form-select form-select-sm">
+                          <option value="passed" {% if item.inspection_status == 'passed' %}selected{% endif %}>Inspection Passed (Good)</option>
+                          <option value="failed" {% if item.inspection_status == 'failed' %}selected{% endif %}>Inspection Failed (Damaged)</option>
+                        </select>
+                      </div>
+                      <div class="col-md-4">
+                        <div class="form-check">
+                          <input class="form-check-input" type="checkbox" name="item_{{ item.id }}_restock" id="restock_{{ item.id }}" {% if item.restock_inventory %}checked{% endif %}>
+                          <label class="form-check-label small" for="restock_{{ item.id }}">
+                            Restock units to catalogue
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold" for="{{ action_form.status.id_for_label }}">Select Target Status <span class="text-danger">*</span></label>
+                  {{ action_form.status }}
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold" for="{{ action_form.notes.id_for_label }}">Internal Remarks / Note</label>
+                  {{ action_form.notes }}
+                </div>
+                <div class="col-12" id="rejection_box">
+                  <label class="form-label fw-bold text-danger" for="{{ action_form.rejection_reason.id_for_label }}">
+                    Rejection Reason (Mandatory if Rejecting)
+                  </label>
+                  {{ action_form.rejection_reason }}
+                </div>
+              </div>
+
+              <div class="text-end">
+                <button type="submit" class="btn btn-dark fw-bold px-4">
+                  <i class="bi bi-check2-circle me-1"></i> Update Return Status
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Mock Refund Voucher Settlement Card -->
+      {% if return_request.status == 'processing' and not return_request.refund_records.exists %}
+        <div class="card border-0 shadow-sm rounded-3 mb-4 border-start border-success border-4">
+          <div class="card-header bg-white border-bottom py-3">
+            <h5 class="fw-bold text-success mb-0">
+              <i class="bi bi-cash-stack me-2"></i>Issue Internal Mock Refund Settlement
+            </h5>
+          </div>
+          <div class="card-body p-4">
+            <div class="alert alert-info py-2 px-3 small mb-3">
+              <i class="bi bi-shield-check me-1"></i> Safe internal settlement mode: Zero external Razorpay or banking API calls are made. Produces a durable mock audit voucher.
+            </div>
+
+            <form method="post" action="{% url 'core:seller_return_action' request_number=return_request.request_number %}">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="refund">
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label fw-bold" for="{{ refund_form.approved_amount.id_for_label }}">Approved Refund Amount (INR) <span class="text-danger">*</span></label>
+                  {{ refund_form.approved_amount }}
+                  <div class="form-text">Max eligible: ₹{{ return_request.total_refund_amount }}</div>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label fw-bold" for="{{ refund_form.reason.id_for_label }}">Voucher Justification</label>
+                  {{ refund_form.reason }}
+                </div>
+              </div>
+
+              <div class="text-end">
+                <button type="submit" class="btn btn-success fw-bold px-4" onclick="return confirm('Settle simulated refund voucher of ₹' + document.getElementById('id_approved_amount').value + '?');">
+                  <i class="bi bi-check-all me-1"></i> Settle Mock Refund &amp; Complete Return
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Refund Vouchers if any exist -->
+      {% if return_request.refund_records.exists %}
+        <div class="card border-0 shadow-sm rounded-3 mb-4">
+          <div class="card-header bg-white border-bottom py-3">
+            <h5 class="fw-bold text-dark mb-0">
+              <i class="bi bi-receipt-cutoff me-2 text-success"></i>Recorded Refund Vouchers
+            </h5>
+          </div>
+          <div class="card-body p-3">
+            {% for ref in return_request.refund_records.all %}
+              <div class="p-3 mb-2 rounded bg-light border d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <div class="fw-bold font-monospace">{{ ref.refund_reference }}</div>
+                  <div class="small text-muted">External Ref: <strong>{{ ref.external_reference }}</strong> (Mock)</div>
+                  <div class="small text-secondary mt-1">
+                    Commission Reversed: ₹{{ ref.commission_reversal }} • Net Seller Payable Deduction: ₹{{ ref.seller_payable_deduction }}
+                  </div>
+                </div>
+                <div class="text-end">
+                  <div class="h5 fw-bold text-success mb-0">{{ CURRENCY_SYMBOL }}{{ ref.approved_amount }}</div>
+                  <span class="badge bg-success">{{ ref.get_status_display }}</span>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+
+      <!-- Audit Timeline -->
+      <div class="card border-0 shadow-sm rounded-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h5 class="fw-bold text-dark mb-0">
+            <i class="bi bi-clock-history me-2 text-primary"></i>Audit Trail & History
+          </h5>
+        </div>
+        <div class="card-body p-4">
+          <ul class="list-group list-group-flush">
+            {% for log in return_request.audit_logs.all %}
+              <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-start">
+                <div>
+                  <div class="fw-semibold text-dark">{{ log.action|title }} <span class="badge bg-light text-dark border small">{{ log.actor_role }}</span></div>
+                  <div class="small text-muted">{{ log.notes }}</div>
+                </div>
+                <div class="small text-muted text-end">
+                  {{ log.created_at|date:"d M Y, h:i A" }}
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-4">
+      <!-- Request Details Card -->
+      <div class="card border-0 shadow-sm rounded-3 mb-4">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="fw-bold text-dark mb-0">Request Summary</h6>
+        </div>
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between py-2 border-bottom small">
+            <span class="text-muted">Type:</span>
+            <span class="fw-bold">{{ return_request.get_request_type_display }}</span>
+          </div>
+          <div class="d-flex justify-content-between py-2 border-bottom small">
+            <span class="text-muted">Reason:</span>
+            <span class="fw-bold">{{ return_request.get_reason_display }}</span>
+          </div>
+          <div class="d-flex justify-content-between py-2 border-bottom small">
+            <span class="text-muted">Inventory Restored:</span>
+            <span>{% if return_request.inventory_restored %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</span>
+          </div>
+          <div class="d-flex justify-content-between py-2 small">
+            <span class="text-muted">Max Refundable:</span>
+            <span class="fw-bold text-success">{{ CURRENCY_SYMBOL }}{{ return_request.total_refund_amount }}</span>
+          </div>
+
+          {% if return_request.customer_notes %}
+            <div class="mt-3 pt-3 border-top">
+              <label class="form-label text-muted small fw-semibold">Customer Notes:</label>
+              <div class="p-2 rounded bg-light small text-dark fst-italic">"{{ return_request.customer_notes }}"</div>
+            </div>
+          {% endif %}
+          {% if return_request.seller_notes %}
+            <div class="mt-3 pt-3 border-top">
+              <label class="form-label text-muted small fw-semibold">Seller Internal Notes:</label>
+              <div class="p-2 rounded bg-light small text-dark font-monospace" style="white-space: pre-wrap;">{{ return_request.seller_notes }}</div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

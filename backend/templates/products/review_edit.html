@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Edit Review for {{ product.name }} — {{ BRAND_NAME }}{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4">
+  <!-- Breadcrumbs -->
+  <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <a href="{{ product.get_absolute_url }}" class="fm-breadcrumb-item">
+      <span>{{ product.name }}</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Edit Review</span>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-7">
+      <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5">
+        <div class="d-flex align-items-center gap-3 mb-4 pb-3 border-bottom">
+          {% if product.image %}
+            <img src="{{ product.image.url }}" alt="{{ product.name }}" style="width: 64px; height: 64px; object-fit: cover; border-radius: 8px;">
+          {% else %}
+            <img src="{% static 'images/brand/product-fallback.svg' %}" alt="{{ product.name }}" style="width: 64px; height: 64px; border-radius: 8px;">
+          {% endif %}
+          <div>
+            <span class="badge mb-1" style="background: var(--fm-primary); font-size: 11px;">Update Review</span>
+            <h1 class="h5 fw-bold text-dark mb-0">{{ product.name }}</h1>
+          </div>
+        </div>
+
+        <form action="" method="post" id="fmEditReviewForm">
+          {% csrf_token %}
+          {% if next %}
+            <input type="hidden" name="next" value="{{ next }}">
+          {% endif %}
+
+          <!-- Interactive 1-5 Star Rating Selector -->
+          <div class="mb-3" id="fmStarRatingGroup">
+            <label class="form-label fw-semibold text-dark small mb-1">
+              Overall Rating <span class="text-danger">*</span>
+            </label>
+            <div class="d-flex align-items-center gap-2">
+              <div class="fm-star-rating-widget d-inline-flex gap-1" role="radiogroup" aria-label="Rating from 1 to 5 stars">
+                {% for star_val in "12345" %}
+                  <button type="button"
+                          class="btn btn-link p-0 text-decoration-none fm-star-btn"
+                          data-star="{{ star_val }}"
+                          role="radio"
+                          aria-checked="{% if review.rating|slugify == star_val %}true{% else %}false{% endif %}"
+                          aria-label="{{ star_val }} star{% if star_val != '1' %}s{% endif %}"
+                          style="font-size: 28px; line-height: 1; color: {% if forloop.counter <= review.rating %}#FF6B00{% else %}#D1D5DB{% endif %}; transition: color 0.15s ease;"
+                          id="star_btn_{{ star_val }}">
+                    <i class="bi bi-star-fill"></i>
+                  </button>
+                {% endfor %}
+              </div>
+              <span class="fm-star-rating-label small fw-semibold text-dark ms-2" id="fmRatingLabel">
+                {{ review.rating }} Star{{ review.rating|pluralize }}
+              </span>
+            </div>
+            <input type="hidden" name="rating" id="fmReviewRatingInput" value="{{ review.rating }}" required>
+          </div>
+
+          <!-- Review Headline -->
+          <div class="mb-3">
+            <label for="fmReviewTitle" class="form-label fw-semibold text-dark small mb-1">
+              Review Headline <span class="text-danger">*</span>
+            </label>
+            <input type="text"
+                   name="title"
+                   id="fmReviewTitle"
+                   class="form-control fm-input"
+                   value="{{ form.title.value|default:review.title }}"
+                   maxlength="200"
+                   required>
+          </div>
+
+          <!-- Detailed Feedback Comment -->
+          <div class="mb-4">
+            <label for="fmReviewComment" class="form-label fw-semibold text-dark small mb-1">
+              Detailed Feedback <span class="text-danger">*</span>
+            </label>
+            <textarea name="comment"
+                      id="fmReviewComment"
+                      class="form-control fm-input"
+                      rows="4"
+                      required>{{ form.comment.value|default:review.comment }}</textarea>
+          </div>
+
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-2 border-top">
+            <a href="{% if next %}{{ next }}{% else %}{{ product.get_absolute_url }}#reviews{% endif %}" class="fm-btn fm-btn-outline fm-btn-sm">
+              <i class="bi bi-arrow-left me-1"></i> Cancel
+            </a>
+            <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm">
+              <i class="bi bi-check2-circle me-1"></i> Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const starBtns = document.querySelectorAll('.fm-star-btn');
+    const ratingInput = document.getElementById('fmReviewRatingInput');
+    const ratingLabel = document.getElementById('fmRatingLabel');
+    const labels = {
+      1: "1 Star — Poor",
+      2: "2 Stars — Fair",
+      3: "3 Stars — Average",
+      4: "4 Stars — Very Good",
+      5: "5 Stars — Excellent!"
+    };
+
+    function highlightStars(val) {
+      starBtns.forEach(btn => {
+        const s = parseInt(btn.dataset.star, 10);
+        if (s <= val) {
+          btn.style.color = '#FF6B00';
+        } else {
+          btn.style.color = '#D1D5DB';
+        }
+      });
+      if (val > 0 && ratingLabel) {
+        ratingLabel.textContent = labels[val] || `${val} Stars`;
+      }
+    }
+
+    starBtns.forEach(btn => {
+      btn.addEventListener('mouseenter', function() {
+        highlightStars(parseInt(this.dataset.star, 10));
+      });
+      btn.addEventListener('mouseleave', function() {
+        const cur = parseInt(ratingInput.value, 10) || 0;
+        highlightStars(cur);
+      });
+      btn.addEventListener('click', function() {
+        const s = parseInt(this.dataset.star, 10);
+        ratingInput.value = s;
+        starBtns.forEach(b => b.setAttribute('aria-checked', b.dataset.star == s ? 'true' : 'false'));
+        highlightStars(s);
+      });
+    });
+  })();
+</script>
+{% endblock %}

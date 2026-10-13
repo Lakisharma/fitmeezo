@@ -1,0 +1,1109 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ product.name }} — Buy Online at {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}{% if product.short_description %}{{ product.short_description }}{% else %}Buy {{ product.name }} online at {{ BRAND_NAME }}. Best prices in INR, genuine quality assured, and fast delivery across India.{% endif %}{% endblock %}
+
+{% block content %}
+<div class="fm-container py-3">
+  <!-- Breadcrumbs -->
+  <nav class="fm-breadcrumbs" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <a href="{% url 'core:category_list' %}" class="fm-breadcrumb-item">
+      <span>Categories</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <a href="{% url 'core:category_detail' slug=category.slug %}" class="fm-breadcrumb-item">
+      <span>{{ category.name }}</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">{{ product.name }}</span>
+  </nav>
+
+  <!-- Product Detail Showcase Card -->
+  <article class="fm-product-detail-card" aria-labelledby="product-name-heading">
+    <div class="row g-4 align-items-start">
+      <!-- Left Column: Product Gallery -->
+      <div class="col-12 col-md-6 col-lg-5">
+        <div class="fm-detail-img-box">
+          {% if product.image %}
+            <img src="{{ product.image.url }}"
+                 alt="{{ product.name }}"
+                 id="fmMainProductImg"
+                 class="fm-detail-main-img"
+                 loading="eager"
+                 onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+          {% else %}
+            <img src="{% static 'images/brand/product-fallback.svg' %}"
+                 alt="{{ product.name }}"
+                 id="fmMainProductImg"
+                 class="fm-detail-main-img"
+                 loading="eager">
+          {% endif %}
+
+          {% if not product.is_in_stock %}
+            <span class="fm-badge-stock-out">Out of Stock</span>
+          {% elif product.is_featured %}
+            <span class="fm-product-badge">Featured</span>
+          {% endif %}
+        </div>
+
+        <!-- Additional Gallery Thumbnails -->
+        {% if product.images.all %}
+          <div class="fm-detail-gallery-strip mt-3" aria-label="Additional product images">
+            {% for gallery_img in product.images.all %}
+              <div class="fm-gallery-thumb">
+                <img src="{{ gallery_img.image.url }}"
+                     alt="{{ gallery_img.alt_text|default:product.name }}"
+                     loading="lazy">
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- Right Column: Product Information & Purchase Area -->
+      <div class="col-12 col-md-6 col-lg-7">
+        <div class="fm-detail-info">
+          <!-- Department Tag & SKU -->
+          <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+            <a href="{% url 'core:category_detail' slug=category.slug %}" class="fm-category-meta-pill text-decoration-none">
+              <i class="bi {{ category.icon_class|default:'bi-tag' }}"></i>
+              <span>{{ category.name }}</span>
+            </a>
+            <span class="fm-sku-badge" title="Stock Keeping Unit">
+              SKU: <strong id="fmDisplaySku">{% if active_variants %}{{ active_variants.0.sku }}{% else %}{{ product.sku }}{% endif %}</strong>
+            </span>
+          </div>
+
+          <h1 id="product-name-heading" class="fm-detail-title mb-2">{{ product.name }}</h1>
+
+          <!-- Rating Quick Summary -->
+          <div class="mb-3">
+            {% if total_approved_reviews > 0 %}
+              <a href="#reviews" class="d-inline-flex align-items-center gap-2 text-decoration-none" aria-label="{{ rating_breakdown.average_rating }} out of 5 stars based on {{ total_approved_reviews }} reviews">
+                <span class="badge d-inline-flex align-items-center gap-1 px-2 py-1" style="background: #FFF3EA; color: var(--fm-primary); border: 1px solid rgba(255,107,0,0.3); font-size: 13px;">
+                  <span class="fw-bold">{{ rating_breakdown.average_rating }}</span>
+                  <i class="bi bi-star-fill text-warning"></i>
+                </span>
+                <span class="text-secondary small fw-medium text-decoration-underline">
+                  {{ total_approved_reviews }} rating{{ total_approved_reviews|pluralize }} &amp; review{{ total_approved_reviews|pluralize }}
+                </span>
+              </a>
+            {% else %}
+              <a href="#reviews" class="text-muted small text-decoration-none d-inline-flex align-items-center gap-1">
+                <i class="bi bi-star text-muted"></i>
+                <span>No reviews yet • <span class="text-primary text-decoration-underline">Write the first review</span></span>
+              </a>
+            {% endif %}
+          </div>
+
+          <!-- Pricing Block -->
+          <div class="fm-detail-pricing-box mb-3" id="fmPricingBox">
+            <div class="d-flex align-items-baseline gap-2 flex-wrap">
+              <span class="fm-detail-price-current" id="fmDisplayPrice">
+                {% if active_variants %}
+                  {{ CURRENCY_SYMBOL }}{{ active_variants.0.effective_price }}
+                {% else %}
+                  {{ CURRENCY_SYMBOL }}{{ product.price }}
+                {% endif %}
+              </span>
+
+              <span class="fm-detail-price-original"
+                    id="fmDisplayComparePrice"
+                    {% if active_variants %}
+                      {% if not active_variants.0.effective_compare_at_price or active_variants.0.effective_compare_at_price <= active_variants.0.effective_price %}style="display: none;"{% endif %}
+                    {% else %}
+                      {% if not product.compare_at_price or product.compare_at_price <= product.price %}style="display: none;"{% endif %}
+                    {% endif %}>
+                {% if active_variants %}
+                  {% if active_variants.0.effective_compare_at_price and active_variants.0.effective_compare_at_price > active_variants.0.effective_price %}
+                    {{ CURRENCY_SYMBOL }}{{ active_variants.0.effective_compare_at_price }}
+                  {% endif %}
+                {% elif product.compare_at_price and product.compare_at_price > product.price %}
+                  {{ CURRENCY_SYMBOL }}{{ product.compare_at_price }}
+                {% endif %}
+              </span>
+
+              <span class="fm-discount-chip"
+                    id="fmDisplayDiscount"
+                    {% if active_variants %}
+                      {% if active_variants.0.discount_percentage <= 0 %}style="display: none;"{% endif %}
+                    {% else %}
+                      {% if product.discount_percentage <= 0 %}style="display: none;"{% endif %}
+                    {% endif %}>
+                {% if active_variants %}
+                  {{ active_variants.0.discount_percentage }}% OFF
+                {% else %}
+                  {{ product.discount_percentage }}% OFF
+                {% endif %}
+              </span>
+            </div>
+            <div class="small text-muted mt-1">Inclusive of all taxes • Free shipping eligible</div>
+          </div>
+
+          <!-- Variant Selectors (Shown only when active variants exist) -->
+          {% if active_variants %}
+            <div class="fm-variant-selectors-container mb-3" id="fmVariantSelectors" aria-label="Product options selection">
+              {% for opt_type, variants_list in variants_by_type.items %}
+                <fieldset class="fm-variant-group mb-3" data-option-type="{{ opt_type }}" aria-labelledby="label-opt-{{ forloop.counter }}">
+                  <legend id="label-opt-{{ forloop.counter }}" class="fm-variant-label">
+                    <span class="fw-semibold">Select {{ opt_type }}:</span>
+                    <span class="fm-selected-value fw-bold text-dark ms-1" id="fmSelectedText_{{ forloop.counter }}">
+                      {{ variants_list.0.option_value }}
+                    </span>
+                  </legend>
+                  <div class="fm-variant-pills-row d-flex flex-wrap gap-2" role="radiogroup" aria-labelledby="label-opt-{{ forloop.counter }}">
+                    {% for v in variants_list %}
+                      <label class="fm-variant-pill-label {% if not v.is_in_stock %}is-out-of-stock{% endif %} {% if forloop.first %}is-selected{% endif %}"
+                             for="var_opt_{{ v.id }}"
+                             data-variant-id="{{ v.id }}"
+                             data-option-type="{{ v.option_type }}"
+                             data-option-value="{{ v.option_value }}"
+                             data-stock="{{ v.stock_quantity }}"
+                             id="pill_label_{{ v.id }}">
+                        <input type="radio"
+                               name="variant_opt_{{ opt_type|slugify }}"
+                               id="var_opt_{{ v.id }}"
+                               value="{{ v.id }}"
+                               data-option-type="{{ v.option_type }}"
+                               data-option-value="{{ v.option_value }}"
+                               class="fm-variant-radio visually-hidden"
+                               {% if forloop.first %}checked{% endif %}
+                               aria-label="{{ opt_type }}: {{ v.option_value }}{% if not v.is_in_stock %} (Out of Stock){% endif %}">
+                        <span class="fm-pill-content">
+                          <span class="fm-pill-text">{{ v.option_value }}</span>
+                          {% if not v.is_in_stock %}
+                            <span class="fm-pill-stock-tag">Out of stock</span>
+                          {% endif %}
+                        </span>
+                      </label>
+                    {% endfor %}
+                  </div>
+                </fieldset>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <!-- Stock Availability Status -->
+          <div class="fm-detail-stock-row mb-3" id="fmStockStatusBox" aria-live="polite">
+            {% if active_variants %}
+              {% if active_variants.0.is_in_stock %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle py-2 px-3 fw-semibold" id="fmStockBadge">
+                  <i class="bi bi-check-circle-fill me-1"></i> In Stock (<span id="fmStockUnits">{{ active_variants.0.stock_quantity }}</span> unit{{ active_variants.0.stock_quantity|pluralize }} available)
+                </span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle py-2 px-3 fw-semibold" id="fmStockBadge">
+                  <i class="bi bi-x-circle-fill me-1"></i> Currently Out of Stock
+                </span>
+              {% endif %}
+            {% elif product.is_in_stock %}
+              <span class="badge bg-success-subtle text-success border border-success-subtle py-2 px-3 fw-semibold" id="fmStockBadge">
+                <i class="bi bi-check-circle-fill me-1"></i> In Stock ({{ product.stock_quantity }} unit{{ product.stock_quantity|pluralize }} available)
+              </span>
+            {% else %}
+              <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle py-2 px-3 fw-semibold" id="fmStockBadge">
+                <i class="bi bi-x-circle-fill me-1"></i> Currently Out of Stock
+              </span>
+            {% endif %}
+          </div>
+
+          <!-- Short Description -->
+          {% if product.short_description %}
+            <p class="fm-detail-short-desc">{{ product.short_description }}</p>
+          {% endif %}
+
+          <!-- Purchase Form -->
+          <form action="{% url 'core:cart_add' %}" method="post" id="fmAddToCartForm" class="mb-4">
+            {% csrf_token %}
+            <input type="hidden" name="product_id" value="{{ product.id }}">
+            <input type="hidden" name="variant_id" id="fmFormVariantId" value="{% if active_variants %}{{ active_variants.0.id }}{% endif %}">
+
+            <!-- Quantity Selector -->
+            <div class="fm-quantity-selector d-flex align-items-center gap-3 mb-3">
+              <label for="fmProductQuantity" class="fw-semibold text-secondary small">Quantity:</label>
+              <div class="input-group" style="width: 130px;">
+                <button type="button" class="btn btn-outline-secondary px-2" id="fmQtyMinus" aria-label="Decrease quantity">
+                  <i class="bi bi-dash"></i>
+                </button>
+                <input type="number"
+                       name="quantity"
+                       id="fmProductQuantity"
+                       class="form-control text-center fw-bold"
+                       value="1"
+                       min="1"
+                       max="{% if active_variants %}{{ active_variants.0.stock_quantity }}{% else %}{{ product.stock_quantity }}{% endif %}"
+                       aria-label="Item quantity"
+                       required>
+                <button type="button" class="btn btn-outline-secondary px-2" id="fmQtyPlus" aria-label="Increase quantity">
+                  <i class="bi bi-plus"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="fm-detail-actions d-flex flex-wrap gap-2">
+              <button type="submit"
+                      class="fm-btn fm-btn-primary fm-btn-lg"
+                      id="fmAddToCartBtn"
+                      data-product-title="{{ product.name }}"
+                      {% if active_variants %}
+                        data-variant-id="{{ active_variants.0.id }}"
+                        data-variant-sku="{{ active_variants.0.sku }}"
+                        {% if not active_variants.0.is_in_stock %}disabled aria-disabled="true" style="opacity: 0.6; cursor: not-allowed;"{% endif %}
+                      {% elif not product.is_in_stock %}
+                        disabled aria-disabled="true" style="opacity: 0.6; cursor: not-allowed;"
+                      {% endif %}
+                      aria-label="Add {{ product.name }} to cart">
+                <i class="bi {% if active_variants %}{% if active_variants.0.is_in_stock %}bi-cart-plus{% else %}bi-x-circle{% endif %}{% elif product.is_in_stock %}bi-cart-plus{% else %}bi-x-circle{% endif %} me-1" id="fmCartBtnIcon" aria-hidden="true"></i>
+                <span id="fmCartBtnText">
+                  {% if active_variants %}
+                    {% if active_variants.0.is_in_stock %}Add to Cart{% else %}Out of Stock{% endif %}
+                  {% elif product.is_in_stock %}
+                    Add to Cart
+                  {% else %}
+                    Out of Stock
+                  {% endif %}
+                </span>
+              </button>
+
+              {% if product.id in user_wishlist_product_ids %}
+                <button type="button"
+                        class="fm-btn fm-btn-outline fm-btn-lg is-active"
+                        data-action="wishlist-toggle"
+                        data-product-id="{{ product.id }}"
+                        data-product-title="{{ product.name }}"
+                        aria-label="Remove {{ product.name }} from wishlist"
+                        title="Remove from Wishlist">
+                  <i class="bi bi-heart-fill text-danger me-1" aria-hidden="true"></i>
+                  <span>In Wishlist</span>
+                </button>
+              {% else %}
+                <button type="button"
+                        class="fm-btn fm-btn-outline fm-btn-lg"
+                        data-action="wishlist-toggle"
+                        data-product-id="{{ product.id }}"
+                        data-product-title="{{ product.name }}"
+                        aria-label="Save {{ product.name }} to wishlist"
+                        title="Save to Wishlist">
+                  <i class="bi bi-heart me-1" aria-hidden="true"></i>
+                  <span>Save to Wishlist</span>
+                </button>
+              {% endif %}
+            </div>
+          </form>
+
+          <!-- Value Propositions -->
+          <div class="fm-detail-perks-box">
+            <div class="fm-perk-item">
+              <i class="bi bi-shield-check text-warning" aria-hidden="true"></i>
+              <div>
+                <strong>100% Verified Genuine</strong>
+                <div class="text-muted small">Quality checked before dispatch</div>
+              </div>
+            </div>
+            <div class="fm-perk-item">
+              <i class="bi bi-truck text-primary" aria-hidden="true"></i>
+              <div>
+                <strong>Pan-India Delivery</strong>
+                <div class="text-muted small">Fast doorstep shipping</div>
+              </div>
+            </div>
+            <div class="fm-perk-item">
+              <i class="bi bi-arrow-repeat text-success" aria-hidden="true"></i>
+              <div>
+                <strong>7-Day Easy Replacement</strong>
+                <div class="text-muted small">Hassle-free replacement for defects</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full Specifications & Description -->
+    {% if product.description %}
+      <div class="fm-detail-full-desc mt-5 pt-4 border-top">
+        <h2 class="h4 fw-bold mb-3">Product Description &amp; Details</h2>
+        <div class="fm-desc-body text-secondary" style="line-height: 1.7; white-space: pre-line;">
+          {{ product.description }}
+        </div>
+      </div>
+    {% endif %}
+  </article>
+
+  <!-- Customer Reviews & Ratings Section (Prompt 9) -->
+  <section id="reviews" class="fm-reviews-section mt-5 pt-3" aria-labelledby="reviews-section-heading">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+      <div>
+        <h2 id="reviews-section-heading" class="h4 fw-bold text-dark mb-1">Customer Reviews &amp; Ratings</h2>
+        <p class="text-secondary small mb-0">Verified customer feedback and authentic product experience ratings.</p>
+      </div>
+      {% if user.is_authenticated and not user_review %}
+        <a href="#write-review" class="fm-btn fm-btn-primary fm-btn-sm">
+          <i class="bi bi-pencil-square me-1"></i> Write a Review
+        </a>
+      {% endif %}
+    </div>
+
+    <!-- Rating Summary & Breakdown Grid -->
+    <div class="row g-4 mb-4">
+      <!-- Left: Overall Rating & Star Distribution -->
+      <div class="col-12 col-lg-5">
+        <div class="card h-100 border shadow-sm rounded-3 bg-white p-4">
+          <h3 class="h6 fw-bold text-dark mb-3">Rating Snapshot</h3>
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <div class="text-center p-3 rounded-3" style="background: #FFF3EA; min-width: 110px;">
+              <div class="display-5 fw-bold text-dark mb-0" style="color: var(--fm-primary) !important;">
+                {{ rating_breakdown.average_rating }}
+              </div>
+              <div class="text-warning my-1" style="font-size: 14px;">
+                {% for i in "12345" %}
+                  {% if forloop.counter <= rating_breakdown.average_rating %}
+                    <i class="bi bi-star-fill"></i>
+                  {% elif forloop.counter|add:"-1" < rating_breakdown.average_rating and rating_breakdown.average_rating < forloop.counter %}
+                    <i class="bi bi-star-half"></i>
+                  {% else %}
+                    <i class="bi bi-star text-muted"></i>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              <div class="small text-secondary fw-medium">out of 5.0</div>
+            </div>
+            <div>
+              <div class="fw-bold text-dark fs-6 mb-1">
+                {% if total_approved_reviews > 0 %}
+                  {{ total_approved_reviews }} Verified Review{{ total_approved_reviews|pluralize }}
+                {% else %}
+                  No Reviews Yet
+                {% endif %}
+              </div>
+              <div class="text-secondary small">
+                All ratings are calculated exclusively from authentic, approved customer submissions.
+              </div>
+            </div>
+          </div>
+
+          <!-- Star Breakdown Progress Bars -->
+          <div class="fm-stars-bars mt-2">
+            {% for star_num, star_info in rating_breakdown.stars.items %}
+              <div class="d-flex align-items-center gap-2 mb-2 small">
+                <span class="text-secondary fw-semibold" style="width: 55px;">
+                  {{ star_num }} Star{{ star_num|pluralize }}
+                </span>
+                <div class="progress flex-grow-1" style="height: 8px; background-color: #F3F4F6;">
+                  <div class="progress-bar"
+                       role="progressbar"
+                       style="width: {{ star_info.percentage }}%; background-color: var(--fm-primary);"
+                       aria-valuenow="{{ star_info.percentage }}"
+                       aria-valuemin="0"
+                       aria-valuemax="100"></div>
+                </div>
+                <span class="text-muted text-end" style="width: 45px;">
+                  {{ star_info.count }}
+                </span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: User Review Status OR Submission Form OR Login Invitation -->
+      <div class="col-12 col-lg-7">
+        {% if not user.is_authenticated %}
+          <!-- Anonymous Customer Invitation -->
+          <div class="card h-100 border shadow-sm rounded-3 bg-white p-4 d-flex flex-column justify-content-center text-center">
+            <div class="mx-auto p-3 rounded-circle mb-3" style="background: #FFF3EA; color: var(--fm-primary); width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;">
+              <i class="bi bi-chat-heart fs-3"></i>
+            </div>
+            <h3 class="h6 fw-bold text-dark mb-1">Have you used this product?</h3>
+            <p class="text-secondary small mb-3 max-w-sm mx-auto" style="max-width: 420px;">
+              Sign in to your Fitmeezo customer account to share your honest ratings and help fellow buyers make smart choices.
+            </p>
+            <div>
+              <a href="{% url 'core:account_login' %}?next={{ request.path }}#write-review" class="fm-btn fm-btn-primary fm-btn-sm d-inline-flex align-items-center gap-1">
+                <i class="bi bi-box-arrow-in-right"></i> Sign In to Write a Review
+              </a>
+            </div>
+          </div>
+
+        {% elif user_review %}
+          <!-- Customer's Already Submitted Review -->
+          <div class="card h-100 border border-2 shadow-sm rounded-3 bg-white p-4" style="border-color: rgba(255, 107, 0, 0.4) !important;">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge" style="background: var(--fm-primary); color: white;">Your Review</span>
+                {% if user_review.status == 'approved' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle">
+                    <i class="bi bi-check-circle-fill me-1"></i> Approved &amp; Published
+                  </span>
+                {% elif user_review.status == 'pending' %}
+                  <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                    <i class="bi bi-hourglass-split me-1"></i> Pending Staff Moderation
+                  </span>
+                {% elif user_review.status == 'rejected' %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Not Approved
+                  </span>
+                {% endif %}
+              </div>
+              <div class="d-flex gap-2">
+                <a href="{% url 'core:review_edit' pk=user_review.pk %}?next={{ request.path }}" class="fm-btn fm-btn-outline fm-btn-sm" aria-label="Edit your review">
+                  <i class="bi bi-pencil me-1"></i> Edit
+                </a>
+                <form action="{% url 'core:review_delete' pk=user_review.pk %}" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete your review? This action cannot be undone.');">
+                  {% csrf_token %}
+                  <input type="hidden" name="next" value="{{ request.path }}#reviews">
+                  <button type="submit" class="btn btn-outline-danger btn-sm" aria-label="Delete your review">
+                    <i class="bi bi-trash me-1"></i> Delete
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <div class="text-warning fs-6">
+                {% for i in "12345" %}
+                  {% if forloop.counter <= user_review.rating %}
+                    <i class="bi bi-star-fill"></i>
+                  {% else %}
+                    <i class="bi bi-star text-muted"></i>
+                  {% endif %}
+                {% endfor %}
+              </div>
+              <strong class="text-dark">{{ user_review.title }}</strong>
+            </div>
+
+            <p class="text-secondary mb-3 small" style="line-height: 1.6; white-space: pre-line;">
+              {{ user_review.comment }}
+            </p>
+
+            <div class="text-muted small mt-auto pt-2 border-top">
+              Reviewed on {{ user_review.created_at|date:"F d, Y" }}
+              {% if user_review.updated_at > user_review.created_at %}
+                • <span class="fst-italic">Edited {{ user_review.updated_at|date:"M d, Y" }}</span>
+              {% endif %}
+            </div>
+          </div>
+
+        {% else %}
+          <!-- Review Submission Form Card -->
+          <div class="card h-100 border shadow-sm rounded-3 bg-white p-4" id="write-review">
+            <h3 class="h6 fw-bold text-dark mb-1">Write a Product Review</h3>
+            <p class="text-secondary small mb-3">Share your authentic experience with {{ product.name }}.</p>
+
+            <form action="{% url 'core:product_review_submit' slug=product.slug %}" method="post" id="fmReviewForm">
+              {% csrf_token %}
+
+              <!-- Interactive 1-5 Star Rating Selector -->
+              <div class="mb-3" id="fmStarRatingGroup">
+                <label class="form-label fw-semibold text-dark small mb-1">
+                  Overall Rating <span class="text-danger">*</span>
+                </label>
+                <div class="d-flex align-items-center gap-2">
+                  <div class="fm-star-rating-widget d-inline-flex gap-1" role="radiogroup" aria-label="Rating from 1 to 5 stars">
+                    {% for star_val in "12345" %}
+                      <button type="button"
+                              class="btn btn-link p-0 text-decoration-none fm-star-btn"
+                              data-star="{{ star_val }}"
+                              role="radio"
+                              aria-checked="false"
+                              aria-label="{{ star_val }} star{% if star_val != '1' %}s{% endif %}"
+                              style="font-size: 28px; line-height: 1; color: #D1D5DB; transition: color 0.15s ease;"
+                              id="star_btn_{{ star_val }}">
+                        <i class="bi bi-star-fill"></i>
+                      </button>
+                    {% endfor %}
+                  </div>
+                  <span class="fm-star-rating-label small fw-semibold text-secondary ms-2" id="fmRatingLabel">
+                    Click to rate
+                  </span>
+                </div>
+                <input type="hidden" name="rating" id="fmReviewRatingInput" value="" required>
+              </div>
+
+              <!-- Review Headline -->
+              <div class="mb-3">
+                <label for="fmReviewTitle" class="form-label fw-semibold text-dark small mb-1">
+                  Review Headline <span class="text-danger">*</span>
+                </label>
+                <input type="text"
+                       name="title"
+                       id="fmReviewTitle"
+                       class="form-control fm-input"
+                       placeholder="Summarize your experience (e.g. Outstanding battery life & build!)"
+                       maxlength="200"
+                       required>
+              </div>
+
+              <!-- Detailed Feedback Comment -->
+              <div class="mb-3">
+                <label for="fmReviewComment" class="form-label fw-semibold text-dark small mb-1">
+                  Detailed Review <span class="text-danger">*</span>
+                </label>
+                <textarea name="comment"
+                          id="fmReviewComment"
+                          class="form-control fm-input"
+                          rows="3"
+                          placeholder="What did you like or dislike? How does it perform in daily life?"
+                          required></textarea>
+              </div>
+
+              <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <span class="text-muted small">
+                  <i class="bi bi-shield-check text-success me-1"></i> Your name will display in a privacy-conscious format.
+                </span>
+                <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm" id="fmSubmitReviewBtn">
+                  <i class="bi bi-send me-1"></i> Submit Review
+                </button>
+              </div>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Verified Customer Reviews Feed -->
+    <div class="fm-reviews-feed-wrapper">
+      <h3 class="h6 fw-bold text-dark mb-3">
+        Verified Shopper Feedback
+        {% if total_approved_reviews > 0 %}
+          <span class="badge bg-secondary-subtle text-secondary ms-1">{{ total_approved_reviews }}</span>
+        {% endif %}
+      </h3>
+
+      {% if total_approved_reviews == 0 %}
+        <!-- Empty State -->
+        <div class="card p-5 text-center bg-light border-0 rounded-3 my-3">
+          <div class="mx-auto p-3 rounded-circle mb-3" style="background: #FFF3EA; color: var(--fm-primary); width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;">
+            <i class="bi bi-chat-left-quote fs-3"></i>
+          </div>
+          <h4 class="h6 fw-bold text-dark mb-1">No customer reviews yet</h4>
+          <p class="text-secondary small mb-3 max-w-sm mx-auto" style="max-width: 380px;">
+            Be the very first customer to review <strong>{{ product.name }}</strong> and help others shop smart.
+          </p>
+          {% if user.is_authenticated and not user_review %}
+            <div>
+              <a href="#write-review" class="fm-btn fm-btn-primary fm-btn-sm">
+                <i class="bi bi-pencil-square me-1"></i> Write the First Review
+              </a>
+            </div>
+          {% elif not user.is_authenticated %}
+            <div>
+              <a href="{% url 'core:account_login' %}?next={{ request.path }}#write-review" class="fm-btn fm-btn-outline fm-btn-sm">
+                <i class="bi bi-box-arrow-in-right me-1"></i> Sign In to Write a Review
+              </a>
+            </div>
+          {% endif %}
+        </div>
+
+      {% else %}
+        <!-- Reviews List -->
+        <div class="fm-reviews-list">
+          {% for r in reviews_page %}
+            <article class="card border shadow-sm rounded-3 p-3 p-md-4 mb-3 bg-white" aria-label="Review by {{ r.customer_display_name }}">
+              <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                <div class="d-flex align-items-center gap-2">
+                  <!-- Customer Avatar Initials -->
+                  <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold small"
+                       style="width: 36px; height: 36px; background: #121212; font-size: 13px;"
+                       aria-hidden="true">
+                    {{ r.customer_display_name|slice:":1" }}
+                  </div>
+                  <div>
+                    <div class="d-flex align-items-center gap-2">
+                      <span class="fw-bold text-dark small">{{ r.customer_display_name }}</span>
+                      <span class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 10px;">
+                        <i class="bi bi-patch-check-fill me-1"></i>Verified Buyer
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="text-secondary small">
+                  {{ r.created_at|date:"F d, Y" }}
+                </div>
+              </div>
+
+              <!-- Rating and Title -->
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <div class="text-warning small" aria-label="{{ r.rating }} out of 5 stars">
+                  {% for i in "12345" %}
+                    {% if forloop.counter <= r.rating %}
+                      <i class="bi bi-star-fill"></i>
+                    {% else %}
+                      <i class="bi bi-star text-muted"></i>
+                    {% endif %}
+                  {% endfor %}
+                </div>
+                <h4 class="h6 fw-bold text-dark mb-0">{{ r.title }}</h4>
+              </div>
+
+              <!-- Review Feedback Comment -->
+              <p class="text-secondary small mb-2" style="line-height: 1.6; white-space: pre-line;">
+                {{ r.comment }}
+              </p>
+
+              <!-- Owner Controls (if current user authored this review) -->
+              {% if user.is_authenticated and r.user == user %}
+                <div class="d-flex align-items-center gap-2 pt-2 border-top mt-2">
+                  <span class="text-muted small fst-italic me-auto">Your published review</span>
+                  <a href="{% url 'core:review_edit' pk=r.pk %}?next={{ request.path }}" class="btn btn-link btn-sm text-decoration-none p-0 text-primary">
+                    <i class="bi bi-pencil me-1"></i> Edit
+                  </a>
+                  <span class="text-muted">•</span>
+                  <form action="{% url 'core:review_delete' pk=r.pk %}" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to delete your review?');">
+                    {% csrf_token %}
+                    <input type="hidden" name="next" value="{{ request.path }}#reviews">
+                    <button type="submit" class="btn btn-link btn-sm text-decoration-none p-0 text-danger border-0 bg-transparent">
+                      <i class="bi bi-trash me-1"></i> Delete
+                    </button>
+                  </form>
+                </div>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+
+        <!-- Pagination Controls -->
+        {% if reviews_page.has_other_pages %}
+          <nav aria-label="Customer reviews pagination" class="mt-4">
+            <ul class="pagination pagination-sm justify-content-center">
+              {% if reviews_page.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?review_page={{ reviews_page.previous_page_number }}#reviews" aria-label="Previous page">
+                    &laquo; Previous
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled">
+                  <span class="page-link">&laquo; Previous</span>
+                </li>
+              {% endif %}
+
+              {% for p in reviews_page.paginator.page_range %}
+                {% if reviews_page.number == p %}
+                  <li class="page-item active" aria-current="page">
+                    <span class="page-link" style="background-color: var(--fm-primary); border-color: var(--fm-primary);">{{ p }}</span>
+                  </li>
+                {% else %}
+                  <li class="page-item">
+                    <a class="page-link text-dark" href="?review_page={{ p }}#reviews">{{ p }}</a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+
+              {% if reviews_page.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?review_page={{ reviews_page.next_page_number }}#reviews" aria-label="Next page">
+                    Next &raquo;
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled">
+                  <span class="page-link">Next &raquo;</span>
+                </li>
+              {% endif %}
+            </ul>
+          </nav>
+        {% endif %}
+      {% endif %}
+    </div>
+  </section>
+</div>
+
+
+<!-- Embedded Variants Data & Interactive Client Script -->
+{% if active_variants %}
+  {{ variants_json_data|json_script:"fmVariantsData" }}
+  <script>
+    (function() {
+      const dataElement = document.getElementById('fmVariantsData');
+      if (!dataElement) return;
+
+      let variants = [];
+      try {
+        variants = JSON.parse(dataElement.textContent);
+      } catch (e) {
+        console.error('Failed to parse variants JSON', e);
+        return;
+      }
+
+      if (!variants || !variants.length) return;
+
+      const currencySymbol = '{{ CURRENCY_SYMBOL|default:"₹" }}';
+      const displaySku = document.getElementById('fmDisplaySku');
+      const displayPrice = document.getElementById('fmDisplayPrice');
+      const displayComparePrice = document.getElementById('fmDisplayComparePrice');
+      const displayDiscount = document.getElementById('fmDisplayDiscount');
+      const stockBox = document.getElementById('fmStockStatusBox');
+      const addToCartBtn = document.getElementById('fmAddToCartBtn');
+      const cartBtnIcon = document.getElementById('fmCartBtnIcon');
+      const cartBtnText = document.getElementById('fmCartBtnText');
+
+      // Helper function to update the UI when a variant is selected
+      function applyVariant(variant) {
+        if (!variant) return;
+
+        // 1. Update SKU
+        if (displaySku) {
+          displaySku.textContent = variant.sku;
+        }
+
+        // 2. Update Selling Price
+        if (displayPrice) {
+          displayPrice.textContent = variant.formatted_price;
+        }
+
+        // 3. Update Compare-at Price
+        if (displayComparePrice) {
+          if (variant.formatted_compare_at_price && parseFloat(variant.compare_at_price) > parseFloat(variant.price)) {
+            displayComparePrice.textContent = variant.formatted_compare_at_price;
+            displayComparePrice.style.display = '';
+          } else {
+            displayComparePrice.style.display = 'none';
+          }
+        }
+
+        // 4. Update Discount Percentage Chip
+        if (displayDiscount) {
+          if (variant.discount_percentage > 0) {
+            displayDiscount.textContent = variant.discount_percentage + '% OFF';
+            displayDiscount.style.display = '';
+          } else {
+            displayDiscount.style.display = 'none';
+          }
+        }
+
+        // 5. Update Stock Availability Badge & Add to Cart button state
+        if (variant.is_in_stock) {
+          if (stockBox) {
+            stockBox.innerHTML = `
+              <span class="badge bg-success-subtle text-success border border-success-subtle py-2 px-3 fw-semibold" id="fmStockBadge">
+                <i class="bi bi-check-circle-fill me-1"></i> In Stock (<span id="fmStockUnits">${variant.stock_quantity}</span> unit${variant.stock_quantity === 1 ? '' : 's'} available)
+              </span>
+            `;
+          }
+          if (addToCartBtn) {
+            addToCartBtn.disabled = false;
+            addToCartBtn.removeAttribute('aria-disabled');
+            addToCartBtn.style.opacity = '1';
+            addToCartBtn.style.cursor = 'pointer';
+            addToCartBtn.setAttribute('data-variant-id', variant.id);
+            addToCartBtn.setAttribute('data-variant-sku', variant.sku);
+            const formVariantInput = document.getElementById('fmFormVariantId');
+            if (formVariantInput) {
+              formVariantInput.value = variant.id;
+            }
+            const qtyInput = document.getElementById('fmProductQuantity');
+            if (qtyInput) {
+              qtyInput.max = variant.stock_quantity;
+              if (parseInt(qtyInput.value, 10) > variant.stock_quantity) {
+                qtyInput.value = Math.max(1, variant.stock_quantity);
+              }
+            }
+          }
+          if (cartBtnIcon) {
+            cartBtnIcon.className = 'bi bi-cart-plus me-1';
+          }
+          if (cartBtnText) {
+            cartBtnText.textContent = 'Add to Cart';
+          }
+        } else {
+          const formVariantInput = document.getElementById('fmFormVariantId');
+          if (formVariantInput) {
+            formVariantInput.value = variant.id;
+          }
+          if (stockBox) {
+            stockBox.innerHTML = `
+              <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle py-2 px-3 fw-semibold" id="fmStockBadge">
+                <i class="bi bi-x-circle-fill me-1"></i> Currently Out of Stock
+              </span>
+            `;
+          }
+          if (addToCartBtn) {
+            addToCartBtn.disabled = true;
+            addToCartBtn.setAttribute('aria-disabled', 'true');
+            addToCartBtn.style.opacity = '0.6';
+            addToCartBtn.style.cursor = 'not-allowed';
+            addToCartBtn.setAttribute('data-variant-id', variant.id);
+            addToCartBtn.setAttribute('data-variant-sku', variant.sku);
+          }
+          if (cartBtnIcon) {
+            cartBtnIcon.className = 'bi bi-x-circle me-1';
+          }
+          if (cartBtnText) {
+            cartBtnText.textContent = 'Out of Stock';
+          }
+        }
+      }
+
+      // Check for multi-option vs single-option type
+      const optionGroups = document.querySelectorAll('.fm-variant-group');
+      const isMultiType = optionGroups.length > 1;
+
+      function onOptionChanged() {
+        if (!isMultiType) {
+          // Single option type: directly find variant by checked radio value
+          const checkedRadio = document.querySelector('.fm-variant-radio:checked');
+          if (!checkedRadio) return;
+          const varId = parseInt(checkedRadio.value, 10);
+          const matchedVariant = variants.find(v => v.id === varId);
+
+          // Update active styling
+          document.querySelectorAll('.fm-variant-pill-label').forEach(label => {
+            const input = label.querySelector('.fm-variant-radio');
+            if (input && input.checked) {
+              label.classList.add('is-selected');
+            } else {
+              label.classList.remove('is-selected');
+            }
+          });
+
+          // Update option value text in legend
+          const legendText = document.getElementById('fmSelectedText_1');
+          if (legendText && matchedVariant) {
+            legendText.textContent = matchedVariant.option_value;
+          }
+
+          applyVariant(matchedVariant);
+        } else {
+          // Multiple option types: gather selected values per option type
+          const currentSelections = {};
+          optionGroups.forEach((group, idx) => {
+            const optType = group.getAttribute('data-option-type');
+            const checkedRadio = group.querySelector('.fm-variant-radio:checked');
+            if (checkedRadio) {
+              const optVal = checkedRadio.getAttribute('data-option-value');
+              currentSelections[optType] = optVal;
+              const legendText = document.getElementById('fmSelectedText_' + (idx + 1));
+              if (legendText) legendText.textContent = optVal;
+            }
+          });
+
+          // Update pill selection active classes
+          document.querySelectorAll('.fm-variant-pill-label').forEach(label => {
+            const input = label.querySelector('.fm-variant-radio');
+            if (input && input.checked) {
+              label.classList.add('is-selected');
+            } else {
+              label.classList.remove('is-selected');
+            }
+          });
+
+          // Find variant matching current selections
+          const matchedVariant = variants.find(v => {
+            return currentSelections[v.option_type] === v.option_value;
+          });
+
+          if (matchedVariant) {
+            applyVariant(matchedVariant);
+          }
+
+          // Validate and disable invalid option combinations across groups
+          optionGroups.forEach(group => {
+            const optType = group.getAttribute('data-option-type');
+            group.querySelectorAll('.fm-variant-pill-label').forEach(label => {
+              const optVal = label.getAttribute('data-option-value');
+              // Test if there's any active variant with this value alongside other current selections
+              const testSelections = Object.assign({}, currentSelections, { [optType]: optVal });
+              const isValidCombo = variants.some(v => testSelections[v.option_type] === v.option_value);
+              if (!isValidCombo) {
+                label.classList.add('is-disabled');
+                label.setAttribute('aria-disabled', 'true');
+              } else {
+                label.classList.remove('is-disabled');
+                label.removeAttribute('aria-disabled');
+              }
+            });
+          });
+        }
+      }
+
+      // Bind change listeners to all variant radio inputs
+      document.querySelectorAll('.fm-variant-radio').forEach(radio => {
+        radio.addEventListener('change', onOptionChanged);
+      });
+
+      // Initial pass to ensure states and classes match defaults
+      onOptionChanged();
+    })();
+  </script>
+{% endif %}
+
+<script>
+  (function() {
+    const minusBtn = document.getElementById('fmQtyMinus');
+    const plusBtn = document.getElementById('fmQtyPlus');
+    const qtyInput = document.getElementById('fmProductQuantity');
+    const form = document.getElementById('fmAddToCartForm');
+
+    if (minusBtn && qtyInput) {
+      minusBtn.addEventListener('click', () => {
+        let val = parseInt(qtyInput.value, 10) || 1;
+        if (val > 1) {
+          qtyInput.value = val - 1;
+        }
+      });
+    }
+
+    if (plusBtn && qtyInput) {
+      plusBtn.addEventListener('click', () => {
+        let val = parseInt(qtyInput.value, 10) || 1;
+        let max = parseInt(qtyInput.max, 10) || 999;
+        if (val < max) {
+          qtyInput.value = val + 1;
+        }
+      });
+    }
+
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        if (window.fetch && window.FormData) {
+          e.preventDefault();
+          const submitBtn = document.getElementById('fmAddToCartBtn');
+          if (submitBtn) submitBtn.disabled = true;
+
+          const formData = new FormData(form);
+          fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              'X-Requested-With': 'XMLHttpRequest',
+            }
+          })
+          .then(res => res.json())
+          .then(data => {
+            if (submitBtn) submitBtn.disabled = false;
+            if (data.success) {
+              // Update badge counts in header and bottom nav
+              const headerBadge = document.getElementById('fmHeaderCartBadge');
+              if (headerBadge) headerBadge.textContent = data.cart_total_units;
+              const bottomBadge = document.getElementById('fmBottomCartBadge');
+              if (bottomBadge) bottomBadge.textContent = data.cart_total_units;
+              const drawerBadge = document.getElementById('fmDrawerCartBadge');
+              if (drawerBadge) drawerBadge.textContent = data.cart_total_units;
+              const headerPrice = document.getElementById('fmHeaderCartPrice');
+              if (headerPrice && data.cart_subtotal) {
+                const currency = '{{ CURRENCY_SYMBOL|default:"₹" }}';
+                headerPrice.textContent = currency + parseFloat(data.cart_subtotal).toFixed(2);
+              }
+
+              if (typeof showToast === 'function') {
+                showToast(data.message, 'Added to Cart');
+              } else {
+                alert(data.message);
+              }
+            } else {
+              if (typeof showToast === 'function') {
+                showToast(data.message, 'Notice');
+              } else {
+                alert(data.message);
+              }
+            }
+          })
+          .catch(err => {
+            if (submitBtn) submitBtn.disabled = false;
+            form.submit();
+          });
+        }
+      });
+    }
+  })();
+</script>
+
+<script>
+  (function() {
+    const starBtns = document.querySelectorAll('.fm-star-btn');
+    const ratingInput = document.getElementById('fmReviewRatingInput');
+    const ratingLabel = document.getElementById('fmRatingLabel');
+    const labels = {
+      1: "1 Star — Poor",
+      2: "2 Stars — Fair",
+      3: "3 Stars — Average",
+      4: "4 Stars — Very Good",
+      5: "5 Stars — Excellent!"
+    };
+
+    if (starBtns.length && ratingInput) {
+      function highlightStars(val) {
+        starBtns.forEach(btn => {
+          const s = parseInt(btn.dataset.star, 10);
+          if (s <= val) {
+            btn.style.color = '#FF6B00';
+          } else {
+            btn.style.color = '#D1D5DB';
+          }
+        });
+        if (val > 0 && ratingLabel) {
+          ratingLabel.textContent = labels[val] || `${val} Stars`;
+          ratingLabel.classList.remove('text-secondary');
+          ratingLabel.classList.add('text-dark');
+        }
+      }
+
+      starBtns.forEach(btn => {
+        btn.addEventListener('mouseenter', function() {
+          const s = parseInt(this.dataset.star, 10);
+          highlightStars(s);
+        });
+
+        btn.addEventListener('mouseleave', function() {
+          const currentVal = parseInt(ratingInput.value, 10) || 0;
+          highlightStars(currentVal);
+          if (!currentVal && ratingLabel) {
+            ratingLabel.textContent = 'Click to rate';
+            ratingLabel.classList.remove('text-dark');
+            ratingLabel.classList.add('text-secondary');
+          }
+        });
+
+        btn.addEventListener('click', function() {
+          const s = parseInt(this.dataset.star, 10);
+          ratingInput.value = s;
+          starBtns.forEach(b => {
+            b.setAttribute('aria-checked', b.dataset.star == s ? 'true' : 'false');
+          });
+          highlightStars(s);
+        });
+
+        // Keyboard navigation for accessibility
+        btn.addEventListener('keydown', function(e) {
+          let s = parseInt(this.dataset.star, 10);
+          if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            const next = Math.min(5, s + 1);
+            const target = document.getElementById(`star_btn_${next}`);
+            if (target) { target.focus(); target.click(); }
+          } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            const prev = Math.max(1, s - 1);
+            const target = document.getElementById(`star_btn_${prev}`);
+            if (target) { target.focus(); target.click(); }
+          }
+        });
+      });
+
+      // Review form client-side validation
+      const reviewForm = document.getElementById('fmReviewForm');
+      if (reviewForm) {
+        reviewForm.addEventListener('submit', function(e) {
+          const val = parseInt(ratingInput.value, 10);
+          if (!val || val < 1 || val > 5) {
+            e.preventDefault();
+            alert('Please select a star rating from 1 to 5 before submitting your review.');
+            const firstStar = document.getElementById('star_btn_1');
+            if (firstStar) firstStar.focus();
+          }
+        });
+      }
+    }
+  })();
+</script>
+{% endblock %}
+

@@ -1,0 +1,71 @@
+{% load static %}
+<!-- Fitmeezo Mobile Fixed Bottom Navigation Bar -->
+<nav class="fm-bottom-nav" aria-label="Mobile Bottom Navigation">
+  <div class="fm-bottom-nav-inner">
+    <!-- Home (Active on Homepage) -->
+    <a href="{% url 'core:home' %}" class="fm-bottom-nav-item is-active" aria-current="page" aria-label="Fitmeezo Home">
+      <div class="fm-bottom-icon-wrap">
+        <i class="bi bi-house-door-fill" aria-hidden="true"></i>
+      </div>
+      <span class="fm-bottom-label">Home</span>
+    </a>
+
+    <!-- Categories Drawer Button -->
+    <button type="button"
+            id="fmBottomCategoriesBtn"
+            class="fm-bottom-nav-item"
+            aria-label="Open Categories Drawer"
+            aria-controls="fmMobileDrawer"
+            aria-expanded="false">
+      <div class="fm-bottom-icon-wrap">
+        <i class="bi bi-grid" aria-hidden="true"></i>
+      </div>
+      <span class="fm-bottom-label">Categories</span>
+    </button>
+
+    <!-- Wishlist Link -->
+    <a href="{% url 'core:wishlist_detail' %}"
+       class="fm-bottom-nav-item {% if is_wishlist_page %}is-active{% endif %}"
+       id="fmBottomWishlistBtn"
+       aria-label="Wishlist ({{ wishlist_count|default:0 }} saved item{{ wishlist_count|pluralize }})">
+      <div class="fm-bottom-icon-wrap">
+        <i class="bi bi-heart{% if wishlist_count > 0 %}-fill text-danger{% endif %}" id="fmBottomWishlistIcon" aria-hidden="true"></i>
+        <span class="fm-bottom-badge fm-bottom-wishlist-badge" id="fmBottomWishlistBadge" aria-hidden="true">{{ wishlist_count|default:0 }}</span>
+      </div>
+      <span class="fm-bottom-label">Wishlist</span>
+    </a>
+
+    <!-- Account Link -->
+    {% if request.user.is_authenticated %}
+    <a href="{% url 'core:account_dashboard' %}"
+       class="fm-bottom-nav-item {% if is_account_page %}is-active{% endif %}"
+       aria-label="My Account">
+      <div class="fm-bottom-icon-wrap">
+        <i class="bi bi-person-fill" aria-hidden="true"></i>
+      </div>
+      <span class="fm-bottom-label">Account</span>
+    </a>
+    {% else %}
+    <a href="{% url 'core:account_login' %}"
+       class="fm-bottom-nav-item"
+       aria-label="Sign In">
+      <div class="fm-bottom-icon-wrap">
+        <i class="bi bi-person" aria-hidden="true"></i>
+      </div>
+      <span class="fm-bottom-label">Sign In</span>
+    </a>
+    {% endif %}
+
+    <!-- Cart Link -->
+    <a href="{% url 'core:cart_detail' %}"
+       class="fm-bottom-nav-item {% if is_cart_page %}is-active{% endif %}"
+       id="fmBottomCartBtn"
+       aria-label="Shopping Cart ({{ cart_total_units|default:0 }} items)">
+      <div class="fm-bottom-icon-wrap">
+        <i class="bi bi-bag" aria-hidden="true"></i>
+        <span class="fm-bottom-badge fm-bottom-cart-badge" id="fmBottomCartBadge" aria-hidden="true">{{ cart_total_units|default:0 }}</span>
+      </div>
+      <span class="fm-bottom-label">Cart</span>
+    </a>
+  </div>
+</nav>

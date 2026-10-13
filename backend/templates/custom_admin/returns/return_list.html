@@ -1,0 +1,231 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Return &amp; Exchange Requests{% endblock %}
+{% block page_title %}Return &amp; Exchange Management{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+  <div>
+    <h4 class="fw-bold mb-1">Return &amp; Exchange Requests</h4>
+    <p class="text-muted small mb-0">Manage customer return requests, inspection lifecycles, restock approvals, and refund voucher settlements.</p>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-2">
+    <div class="fm-card p-3 border-0 shadow-sm rounded-3 bg-white">
+      <div class="text-muted small fw-semibold text-uppercase">Total</div>
+      <div class="fs-4 fw-bold text-dark mt-1">{{ kpis.total }}</div>
+      <div class="small text-muted">All-time submissions</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="fm-card p-3 border-0 shadow-sm rounded-3 bg-white border-start border-warning border-4">
+      <div class="text-muted small fw-semibold text-uppercase">Pending Review</div>
+      <div class="fs-4 fw-bold text-warning mt-1">{{ kpis.pending }}</div>
+      <div class="small text-muted">Awaiting triage</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="fm-card p-3 border-0 shadow-sm rounded-3 bg-white border-start border-primary border-4">
+      <div class="text-muted small fw-semibold text-uppercase">Approved</div>
+      <div class="fs-4 fw-bold text-primary mt-1">{{ kpis.approved }}</div>
+      <div class="small text-muted">Pending pickup</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="fm-card p-3 border-0 shadow-sm rounded-3 bg-white border-start border-info border-4">
+      <div class="text-muted small fw-semibold text-uppercase">In Progress</div>
+      <div class="fs-4 fw-bold text-info mt-1">{{ kpis.in_progress }}</div>
+      <div class="small text-muted">Transit &amp; Inspection</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="fm-card p-3 border-0 shadow-sm rounded-3 bg-white border-start border-success border-4">
+      <div class="text-muted small fw-semibold text-uppercase">Refunded / Done</div>
+      <div class="fs-4 fw-bold text-success mt-1">{{ kpis.completed }}</div>
+      <div class="small text-muted">Successfully closed</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-2">
+    <div class="fm-card p-3 border-0 shadow-sm rounded-3 bg-white border-start border-danger border-4">
+      <div class="text-muted small fw-semibold text-uppercase">Rejected / Closed</div>
+      <div class="fs-4 fw-bold text-danger mt-1">{{ kpis.rejected }}</div>
+      <div class="small text-muted">Declined / Cancelled</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters Card -->
+<div class="fm-card mb-4 p-3 bg-white shadow-sm border rounded-3">
+  <form method="get" action="{% url 'custom_admin:return_list' %}" class="row g-2 align-items-center">
+    <div class="col-12 col-md-3">
+      <div class="input-group">
+        <span class="input-group-text bg-light text-muted"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Return #, order #, customer...">
+      </div>
+    </div>
+
+    <div class="col-6 col-md-2">
+      <select name="status" class="form-select">
+        <option value="">All Statuses</option>
+        {% for val, label in status_choices %}
+          <option value="{{ val }}" {% if selected_status == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-6 col-md-2">
+      <select name="type" class="form-select">
+        <option value="">All Request Types</option>
+        {% for val, label in type_choices %}
+          <option value="{{ val }}" {% if selected_type == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-6 col-md-3">
+      <select name="seller" class="form-select">
+        <option value="">All Sellers / Direct</option>
+        {% for s in sellers %}
+          <option value="{{ s.id }}" {% if selected_seller == s.id|stringformat:"i" %}selected{% endif %}>{{ s.store_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-6 col-md-2 d-flex gap-1">
+      <button type="submit" class="btn btn-dark w-100" title="Apply Filters">
+        <i class="bi bi-funnel me-1"></i> Filter
+      </button>
+      {% if query or selected_status or selected_type or selected_seller %}
+        <a href="{% url 'custom_admin:return_list' %}" class="btn btn-outline-secondary" title="Clear Filters">
+          <i class="bi bi-x-lg"></i>
+        </a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Returns Table -->
+<div class="fm-card bg-white shadow-sm border rounded-3 overflow-hidden">
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th class="ps-3">Request #</th>
+          <th>Parent Order</th>
+          <th>Customer</th>
+          <th>Merchant</th>
+          <th>Type &amp; Reason</th>
+          <th>Items / Value</th>
+          <th>Status</th>
+          <th>Submitted</th>
+          <th class="text-end pe-3">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for ret in returns %}
+          <tr>
+            <td class="ps-3">
+              <a href="{% url 'custom_admin:return_detail' request_number=ret.request_number %}" class="fw-bold text-dark font-monospace text-decoration-none">
+                #{{ ret.request_number }}
+              </a>
+              {% if ret.photo_1 or ret.photo_2 or ret.photo_3 %}
+                <span class="badge bg-light text-primary border ms-1" title="Customer provided photo evidence">
+                  <i class="bi bi-camera"></i> Photos
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{% url 'custom_admin:order_detail' pk=ret.order.pk %}" class="fw-semibold text-secondary small text-decoration-none">
+                #{{ ret.order.order_number }}
+              </a>
+              <div class="small text-muted font-monospace">{{ ret.seller_order.sub_order_number }}</div>
+            </td>
+            <td>
+              <div class="fw-semibold text-truncate" style="max-width: 140px;">{{ ret.customer.get_full_name|default:ret.customer.username }}</div>
+              <small class="text-muted">{{ ret.customer.phone_number|default:ret.customer.email }}</small>
+            </td>
+            <td>
+              {% if ret.is_platform_fulfilled %}
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Fitmeezo Direct</span>
+              {% elif ret.seller %}
+                <span class="fw-semibold text-dark small">{{ ret.seller.store_name }}</span>
+              {% else %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge {% if ret.request_type == 'exchange' %}bg-info-subtle text-info border border-info-subtle{% else %}bg-secondary-subtle text-dark border{% endif %}">
+                {{ ret.get_request_type_display }}
+              </span>
+              <div class="small text-muted text-truncate mt-1" style="max-width: 150px;" title="{{ ret.get_reason_display }}">
+                {{ ret.get_reason_display }}
+              </div>
+            </td>
+            <td>
+              <div class="fw-bold text-dark">{{ ret.items.count }} item{{ ret.items.count|pluralize }} ({{ ret.total_quantity }} unit{{ ret.total_quantity|pluralize }})</div>
+              <div class="small text-success fw-semibold">₹{{ ret.total_refund_amount|floatformat:2 }}</div>
+            </td>
+            <td>
+              <span class="badge {% if ret.status == 'completed' %}bg-success-subtle text-success border border-success-subtle{% elif ret.status == 'rejected' or ret.status == 'cancelled' %}bg-danger-subtle text-danger border border-danger-subtle{% elif ret.status == 'requested' %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% elif ret.status == 'approved' %}bg-primary-subtle text-primary border border-primary-subtle{% else %}bg-info-subtle text-info border border-info-subtle{% endif %}">
+                {{ ret.get_status_display }}
+              </span>
+            </td>
+            <td>
+              <div>{{ ret.created_at|date:"d M Y" }}</div>
+              <small class="text-muted">{{ ret.created_at|date:"H:i" }}</small>
+            </td>
+            <td class="text-end pe-3">
+              <a href="{% url 'custom_admin:return_detail' request_number=ret.request_number %}" class="btn btn-sm btn-outline-dark">
+                Manage <i class="bi bi-chevron-right ms-1"></i>
+              </a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="9" class="text-center py-5">
+              <div class="text-muted mb-2"><i class="bi bi-arrow-return-left fs-1"></i></div>
+              <h6 class="fw-bold text-dark">No Return Requests Found</h6>
+              <p class="text-muted small mb-0">No return or exchange requests match your filter criteria.</p>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+    <div class="d-flex align-items-center justify-content-between p-3 border-top bg-light">
+      <small class="text-muted">
+        Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} requests
+      </small>
+      <nav>
+        <ul class="pagination pagination-sm mb-0">
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if selected_seller %}&seller={{ selected_seller }}{% endif %}">Previous</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Previous</span></li>
+          {% endif %}
+
+          <li class="page-item active">
+            <span class="page-link">{{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+          </li>
+
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if selected_status %}&status={{ selected_status }}{% endif %}{% if selected_type %}&type={{ selected_type }}{% endif %}{% if selected_seller %}&seller={{ selected_seller }}{% endif %}">Next</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Next</span></li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

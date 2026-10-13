@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Page Not Found (404) — Fitmeezo{% endblock %}
+{% block meta_description %}The page you are looking for does not exist on Fitmeezo. Explore our popular categories and products.{% endblock %}
+
+{% block content %}
+<section class="py-5" style="min-height: 60vh; display: flex; align-items: center;">
+  <div class="fm-container text-center py-4">
+    <div class="mb-4">
+      <span class="badge px-3 py-2 rounded-pill fw-bold" style="background-color: var(--fm-primary-subtle); color: var(--fm-primary); font-size: 0.9rem;">
+        ERROR 404
+      </span>
+    </div>
+
+    <h1 class="display-5 fw-extrabold mb-3" style="font-weight: 800;">
+      We couldn't find that page
+    </h1>
+
+    <p class="text-muted mx-auto mb-4" style="max-width: 520px; font-size: 1.05rem;">
+      The page you were looking for may have been moved, renamed, or is temporarily unavailable. Let's get you back on track!
+    </p>
+
+    <!-- Search Bar on 404 -->
+    <div class="mx-auto mb-4" style="max-width: 480px;">
+      <form action="{% url 'core:search' %}" method="get" class="d-flex gap-2">
+        <input type="search" name="q" class="form-control fm-input" placeholder="Search for electronics, fashion, home essentials..." aria-label="Search catalogue">
+        <button type="submit" class="fm-btn fm-btn-primary" aria-label="Submit search">
+          <i class="bi bi-search"></i>
+        </button>
+      </form>
+    </div>
+
+    <div class="d-flex flex-wrap justify-content-center gap-2">
+      <a href="{% url 'core:home' %}" class="fm-btn fm-btn-primary">
+        <i class="bi bi-house-door-fill me-1"></i> Return to Homepage
+      </a>
+      <a href="{% url 'core:category_list' %}" class="fm-btn fm-btn-outline">
+        <i class="bi bi-grid-fill me-1"></i> Browse Categories
+      </a>
+      <a href="{% url 'core:cart_detail' %}" class="fm-btn fm-btn-outline">
+        <i class="bi bi-bag-fill me-1"></i> View Cart
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}

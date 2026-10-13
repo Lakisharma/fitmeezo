@@ -1,0 +1,373 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Store Overview{% endblock %}
+{% block page_title %}Dashboard Overview{% endblock %}
+
+{% block content %}
+{% if pending_bank_verifications_count > 0 %}
+<div
+  class="alert alert-warning border border-warning-subtle shadow-sm mb-4 d-flex align-items-center justify-content-between flex-wrap gap-3">
+  <div class="d-flex align-items-center gap-3">
+    <div
+      class="rounded-circle bg-warning bg-opacity-25 p-2 text-warning d-flex align-items-center justify-content-center">
+      <i class="bi bi-bank2 fs-4"></i>
+    </div>
+    <div>
+      <h6 class="fw-bold mb-0 text-dark">
+        {{ pending_bank_verifications_count }} Seller Bank Verification{{ pending_bank_verifications_count|pluralize }}
+        Pending Review
+      </h6>
+      <span class="small text-muted">
+        Sellers have registered bank details that require platform administrative manual review before payouts are
+        unlocked.
+      </span>
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    {% for ps in pending_bank_verifications|slice:":3" %}
+    <a href="{% url 'custom_admin:seller_bank_verify' seller_id=ps.id %}" class="btn btn-sm btn-primary fw-semibold">
+      <i class="bi bi-shield-check me-1"></i>Review Bank Details ({{ ps.store_name }})
+    </a>
+    {% endfor %}
+    <a href="{% url 'custom_admin:payout_create' %}" class="btn btn-sm btn-dark">
+      Manage All in Payouts
+    </a>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <!-- Revenue Card -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="text-muted small fw-semibold text-uppercase">Total Revenue</span>
+        <div class="rounded-3 p-2" style="background-color: var(--fm-primary-subtle); color: var(--fm-primary);">
+          <i class="bi bi-currency-rupee fs-5"></i>
+        </div>
+      </div>
+      <h3 class="fw-bold mb-1">₹{{ total_revenue|floatformat:2 }}</h3>
+      <div class="small text-muted">Excluding cancelled orders</div>
+    </div>
+  </div>
+
+  <!-- Total Orders Card -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="text-muted small fw-semibold text-uppercase">Total Orders</span>
+        <div class="rounded-3 p-2 bg-info-subtle text-info">
+          <i class="bi bi-bag-check-fill fs-5"></i>
+        </div>
+      </div>
+      <h3 class="fw-bold mb-1">{{ total_orders }}</h3>
+      <div class="small text-muted">
+        <span class="badge badge-status badge-status-pending me-1">{{ pending_orders }} Pending</span>
+        <span class="badge badge-status badge-status-processing">{{ processing_orders }} Processing</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Total Products Card -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="text-muted small fw-semibold text-uppercase">Catalogue Items</span>
+        <div class="rounded-3 p-2 bg-success-subtle text-success">
+          <i class="bi bi-box-seam fs-5"></i>
+        </div>
+      </div>
+      <h3 class="fw-bold mb-1">{{ total_products }}</h3>
+      <div class="small text-muted">
+        <span class="text-success fw-semibold">{{ active_products }} Active</span> • {{ total_categories }} Categories
+      </div>
+    </div>
+  </div>
+
+  <!-- Available Inventory Card -->
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <span class="text-muted small fw-semibold text-uppercase">Available Stock</span>
+        <div class="rounded-3 p-2 bg-warning-subtle text-warning">
+          <i class="bi bi-stack fs-5"></i>
+        </div>
+      </div>
+      <h3 class="fw-bold mb-1">{{ total_inventory }} <span class="fs-6 fw-normal text-muted">units</span></h3>
+      <div class="small text-muted">
+        Across all active products &amp; variants
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Secondary Statistics Row -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4">
+    <div class="fm-card p-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="rounded-circle bg-light p-3 text-secondary">
+          <i class="bi bi-people-fill fs-4"></i>
+        </div>
+        <div>
+          <div class="text-muted small fw-semibold">Registered Customers</div>
+          <div class="fs-4 fw-bold">{{ total_customers }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="fm-card p-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="rounded-circle bg-light p-3 text-success">
+          <i class="bi bi-check-circle-fill fs-4"></i>
+        </div>
+        <div>
+          <div class="text-muted small fw-semibold">Delivered Orders</div>
+          <div class="fs-4 fw-bold text-success">{{ delivered_orders }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="fm-card p-3">
+      <div class="d-flex align-items-center gap-3">
+        <div class="rounded-circle bg-light p-3 text-danger">
+          <i class="bi bi-x-circle-fill fs-4"></i>
+        </div>
+        <div>
+          <div class="text-muted small fw-semibold">Cancelled Orders</div>
+          <div class="fs-4 fw-bold text-danger">{{ cancelled_orders }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Pending Bank Verifications Section -->
+<div class="fm-card mb-4" id="pending-bank-verifications-section">
+  <div class="fm-card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-bank2 text-warning fs-5"></i>
+      <span class="fw-bold text-dark">Pending Bank Verifications</span>
+    </div>
+    <div>
+      {% if pending_bank_verifications_count > 0 %}
+      <span class="badge bg-warning text-dark border border-warning px-2.5 py-1">
+        <i class="bi bi-hourglass-split me-1"></i>{{ pending_bank_verifications_count }} Awaiting Platform Review
+      </span>
+      {% else %}
+      <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1">
+        <i class="bi bi-check-circle-fill me-1"></i>All Accounts Verified
+      </span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="p-0">
+    {% if pending_bank_verifications %}
+    <div class="table-responsive">
+      <table class="table mb-0 align-middle table-hover">
+        <thead class="table-light">
+          <tr class="small text-muted text-uppercase" style="font-size: 11px;">
+            <th class="ps-3">Seller / Store</th>
+            <th>Beneficiary Name</th>
+            <th>Bank Name &amp; Branch</th>
+            <th>Masked Account #</th>
+            <th>IFSC Code</th>
+            <th>Status</th>
+            <th class="text-end pe-3">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ps in pending_bank_verifications %}
+          <tr>
+            <td class="ps-3">
+              <strong class="text-dark d-block">{{ ps.store_name }}</strong>
+              <span class="small text-muted">{{ ps.legal_business_name|default:"—" }}</span>
+            </td>
+            <td class="fw-semibold text-dark">
+              {{ ps.bank_account_holder_name|default:"—" }}
+            </td>
+            <td>
+              <span class="d-block text-dark fw-medium">{{ ps.bank_name|default:"—" }}</span>
+              <span class="small text-muted">{{ ps.bank_branch|default:"" }}</span>
+            </td>
+            <td class="font-monospace fw-bold text-dark">
+              {{ ps.get_masked_account_number }}
+            </td>
+            <td>
+              <code class="fw-bold text-uppercase">{{ ps.bank_ifsc_code|default:"—" }}</code>
+            </td>
+            <td>
+              <span class="badge bg-warning text-dark border border-warning">
+                <i class="bi bi-hourglass-split me-1"></i>Verification Pending Review
+              </span>
+            </td>
+            <td class="text-end pe-3">
+              <a href="{% url 'custom_admin:seller_bank_verify' seller_id=ps.id %}"
+                class="btn btn-sm btn-primary fw-semibold py-1 px-3">
+                <i class="bi bi-shield-check me-1"></i>Review Bank Details
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="p-4 text-center text-muted small">
+      <i class="bi bi-check-circle-fill text-success fs-3 d-block mb-1"></i>
+      No seller bank verifications are currently pending review. All submitted bank details have been verified or
+      reviewed.
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Quick Actions & Low Stock -->
+<div class="row g-4 mb-4">
+  <!-- Recent Orders Table -->
+  <div class="col-12 col-xl-8">
+    <div class="fm-card h-100">
+      <div class="fm-card-header">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-clock-history text-secondary"></i>
+          <span>Recent Customer Orders</span>
+        </div>
+        <a href="{% url 'custom_admin:order_list' %}" class="btn btn-sm btn-outline-secondary">
+          View All Orders <i class="bi bi-arrow-right"></i>
+        </a>
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Order #</th>
+              <th>Customer</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th>Payment</th>
+              <th>Status</th>
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for order in recent_orders %}
+            <tr>
+              <td>
+                <a href="{% url 'custom_admin:order_detail' pk=order.pk %}"
+                  class="fw-bold text-decoration-none text-dark">
+                  #{{ order.order_number }}
+                </a>
+                <div class="text-muted small" style="font-size: 0.75rem;">
+                  {{ order.created_at|date:"d M Y, H:i" }}
+                </div>
+              </td>
+              <td>
+                <div class="fw-semibold text-truncate" style="max-width: 140px;">{{ order.shipping_full_name }}</div>
+                <div class="text-muted small" style="font-size: 0.75rem;">{{ order.user.username }}</div>
+              </td>
+              <td>
+                <span class="badge bg-light text-dark border">{{ order.items.count }} item{{ order.items.count|pluralize
+                  }}</span>
+              </td>
+              <td class="fw-bold">
+                ₹{{ order.total_amount|floatformat:2 }}
+              </td>
+              <td>
+                <div>
+                  <span class="badge badge-status badge-pay-{{ order.payment_status }}">
+                    {{ order.get_payment_status_display }}
+                  </span>
+                </div>
+                <small class="text-muted" style="font-size: 0.7rem;">{{ order.get_payment_method_display }}</small>
+              </td>
+              <td>
+                <span class="badge badge-status badge-status-{{ order.status }}">
+                  {{ order.get_status_display }}
+                </span>
+              </td>
+              <td class="text-end">
+                <a href="{% url 'custom_admin:order_detail' pk=order.pk %}" class="btn btn-sm btn-outline-dark"
+                  title="View Order">
+                  <i class="bi bi-eye"></i>
+                </a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr>
+              <td colspan="7" class="text-center py-4 text-muted">
+                <i class="bi bi-inbox fs-3 d-block mb-1"></i>
+                No orders recorded yet.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar Column: Low Stock + Quick Links -->
+  <div class="col-12 col-xl-4 d-flex flex-column gap-3">
+    <!-- Quick Actions Card -->
+    <div class="fm-card">
+      <div class="fm-card-header">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-lightning-charge-fill text-warning"></i>
+          <span>Quick Actions</span>
+        </div>
+      </div>
+      <div class="fm-card-body d-flex flex-column gap-2">
+        <a href="{% url 'custom_admin:product_add' %}"
+          class="btn btn-fm-primary d-flex align-items-center justify-content-between">
+          <span><i class="bi bi-plus-circle me-2"></i>Add New Product</span>
+          <i class="bi bi-chevron-right"></i>
+        </a>
+        <a href="{% url 'custom_admin:category_add' %}"
+          class="btn btn-fm-dark d-flex align-items-center justify-content-between">
+          <span><i class="bi bi-folder-plus me-2"></i>Add New Category</span>
+          <i class="bi bi-chevron-right"></i>
+        </a>
+        <a href="{% url 'custom_admin:order_list' %}"
+          class="btn btn-outline-secondary d-flex align-items-center justify-content-between">
+          <span><i class="bi bi-card-checklist me-2"></i>Manage Orders</span>
+          <i class="bi bi-chevron-right"></i>
+        </a>
+      </div>
+    </div>
+
+    <!-- Low Stock Alert Card -->
+    <div class="fm-card flex-grow-1">
+      <div class="fm-card-header">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+          <span>Low Stock Inventory Alert</span>
+        </div>
+      </div>
+      <div class="fm-card-body p-0">
+        <div class="list-group list-group-flush">
+          {% for prod in low_stock_products %}
+          <a href="{% url 'custom_admin:product_detail' pk=prod.pk %}"
+            class="list-group-item list-group-item-action d-flex align-items-center justify-content-between py-2 px-3">
+            <div class="overflow-hidden me-2">
+              <div class="fw-semibold text-truncate small">{{ prod.name }}</div>
+              <small class="text-muted" style="font-size: 0.75rem;">SKU: {{ prod.sku }}</small>
+            </div>
+            <span
+              class="badge {% if prod.available_inventory == 0 %}bg-danger{% else %}bg-warning text-dark{% endif %}">
+              {% if prod.available_inventory == 0 %}Out of Stock{% else %}{{ prod.available_inventory }} left{% endif %}
+            </span>
+          </a>
+          {% empty %}
+          <div class="p-3 text-center text-muted small">
+            <i class="bi bi-check-circle text-success fs-4 d-block mb-1"></i>
+            All inventory levels are healthy!
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

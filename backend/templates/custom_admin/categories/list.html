@@ -1,0 +1,121 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Category Management{% endblock %}
+{% block page_title %}Product Categories{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+  <div>
+    <h4 class="fw-bold mb-1">Categories</h4>
+    <p class="text-muted small mb-0">Organize merchandise into department stores with custom ordering and active storefront visibility.</p>
+  </div>
+  <div>
+    <a href="{% url 'custom_admin:category_add' %}" class="btn btn-fm-primary d-inline-flex align-items-center gap-2">
+      <i class="bi bi-folder-plus"></i> Add New Category
+    </a>
+  </div>
+</div>
+
+<!-- Search & Filter Card -->
+<div class="fm-card mb-4 p-3">
+  <form method="get" action="{% url 'custom_admin:category_list' %}" class="row g-2 align-items-center">
+    <div class="col-12 col-md-6">
+      <div class="input-group">
+        <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Search category by name or slug...">
+      </div>
+    </div>
+    <div class="col-12 col-md-2 d-flex gap-1">
+      <button type="submit" class="btn btn-dark w-100"><i class="bi bi-search"></i> Search</button>
+      {% if q %}
+        <a href="{% url 'custom_admin:category_list' %}" class="btn btn-outline-secondary" title="Clear Search">
+          <i class="bi bi-x-lg"></i>
+        </a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Categories Table -->
+<div class="fm-card">
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead>
+        <tr>
+          <th style="width: 70px;">Banner</th>
+          <th>Category Name &amp; Slug</th>
+          <th>Products Count</th>
+          <th>Display Order</th>
+          <th>Storefront Status</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in categories %}
+          <tr>
+            <td>
+              {% if cat.image %}
+                <img src="{{ cat.image.url }}" alt="{{ cat.name }}" class="rounded border object-fit-cover" style="width: 48px; height: 48px;">
+              {% else %}
+                <div class="rounded border bg-light d-flex align-items-center justify-content-center text-muted" style="width: 48px; height: 48px;">
+                  <i class="bi {{ cat.icon_class }} fs-5"></i>
+                </div>
+              {% endif %}
+            </td>
+            <td>
+              <div class="fw-bold text-dark">{{ cat.name }}</div>
+              <small class="text-muted"><code>/categories/{{ cat.slug }}/</code></small>
+            </td>
+            <td>
+              <a href="{% url 'custom_admin:product_list' %}?category={{ cat.slug }}" class="badge bg-light text-dark border text-decoration-none">
+                {{ cat.product_count }} product{{ cat.product_count|pluralize }}
+              </a>
+            </td>
+            <td>
+              <span class="badge bg-secondary-subtle text-dark fw-semibold">#{{ cat.display_order }}</span>
+            </td>
+            <td>
+              <form method="post" action="{% url 'custom_admin:category_toggle_status' pk=cat.pk %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm {% if cat.is_active %}btn-success{% else %}btn-outline-secondary{% endif %}" title="Click to toggle status">
+                  {% if cat.is_active %}
+                    <i class="bi bi-check-circle me-1"></i> Active
+                  {% else %}
+                    <i class="bi bi-slash-circle me-1"></i> Inactive
+                  {% endif %}
+                </button>
+              </form>
+            </td>
+            <td class="text-end">
+              <div class="btn-group btn-group-sm">
+                <a href="{% url 'custom_admin:category_edit' pk=cat.pk %}" class="btn btn-outline-dark" title="Edit Category">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                {% if cat.product_count > 0 %}
+                  <button type="button" class="btn btn-outline-secondary" title="Cannot delete: Products exist" onclick="alert('Category \'{{ cat.name }}\' contains {{ cat.product_count }} product(s). To protect catalogue integrity, reassign products or deactivate the category instead.');">
+                    <i class="bi bi-lock text-muted"></i>
+                  </button>
+                {% else %}
+                  <form method="post" action="{% url 'custom_admin:category_delete' pk=cat.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger" title="Delete Category" onclick="return confirm('Are you sure you want to delete empty category \'{{ cat.name }}\'?');">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="text-center py-5 text-muted">
+              <i class="bi bi-grid fs-1 d-block mb-2 text-secondary"></i>
+              No categories found.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

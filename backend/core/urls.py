@@ -1,8 +1,293 @@
-from django.urls import path
-from .views import health_check
+from django.contrib.auth import views as auth_views
+from django.urls import path, reverse_lazy
+from .views import (
+    account_address_add,
+    account_address_delete,
+    account_address_edit,
+    account_address_set_default,
+    account_addresses,
+    account_dashboard,
+    account_login,
+    account_logout,
+    account_orders_view,
+    account_profile,
+    account_register,
+    account_reviews,
+    cart_add,
+    cart_clear,
+    cart_detail,
+    cart_remove,
+    cart_update,
+    category_detail,
+    category_list,
+    checkout_view,
+    health_check,
+    home,
+    oauth_facebook_login,
+    oauth_google_login,
+    order_confirmation_view,
+    order_detail_view,
+    order_cancel_view,
+    customer_order_invoice_pdf_view,
+    order_return_request_view,
+    customer_return_list_view,
+    customer_return_detail_view,
+    customer_return_cancel_view,
+    product_detail,
+    product_review_submit,
+    product_reviews_api,
+    product_search,
+    product_variants_api,
+    razorpay_payment_failed,
+    razorpay_payment_page,
+    razorpay_payment_verify,
+    razorpay_webhook,
+    review_delete,
+    review_edit,
+    robots_txt,
+    seller_dashboard_view,
+    seller_export_financial_csv_view,
+    seller_export_orders_csv_view,
+    seller_export_products_csv_view,
+    seller_order_create_mock_shipment_view,
+    seller_order_detail_view,
+    seller_order_estimate_rates_view,
+    seller_order_list_view,
+    seller_order_invoice_pdf_view,
+    seller_order_packing_summary_view,
+    seller_order_shipping_label_view,
+    seller_order_record_measurements_view,
+    seller_order_update_status_view,
+    seller_product_add_view,
+    seller_product_edit_view,
+    seller_product_image_add_view,
+    seller_product_image_delete_view,
+    seller_product_inventory_view,
+    seller_product_list_view,
+    seller_product_variant_add_view,
+    seller_product_variant_delete_view,
+    seller_product_variant_edit_view,
+    seller_product_variant_toggle_view,
+    seller_profile_view,
+    seller_register_view,
+    seller_login_view,
+    seller_send_otp_view,
+    seller_verify_otp_view,
+    seller_logout_view,
+    seller_reports_view,
+    seller_return_action_view,
+    seller_return_detail_view,
+    seller_return_list_view,
+    seller_ledger_view,
+    seller_export_ledger_csv_view,
+    seller_payout_list_view,
+    seller_payout_detail_view,
+    seller_bank_details_view,
+    seller_status_view,
+    sitemap_xml,
+    terms_view,
+    wishlist_add,
+    wishlist_api,
+    wishlist_api_detail,
+    wishlist_detail,
+    wishlist_move_to_cart,
+    wishlist_remove,
+    wishlist_toggle,
+)
 
 app_name = "core"
 
 urlpatterns = [
+    path("", home, name="home"),
+    path("robots.txt", robots_txt, name="robots_txt"),
+    path("sitemap.xml", sitemap_xml, name="sitemap_xml"),
     path("health/", health_check, name="health-check"),
+    path("terms/", terms_view, name="terms"),
+    path("categories/", category_list, name="category_list"),
+    path("categories/<slug:slug>/", category_detail, name="category_detail"),
+    path("search/", product_search, name="product_search"),
+    path("search/", product_search, name="search"),
+    path("products/<slug:slug>/", product_detail, name="product_detail"),
+
+    # Product Reviews & Ratings routes (Prompt 9)
+    path("products/<slug:slug>/review/", product_review_submit, name="product_review_submit"),
+    path("reviews/<int:pk>/edit/", review_edit, name="review_edit"),
+    path("reviews/<int:pk>/delete/", review_delete, name="review_delete"),
+    path("account/reviews/", account_reviews, name="account_reviews"),
+
+    # Fitmeezo Shopping Cart routes
+    path("cart/", cart_detail, name="cart_detail"),
+    path("cart/add/", cart_add, name="cart_add"),
+    path("cart/update/", cart_update, name="cart_update"),
+    path("cart/remove/", cart_remove, name="cart_remove"),
+    path("cart/clear/", cart_clear, name="cart_clear"),
+
+    # Checkout & Order Management routes
+    path("checkout/", checkout_view, name="checkout"),
+    path("orders/confirmation/<str:order_number>/", order_confirmation_view, name="order_confirmation"),
+    path("orders/<str:order_number>/cancel/", order_cancel_view, name="order_cancel"),
+    path("orders/<str:order_number>/return/", order_return_request_view, name="order_return_request"),
+    path("orders/<str:order_number>/invoice/", customer_order_invoice_pdf_view, name="order_invoice"),
+    path("orders/<str:order_number>/", order_detail_view, name="order_detail"),
+    path("account/orders/", account_orders_view, name="account_orders"),
+    path("account/returns/", customer_return_list_view, name="customer_return_list"),
+    path("account/returns/<str:request_number>/", customer_return_detail_view, name="customer_return_detail"),
+    path("account/returns/<str:request_number>/cancel/", customer_return_cancel_view, name="customer_return_cancel"),
+
+    # Razorpay Online Payment routes
+    path("payment/razorpay/verify/", razorpay_payment_verify, name="razorpay_payment_verify"),
+    path("payment/razorpay/failed/", razorpay_payment_failed, name="razorpay_payment_failed"),
+    path("payment/razorpay/webhook/", razorpay_webhook, name="razorpay_webhook"),
+    path("payment/razorpay/<str:order_number>/", razorpay_payment_page, name="razorpay_payment_page"),
+
+    # Customer Authentication & Profile routes (Prompt 8)
+    path("account/register/", account_register, name="account_register"),
+    path("account/login/", account_login, name="account_login"),
+    path("account/logout/", account_logout, name="account_logout"),
+    path("account/", account_dashboard, name="account_dashboard"),
+    path("account/profile/", account_profile, name="account_profile"),
+    path("account/addresses/", account_addresses, name="account_addresses"),
+    path("account/addresses/add/", account_address_add, name="account_address_add"),
+    path("account/addresses/<int:pk>/edit/", account_address_edit, name="account_address_edit"),
+    path("account/addresses/<int:pk>/delete/", account_address_delete, name="account_address_delete"),
+    path("account/addresses/<int:pk>/set-default/", account_address_set_default, name="account_address_set_default"),
+
+    # Password Reset routes (Prompt 8)
+    path(
+        "account/password-reset/",
+        auth_views.PasswordResetView.as_view(
+            template_name="account/password_reset_form.html",
+            email_template_name="account/password_reset_email.html",
+            subject_template_name="account/password_reset_subject.txt",
+            success_url=reverse_lazy("core:password_reset_done"),
+        ),
+        name="password_reset",
+    ),
+    path(
+        "account/password-reset/done/",
+        auth_views.PasswordResetDoneView.as_view(
+            template_name="account/password_reset_done.html",
+        ),
+        name="password_reset_done",
+    ),
+    path(
+        "account/password-reset/confirm/<uidb64>/<token>/",
+        auth_views.PasswordResetConfirmView.as_view(
+            template_name="account/password_reset_confirm.html",
+            success_url=reverse_lazy("core:password_reset_complete"),
+        ),
+        name="password_reset_confirm",
+    ),
+    path(
+        "account/password-reset/complete/",
+        auth_views.PasswordResetCompleteView.as_view(
+            template_name="account/password_reset_complete.html",
+        ),
+        name="password_reset_complete",
+    ),
+
+    # Customer Wishlist routes (Prompt 10)
+    path("wishlist/", wishlist_detail, name="wishlist_detail"),
+    path("wishlist/add/", wishlist_add, name="wishlist_add"),
+    path("wishlist/toggle/", wishlist_toggle, name="wishlist_toggle"),
+    path("wishlist/<int:pk>/remove/", wishlist_remove, name="wishlist_remove"),
+    path("wishlist/<int:pk>/add-to-cart/", wishlist_move_to_cart, name="wishlist_move_to_cart"),
+
+    # Social OAuth routes (Prompt 11)
+    path("account/social/google/", oauth_google_login, name="oauth_google"),
+    path("account/social/facebook/", oauth_facebook_login, name="oauth_facebook"),
+
+    # Third-Party Seller Onboarding, Authentication & Profile routes (Phase 1 & Phase 3)
+    path("seller/register/", seller_register_view, name="seller_register"),
+    path("seller/login/", seller_login_view, name="seller_login"),
+    path("seller/login/send-otp/", seller_send_otp_view, name="seller_send_otp"),
+    path("seller/login/verify-otp/", seller_verify_otp_view, name="seller_verify_otp"),
+    path("seller/logout/", seller_logout_view, name="seller_logout"),
+    path("seller/status/", seller_status_view, name="seller_status"),
+    path("seller/profile/", seller_profile_view, name="seller_profile"),
+    path("seller/dashboard/", seller_dashboard_view, name="seller_dashboard"),
+
+    # Seller Portal Password Reset routes
+    path(
+        "seller/password-reset/",
+        auth_views.PasswordResetView.as_view(
+            template_name="seller/password_reset_form.html",
+            email_template_name="seller/password_reset_email.html",
+            subject_template_name="seller/password_reset_subject.txt",
+            success_url=reverse_lazy("core:seller_password_reset_done"),
+        ),
+        name="seller_password_reset",
+    ),
+    path(
+        "seller/password-reset/done/",
+        auth_views.PasswordResetDoneView.as_view(
+            template_name="seller/password_reset_done.html",
+        ),
+        name="seller_password_reset_done",
+    ),
+    path(
+        "seller/password-reset/confirm/<uidb64>/<token>/",
+        auth_views.PasswordResetConfirmView.as_view(
+            template_name="seller/password_reset_confirm.html",
+            success_url=reverse_lazy("core:seller_password_reset_complete"),
+        ),
+        name="seller_password_reset_confirm",
+    ),
+    path(
+        "seller/password-reset/complete/",
+        auth_views.PasswordResetCompleteView.as_view(
+            template_name="seller/password_reset_complete.html",
+        ),
+        name="seller_password_reset_complete",
+    ),
+
+    # Seller Product & Inventory Management (Phase 3 Prompt 2)
+    path("seller/products/", seller_product_list_view, name="seller_product_list"),
+    path("seller/products/add/", seller_product_add_view, name="seller_product_add"),
+    path("seller/products/<int:pk>/edit/", seller_product_edit_view, name="seller_product_edit"),
+    path("seller/products/<int:pk>/inventory/", seller_product_inventory_view, name="seller_product_inventory"),
+    path("seller/products/<int:pk>/variants/add/", seller_product_variant_add_view, name="seller_product_variant_add"),
+    path("seller/products/<int:pk>/variants/<int:variant_pk>/edit/", seller_product_variant_edit_view, name="seller_product_variant_edit"),
+    path("seller/products/<int:pk>/variants/<int:variant_pk>/toggle/", seller_product_variant_toggle_view, name="seller_product_variant_toggle"),
+    path("seller/products/<int:pk>/variants/<int:variant_pk>/delete/", seller_product_variant_delete_view, name="seller_product_variant_delete"),
+    path("seller/products/<int:pk>/images/add/", seller_product_image_add_view, name="seller_product_image_add"),
+    path("seller/products/<int:pk>/images/<int:image_pk>/delete/", seller_product_image_delete_view, name="seller_product_image_delete"),
+
+    # Seller Order Fulfillment Management (Phase 3 Prompt 3)
+    path("seller/orders/", seller_order_list_view, name="seller_order_list"),
+    path("seller/orders/<int:pk>/", seller_order_detail_view, name="seller_order_detail"),
+    path("seller/orders/<int:pk>/update-status/", seller_order_update_status_view, name="seller_order_update_status"),
+    path("seller/orders/<int:pk>/measurements/", seller_order_record_measurements_view, name="seller_order_record_measurements"),
+    path("seller/orders/<int:pk>/estimate-rates/", seller_order_estimate_rates_view, name="seller_order_estimate_rates"),
+    path("seller/orders/<int:pk>/book-mock-shipment/", seller_order_create_mock_shipment_view, name="seller_order_create_mock_shipment"),
+    path("seller/orders/<int:pk>/packing-summary/", seller_order_packing_summary_view, name="seller_order_packing_summary"),
+    path("seller/orders/<int:pk>/packing-slip/", seller_order_shipping_label_view, name="seller_order_packing_slip"),
+    path("seller/orders/<int:pk>/shipping-label/", seller_order_shipping_label_view, name="seller_order_shipping_label"),
+    path("seller/orders/<int:pk>/invoice/", seller_order_invoice_pdf_view, name="seller_order_invoice"),
+
+    # Seller Return & Exchange Management (Phase 6)
+    path("seller/returns/", seller_return_list_view, name="seller_return_list"),
+    path("seller/returns/<str:request_number>/", seller_return_detail_view, name="seller_return_detail"),
+    path("seller/returns/<str:request_number>/action/", seller_return_action_view, name="seller_return_action"),
+
+    # Seller Reports & Secure CSV Exports (Phase 3 Prompt 4)
+    path("seller/reports/", seller_reports_view, name="seller_reports"),
+    path("seller/reports/export/orders/", seller_export_orders_csv_view, name="seller_export_orders_csv"),
+    path("seller/reports/export/products/", seller_export_products_csv_view, name="seller_export_products_csv"),
+    path("seller/reports/export/financial/", seller_export_financial_csv_view, name="seller_export_financial_csv"),
+
+    # Phase 7: Seller Financial Ledger & Payout History
+    path("seller/ledger/", seller_ledger_view, name="seller_ledger"),
+    path("seller/ledger/export/", seller_export_ledger_csv_view, name="seller_export_ledger_csv"),
+    path("seller/payouts/", seller_payout_list_view, name="seller_payout_list"),
+    path("seller/payouts/<str:batch_reference>/", seller_payout_detail_view, name="seller_payout_detail"),
+    path("seller/bank-details/", seller_bank_details_view, name="seller_bank_details"),
+
+    # DRF API endpoints
+    path("api/products/<slug:slug>/variants/", product_variants_api, name="product_variants_api"),
+    path("api/products/<slug:slug>/reviews/", product_reviews_api, name="product_reviews_api"),
+    path("api/wishlist/", wishlist_api, name="wishlist_api"),
+    path("api/wishlist/<int:pk>/", wishlist_api_detail, name="wishlist_api_detail"),
 ]
+
+

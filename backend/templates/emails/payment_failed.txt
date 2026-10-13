@@ -1,0 +1,16 @@
+FITMEEZO - PAYMENT UNSUCCESSFUL
+======================================================
+Dear {{ order.shipping_full_name }},
+
+We were unable to complete your online payment for Order #{{ order.order_number }} (Amount: ₹{{ order.total_amount }}).
+
+{% if reason %}Reason: {{ reason }}{% else %}The transaction was declined or cancelled.{% endif %}
+
+No amount has been collected for this order. If your bank account was debited, it will be refunded by your bank within 3-5 business days.
+
+You can visit https://fitmeezo.com to place a new order using Cash on Delivery (COD).
+Need help? Contact our customer support team at support@fitmeezo.com.
+
+Thank you,
+Team Fitmeezo
+https://fitmeezo.com

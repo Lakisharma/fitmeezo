@@ -1,0 +1,236 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Master Financial Ledger — Admin Console | Fitmeezo{% endblock %}
+
+{% block page_title %}Master Financial Ledger{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'custom_admin:ledger_export_csv' %}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+  <i class="bi bi-download"></i> Export Master CSV
+</a>
+<a href="{% url 'custom_admin:manual_adjustment' %}" class="btn btn-sm btn-outline-dark d-flex align-items-center gap-1">
+  <i class="bi bi-sliders"></i> Manual Adjustment
+</a>
+<a href="{% url 'custom_admin:payout_create' %}" class="btn btn-sm btn-primary d-flex align-items-center gap-1">
+  <i class="bi bi-cash-stack"></i> Prepare Payout Batch
+</a>
+{% endblock %}
+
+{% block content %}
+<!-- Master Financial Overview Metric Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase">Net Outstanding</span>
+        <h4 class="fw-bold mb-0 text-dark">₹{{ net_payable }}</h4>
+        <span class="small text-muted" style="font-size: 11px;">Current seller balance</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase">Gross Sales (GMV)</span>
+        <h4 class="fw-bold mb-0 text-success">₹{{ gmv_total }}</h4>
+        <span class="small text-muted" style="font-size: 11px;">Posted order volume</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase">Platform Comm.</span>
+        <h4 class="fw-bold mb-0 text-primary">₹{{ comm_total }}</h4>
+        <span class="small text-muted" style="font-size: 11px;">Revenue earned</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase">Refund Deductions</span>
+        <h4 class="fw-bold mb-0 text-danger">₹{{ refund_total }}</h4>
+        <span class="small text-muted" style="font-size: 11px;">Customer returns</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase">Total Disbursed</span>
+        <h4 class="fw-bold mb-0 text-dark">₹{{ payout_total }}</h4>
+        <span class="small text-muted" style="font-size: 11px;">Simulated payouts</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 border-start border-warning border-3">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase">Pending COD</span>
+        <h4 class="fw-bold mb-0 text-warning">₹{{ pending_cod_amt }}</h4>
+        <a href="{% url 'custom_admin:cod_reconcile' %}" class="small text-decoration-none" style="font-size: 11px;">
+          {{ pending_cod_count }} packages • Reconcile &rarr;
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters & Search Toolbar -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body p-3">
+    <form method="get" class="row g-2 align-items-center">
+      <div class="col-12 col-md-3">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+          <input type="text" name="q" value="{{ search_query }}" class="form-control border-start-0" placeholder="Search reference, store, order...">
+        </div>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <select name="seller" class="form-select form-select-sm">
+          <option value="">All Merchants</option>
+          <option value="platform" {% if selected_seller == 'platform' %}selected{% endif %}>Platform Store (Central)</option>
+          {% for s in sellers %}
+            <option value="{{ s.id }}" {% if selected_seller == s.id|stringformat:"s" %}selected{% endif %}>{{ s.store_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <select name="category" class="form-select form-select-sm">
+          <option value="">All Categories</option>
+          {% for code, label in category_choices %}
+            <option value="{{ code }}" {% if selected_category == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <select name="type" class="form-select form-select-sm">
+          <option value="">All Types</option>
+          <option value="credit" {% if selected_type == 'credit' %}selected{% endif %}>+ Credits Only</option>
+          <option value="debit" {% if selected_type == 'debit' %}selected{% endif %}>- Debits Only</option>
+        </select>
+      </div>
+
+      <div class="col-6 col-md-2">
+        <select name="status" class="form-select form-select-sm">
+          <option value="">All Statuses</option>
+          {% for code, label in status_choices %}
+            <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-12 col-md-1 d-flex gap-1">
+        <button type="submit" class="btn btn-sm btn-dark w-100">Filter</button>
+        {% if search_query or selected_seller or selected_category or selected_type or selected_status %}
+          <a href="{% url 'custom_admin:ledger_list' %}" class="btn btn-sm btn-outline-secondary" title="Reset"><i class="bi bi-x-lg"></i></a>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Ledger Transactions Table -->
+<div class="card border-0 shadow-sm overflow-hidden">
+  <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+    <h6 class="mb-0 fw-bold">Platform Financial Ledger Entries ({{ total_count }})</h6>
+    <span class="badge bg-light text-muted border">Immutable Audit Trail</span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Merchant</th>
+          <th>Type</th>
+          <th>Category</th>
+          <th>Source / Description</th>
+          <th>Reference Key</th>
+          <th>Status</th>
+          <th class="text-end">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in page_obj %}
+          <tr>
+            <td class="text-nowrap small text-muted">{{ entry.created_at|date:"d M Y, H:i" }}</td>
+            <td>
+              {% if entry.is_platform_fulfilled or not entry.seller %}
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Platform Store</span>
+              {% else %}
+                <span class="fw-semibold text-dark">{{ entry.seller.store_name }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if entry.entry_type == 'credit' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold">+ CREDIT</span>
+              {% else %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold">- DEBIT</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge bg-light text-dark border small">{{ entry.get_category_display }}</span>
+            </td>
+            <td>
+              <div class="small fw-semibold text-dark">{{ entry.description }}</div>
+              {% if entry.seller_order %}
+                <span class="small text-muted">Pkg #{{ entry.seller_order.sub_order_number }}</span>
+              {% elif entry.source_reference %}
+                <span class="small text-muted">{{ entry.source_reference }}</span>
+              {% endif %}
+            </td>
+            <td>
+              <code class="small text-muted">{{ entry.idempotency_key }}</code>
+            </td>
+            <td>
+              {% if entry.status == 'posted' %}
+                <span class="badge bg-success text-white" style="font-size: 11px;">Posted</span>
+              {% elif entry.status == 'pending_cod' %}
+                <span class="badge bg-warning text-dark" style="font-size: 11px;">Pending COD</span>
+              {% elif entry.status == 'reversed' %}
+                <span class="badge bg-danger text-white" style="font-size: 11px;">Reversed</span>
+              {% endif %}
+            </td>
+            <td class="text-end text-nowrap fw-bold {% if entry.entry_type == 'credit' %}text-success{% else %}text-danger{% endif %}">
+              {% if entry.entry_type == 'credit' %}+{% else %}-{% endif %}₹{{ entry.amount }}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="8" class="text-center py-5 text-muted">No ledger entries found.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+    <div class="card-footer bg-white border-top py-3 d-flex justify-content-between align-items-center">
+      <span class="small text-muted">Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+      <ul class="pagination pagination-sm mb-0">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&seller={{ selected_seller }}&category={{ selected_category }}&type={{ selected_type }}&status={{ selected_status }}">Previous</a>
+          </li>
+        {% endif %}
+        <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&seller={{ selected_seller }}&category={{ selected_category }}&type={{ selected_type }}&status={{ selected_status }}">Next</a>
+          </li>
+        {% endif %}
+      </ul>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

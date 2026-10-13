@@ -1,0 +1,172 @@
+{% load static %}
+<footer class="fm-footer" role="contentinfo">
+  <div class="fm-footer-top">
+    <div class="fm-container">
+      <div class="fm-footer-grid">
+        <!-- Column 1: Brand & Customer Support -->
+        <div class="fm-footer-brand-col">
+          <div class="d-flex align-items-center gap-2">
+            <span style="font-size: 1.6rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.5px;">
+              Fitmee<span style="color: var(--fm-primary);">zo</span>
+            </span>
+          </div>
+
+          <p class="fm-footer-tagline">{{ BRAND_TAGLINE }}</p>
+
+          <p class="fm-footer-desc">
+            India's modern multi-category shopping destination. Delivering smart value, authentic products, and reliable service across the country.
+          </p>
+
+          <!-- Support Contact Card -->
+          <div class="fm-support-card">
+            <p class="fm-support-title">Customer Care Helpline</p>
+            <a href="tel:+911800123456" class="fm-support-contact" aria-label="Customer Care Phone: 1800-123-456">
+              <i class="bi bi-telephone-inbound-fill text-warning" aria-hidden="true"></i>
+              <span>1800-123-456 (Toll Free)</span>
+            </a>
+            <p class="fm-support-timing">Monday to Saturday: 9:00 AM – 9:00 PM IST</p>
+            <div style="font-size: 12px; color: #BBBBBB;">
+              <a href="mailto:support@fitmeezo.com" style="color: #BBBBBB; text-decoration: none;">
+                <i class="bi bi-envelope me-1" aria-hidden="true"></i> support@fitmeezo.com
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Column 2: Customer Service -->
+        <div>
+          <h2 class="fm-footer-heading">Customer Service</h2>
+          <ul class="fm-footer-links">
+            <li>
+              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Contact Us">
+                Contact Us
+              </a>
+            </li>
+            <li>
+              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Track Order">
+                Track Your Order
+              </a>
+            </li>
+            <li>
+              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Shipping Policy">
+                Shipping Policy
+              </a>
+            </li>
+            <li>
+              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Return Policy">
+                Return &amp; Refund Policy
+              </a>
+            </li>
+            <li>
+              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Help & FAQs">
+                Frequently Asked Questions
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Column 3: About & Company -->
+        <div>
+          <h2 class="fm-footer-heading">About Fitmeezo</h2>
+          <ul class="fm-footer-links">
+            <li>
+              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="About Us">
+                About Us
+              </a>
+            </li>
+            <li>
+              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Careers">
+                Careers at Fitmeezo
+              </a>
+            </li>
+            <li>
+              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Authenticity Guarantee">
+                100% Genuine Guarantee
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'core:seller_register' %}" class="fm-footer-link">
+                Sell with Us (Vendors)
+              </a>
+            </li>
+            <li>
+              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Press & News">
+                Newsroom &amp; Press
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Column 4: Policies & Socials -->
+        <div>
+          <h2 class="fm-footer-heading">Legal &amp; Connect</h2>
+          <ul class="fm-footer-links">
+            <li>
+              <a href="{% url 'core:terms' %}#privacy" class="fm-footer-link">
+                Privacy Policy
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'core:terms' %}" class="fm-footer-link">
+                Terms &amp; Conditions
+              </a>
+            </li>
+            <li>
+              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Security & Safety">
+                Security &amp; Fraud Prevention
+              </a>
+            </li>
+            <li>
+              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Grievance Officer">
+                Grievance Officer (India)
+              </a>
+            </li>
+          </ul>
+
+          <div class="mt-4">
+            <div style="font-size: 11px; font-weight: 700; color: #9E9EA7; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">
+              Follow Us
+            </div>
+            <div class="fm-social-links">
+              <a href="#" class="fm-social-btn" data-placeholder="true" data-placeholder-label="Instagram Profile" aria-label="Follow Fitmeezo on Instagram">
+                <i class="bi bi-instagram" aria-hidden="true"></i>
+              </a>
+              <a href="#" class="fm-social-btn" data-placeholder="true" data-placeholder-label="Facebook Page" aria-label="Follow Fitmeezo on Facebook">
+                <i class="bi bi-facebook" aria-hidden="true"></i>
+              </a>
+              <a href="#" class="fm-social-btn" data-placeholder="true" data-placeholder-label="X (Twitter) Profile" aria-label="Follow Fitmeezo on X">
+                <i class="bi bi-twitter-x" aria-hidden="true"></i>
+              </a>
+              <a href="#" class="fm-social-btn" data-placeholder="true" data-placeholder-label="LinkedIn Page" aria-label="Connect with Fitmeezo on LinkedIn">
+                <i class="bi bi-linkedin" aria-hidden="true"></i>
+              </a>
+              <a href="#" class="fm-social-btn" data-placeholder="true" data-placeholder-label="YouTube Channel" aria-label="Fitmeezo YouTube Channel">
+                <i class="bi bi-youtube" aria-hidden="true"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Legal & Payment Ribbon -->
+  <div class="fm-footer-bottom">
+    <div class="fm-container fm-footer-bottom-inner">
+      <div>
+        <span>&copy; {% now "Y" %} {{ BRAND_NAME }}. All Rights Reserved. Developed by Lakshman Sharma</span>
+        <span class="mx-2 text-muted" aria-hidden="true">•</span>
+        <span class="text-white-50">Currency: {{ CURRENCY }} ({{ CURRENCY_SYMBOL }})</span>
+      </div>
+
+      <div class="fm-payment-methods" aria-label="Accepted Payment Gateways">
+        <span style="font-size: 11px; color: #888888; margin-right: 4px;">Secure Payments:</span>
+        <span class="fm-payment-pill"><i class="bi bi-qr-code-scan" aria-hidden="true"></i> UPI</span>
+        <span class="fm-payment-pill"><i class="bi bi-credit-card-2-front" aria-hidden="true"></i> RuPay</span>
+        <span class="fm-payment-pill"><i class="bi bi-credit-card" aria-hidden="true"></i> Visa</span>
+        <span class="fm-payment-pill"><i class="bi bi-credit-card" aria-hidden="true"></i> Mastercard</span>
+        <span class="fm-payment-pill"><i class="bi bi-bank" aria-hidden="true"></i> Net Banking</span>
+      </div>
+    </div>
+  </div>
+</footer>

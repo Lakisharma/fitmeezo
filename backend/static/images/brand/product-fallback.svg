@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" fill="none">
+  <!-- Subtle gradient background -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5F5F7" />
+      <stop offset="100%" stop-color="#EBEBF0" />
+    </linearGradient>
+    <linearGradient id="boxGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B00" />
+      <stop offset="100%" stop-color="#E05E00" />
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bgGrad)" />
+  
+  <!-- Subtle pattern circle -->
+  <circle cx="200" cy="180" r="90" fill="#FFFFFF" fill-opacity="0.8" />
+  
+  <!-- Stylized Shopping Box / Product Emblem -->
+  <g transform="translate(140, 120)">
+    <!-- Main Box Body -->
+    <path d="M60 15 L105 40 L60 65 L15 40 Z" fill="url(#boxGrad)" />
+    <path d="M15 40 L60 65 L60 115 L15 90 Z" fill="#D35400" />
+    <path d="M60 65 L105 40 L105 90 L60 115 Z" fill="#E65100" />
+    <!-- Tape / Fitmeezo Accent line -->
+    <path d="M48 22 L72 35 L72 85 L48 72 Z" fill="#FFFFFF" fill-opacity="0.25" />
+    <!-- Dynamic Smile/Sparkle mark -->
+    <circle cx="60" cy="50" r="4" fill="#FFFFFF" />
+  </g>
+
+  <!-- Brand watermark -->
+  <text x="200" y="270" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="16" font-weight="700" fill="#121212" text-anchor="middle" letter-spacing="-0.3">
+    Fitmee<tspan fill="#FF6B00">zo</tspan>
+  </text>
+  <text x="200" y="292" font-family="'Plus Jakarta Sans', system-ui, sans-serif" font-size="10" font-weight="600" fill="#8E8E93" text-anchor="middle" letter-spacing="1">
+    SHOP SMART • LIVE BETTER
+  </text>
+</svg>

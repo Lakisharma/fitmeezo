@@ -1,0 +1,43 @@
+FITMEEZO - ORDER CONFIRMATION #{{ order.order_number }}
+======================================================
+Dear {{ order.shipping_full_name }},
+
+Thank you for shopping with Fitmeezo! Your order has been placed successfully.
+
+Order Number: #{{ order.order_number }}
+Order Date: {{ order.created_at|date:"d M Y, h:i A" }}
+Payment Method: {{ order.get_payment_method_display }}
+Payment Status: {{ order.get_payment_status_display }}
+
+ITEMS PURCHASED:
+------------------------------------------------------
+{% for item in items %}
+* {{ item.product_name }}{% if item.variant_label %} ({{ item.variant_label }}){% endif %}
+  Qty: {{ item.quantity }} | Price: ₹{{ item.line_total }}
+{% endfor %}
+
+FINANCIAL BREAKDOWN:
+------------------------------------------------------
+Subtotal: ₹{{ order.subtotal }}
+Shipping: {% if order.shipping_fee == 0 %}FREE{% else %}₹{{ order.shipping_fee }}{% endif %}
+{% if order.discount_amount > 0 %}Discount: -₹{{ order.discount_amount }}{% endif %}
+TOTAL AMOUNT: ₹{{ order.total_amount }}
+
+DELIVERY ADDRESS:
+------------------------------------------------------
+{{ order.shipping_full_name }}
+{{ order.shipping_phone_number }}
+{{ order.shipping_address_line1 }}
+{% if order.shipping_address_line2 %}{{ order.shipping_address_line2 }}{% endif %}
+{% if order.shipping_landmark %}Landmark: {{ order.shipping_landmark }}{% endif %}
+{{ order.shipping_city }}, {{ order.shipping_state }} - {{ order.shipping_postal_code }}
+
+{% if order.payment_method == "cod" %}
+CASH ON DELIVERY NOTICE:
+Please keep ₹{{ order.total_amount }} ready in cash or UPI when your delivery associate arrives.
+{% endif %}
+
+Thank you for choosing Fitmeezo!
+Need help? Contact our customer support team at support@fitmeezo.com.
+Team Fitmeezo
+https://fitmeezo.com

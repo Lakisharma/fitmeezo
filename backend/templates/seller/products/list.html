@@ -1,0 +1,284 @@
+{% extends "seller/base.html" %}
+{% load static %}
+
+{% block title %}My Products — {{ seller.store_name }} | {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Manage your catalogue products, inventory stock, and platform moderation statuses on Fitmeezo Partner Panel.{% endblock %}
+
+{% block page_header_title %}Product Catalog{% endblock %}
+
+{% block content %}
+<div class="seller-products-wrapper">
+  <!-- Breadcrumbs -->
+  <nav class="d-flex align-items-center gap-2 small text-muted mb-3" aria-label="Breadcrumbs">
+    <a href="{% url 'core:home' %}" class="text-decoration-none text-muted d-flex align-items-center gap-1">
+      <i class="bi bi-house"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <a href="{% url 'core:seller_dashboard' %}" class="text-decoration-none text-muted">Dashboard</a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <span class="text-dark fw-semibold" aria-current="page">My Products</span>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+    <div>
+      <h1 class="h3 fw-bold mb-1 text-dark">My Products</h1>
+      <p class="text-secondary small mb-0">Manage your product catalog, pricing, variants, and stock availability.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'core:seller_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Dashboard
+      </a>
+      <a href="{% url 'core:seller_product_add' %}" class="btn seller-btn-gold btn-sm d-flex align-items-center gap-1">
+        <i class="bi bi-plus-circle me-1"></i> Add New Product
+      </a>
+    </div>
+  </div>
+
+  <!-- Filter & Search Controls -->
+  <div class="card seller-card mb-4">
+    <div class="card-body p-3">
+      <div class="row g-3 align-items-center">
+        <!-- Status Filter Pills -->
+        <div class="col-12 col-md-7">
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'core:seller_product_list' %}{% if query %}?q={{ query }}{% endif %}"
+               class="btn btn-sm {% if not status_filter %}seller-btn-navy{% else %}btn-outline-secondary{% endif %}">
+              All ({{ total_count }})
+            </a>
+            <a href="{% url 'core:seller_product_list' %}?status=approved{% if query %}&q={{ query }}{% endif %}"
+               class="btn btn-sm {% if status_filter == 'approved' %}btn-success{% else %}btn-outline-success{% endif %}">
+              <i class="bi bi-check-circle me-1"></i> Approved ({{ approved_count }})
+            </a>
+            <a href="{% url 'core:seller_product_list' %}?status=pending{% if query %}&q={{ query }}{% endif %}"
+               class="btn btn-sm {% if status_filter == 'pending' %}btn-warning text-dark{% else %}btn-outline-warning text-dark{% endif %}">
+              <i class="bi bi-hourglass-split me-1"></i> Pending Review ({{ pending_count }})
+            </a>
+            <a href="{% url 'core:seller_product_list' %}?status=rejected{% if query %}&q={{ query }}{% endif %}"
+               class="btn btn-sm {% if status_filter == 'rejected' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+              <i class="bi bi-x-circle me-1"></i> Rejected ({{ rejected_count }})
+            </a>
+          </div>
+        </div>
+
+        <!-- Search Box -->
+        <div class="col-12 col-md-5">
+          <form method="get" action="{% url 'core:seller_product_list' %}" class="d-flex gap-2">
+            {% if status_filter %}
+              <input type="hidden" name="status" value="{{ status_filter }}">
+            {% endif %}
+            <div class="input-group input-group-sm">
+              <input type="text" name="q" class="form-control" placeholder="Search title or SKU..." value="{{ query }}">
+              <button class="btn seller-btn-navy" type="submit">
+                <i class="bi bi-search"></i>
+              </button>
+            </div>
+            {% if query or status_filter %}
+              <a href="{% url 'core:seller_product_list' %}" class="btn btn-outline-secondary btn-sm" title="Clear Filters">
+                <i class="bi bi-x-lg"></i>
+              </a>
+            {% endif %}
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Products Table Card -->
+  <div class="card seller-card overflow-hidden">
+    {% if products %}
+      <div class="table-responsive">
+        <table class="table seller-table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col" class="ps-3" style="min-width: 250px;">Product</th>
+              <th scope="col">SKU</th>
+              <th scope="col">Price</th>
+              <th scope="col">Stock</th>
+              <th scope="col">Status</th>
+              <th scope="col">Approval</th>
+              <th scope="col" class="text-end pe-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for product in products %}
+              <tr>
+                <!-- Product Thumbnail + Name + Category -->
+                <td class="ps-3">
+                  <div class="d-flex align-items-center gap-3">
+                    {% if product.image %}
+                      <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded object-fit-cover" style="width: 48px; height: 48px;">
+                    {% else %}
+                      <div class="bg-light rounded d-flex align-items-center justify-content-center text-muted border" style="width: 48px; height: 48px;">
+                        <i class="bi bi-image fs-5"></i>
+                      </div>
+                    {% endif %}
+                    <div>
+                      <a href="{% url 'core:seller_product_edit' product.pk %}" class="fw-semibold text-dark text-decoration-none d-block">
+                        {{ product.name }}
+                      </a>
+                      <span class="text-muted small">
+                        {{ product.category.name }}
+                        {% if product.variants.exists %}
+                          • <span class="badge bg-light text-dark border">{{ product.variants.count }} variants</span>
+                        {% endif %}
+                      </span>
+                    </div>
+                  </div>
+                </td>
+
+                <!-- SKU -->
+                <td>
+                  <code class="text-dark">{{ product.sku|default:"—" }}</code>
+                </td>
+
+                <!-- Price -->
+                <td>
+                  <div class="fw-semibold text-dark">₹{{ product.price }}</div>
+                  {% if product.compare_at_price %}
+                    <small class="text-muted text-decoration-line-through">₹{{ product.compare_at_price }}</small>
+                  {% endif %}
+                </td>
+
+                <!-- Stock -->
+                <td>
+                  {% with stock=product.available_inventory %}
+                    {% if stock == 0 %}
+                      <span class="badge bg-danger">Out of stock</span>
+                    {% elif stock <= 5 %}
+                      <span class="badge bg-warning text-dark">{{ stock }} left</span>
+                    {% else %}
+                      <span class="badge bg-success bg-opacity-10 text-success fw-bold">{{ stock }} in stock</span>
+                    {% endif %}
+                  {% endwith %}
+                </td>
+
+                <!-- Active Status -->
+                <td>
+                  {% if product.is_active %}
+                    <span class="badge bg-success"><i class="bi bi-eye me-1"></i> Active</span>
+                  {% else %}
+                    <span class="badge bg-secondary"><i class="bi bi-eye-slash me-1"></i> Hidden</span>
+                  {% endif %}
+                </td>
+
+                <!-- Approval Status -->
+                <td>
+                  {% if product.approval_status == "approved" %}
+                    <span class="badge bg-success" title="Approved for public storefront">
+                      <i class="bi bi-patch-check-fill me-1"></i> Approved
+                    </span>
+                  {% elif product.approval_status == "pending" %}
+                    <span class="badge bg-warning text-dark" title="Pending platform admin review">
+                      <i class="bi bi-hourglass-split me-1"></i> Pending Review
+                    </span>
+                  {% elif product.approval_status == "rejected" %}
+                    <span class="badge bg-danger" title="{{ product.rejection_reason|default:'Rejected by Platform Admin' }}">
+                      <i class="bi bi-x-circle me-1"></i> Rejected
+                    </span>
+                    {% if product.rejection_reason %}
+                      <small class="d-block text-danger mt-1" style="max-width: 180px; font-size: 11px;">
+                        {{ product.rejection_reason|truncatewords:6 }}
+                      </small>
+                    {% endif %}
+                  {% endif %}
+                </td>
+
+                <!-- Actions -->
+                <td class="text-end pe-3">
+                  <div class="btn-group btn-group-sm">
+                    <a href="{% url 'core:seller_product_edit' product.pk %}" class="btn btn-outline-secondary" title="Edit Product Details">
+                      <i class="bi bi-pencil"></i> Edit
+                    </a>
+                    <a href="{% url 'core:seller_product_inventory' product.pk %}" class="btn btn-outline-secondary" title="Manage Inventory">
+                      <i class="bi bi-boxes"></i> Stock
+                    </a>
+                    {% if product.is_approved and product.is_active %}
+                      <a href="{{ product.get_absolute_url }}" target="_blank" class="btn btn-outline-primary" title="View on Live Storefront">
+                        <i class="bi bi-box-arrow-up-right"></i>
+                      </a>
+                    {% endif %}
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      {% if page_obj.has_other_pages %}
+        <div class="card-footer bg-white border-0 py-3">
+          <nav aria-label="Product pagination">
+            <ul class="pagination pagination-sm justify-content-center mb-0">
+              {% if page_obj.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                    Previous
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+              {% endif %}
+
+              {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                  <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}{% if query %}&q={{ query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                      {{ num }}
+                    </a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+
+              {% if page_obj.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                    Next
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">Next</span></li>
+              {% endif %}
+            </ul>
+          </nav>
+        </div>
+      {% endif %}
+
+    {% else %}
+      <!-- Empty State -->
+      <div class="text-center py-5 px-3">
+        <div class="mb-3">
+          <i class="bi bi-tags text-muted" style="font-size: 3rem;"></i>
+        </div>
+        <h2 class="h5 fw-bold mb-2">
+          {% if query or status_filter %}
+            No products match your filters
+          {% else %}
+            No products in your catalog yet
+          {% endif %}
+        </h2>
+        <p class="text-secondary small mb-4" style="max-width: 420px; margin: 0 auto;">
+          {% if query or status_filter %}
+            Try clearing the search query or changing your status filter above to find what you're looking for.
+          {% else %}
+            Start listing your products on the Fitmeezo marketplace. Each new product will be reviewed by platform moderation before going live.
+          {% endif %}
+        </p>
+        <div>
+          {% if query or status_filter %}
+            <a href="{% url 'core:seller_product_list' %}" class="btn btn-outline-secondary btn-sm me-2">Clear Filters</a>
+          {% endif %}
+          <a href="{% url 'core:seller_product_add' %}" class="btn seller-btn-navy btn-sm">
+            <i class="bi bi-plus-circle me-1"></i> Add Product
+          </a>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Sign In Issue — {{ BRAND_NAME }}{% endblock %}
+
+{% block content %}
+<div class="fm-container py-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-7 col-lg-5">
+      <div class="card border shadow-sm rounded-3 text-center p-4 p-md-5 bg-white">
+        <div class="d-inline-flex align-items-center justify-content-center mx-auto mb-3" style="width: 64px; height: 64px; border-radius: 50%; background: #FFF3EA; color: var(--fm-primary);">
+          <i class="bi bi-shield-exclamation fs-1"></i>
+        </div>
+        <h1 class="h4 fw-bold text-dark mb-2">Social Sign-In Not Completed</h1>
+        <p class="text-secondary small mb-4">
+          The sign-in session was cancelled, expired, or encountered an issue with the provider. Please start a new sign-in attempt from the login page.
+        </p>
+        <div class="d-grid gap-2">
+          <a href="{% url 'core:account_login' %}" class="fm-btn fm-btn-primary fw-bold">
+            <i class="bi bi-arrow-left me-1"></i> Return to Login
+          </a>
+          <a href="{% url 'core:home' %}" class="btn btn-outline-secondary btn-sm">
+            Go to Homepage
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

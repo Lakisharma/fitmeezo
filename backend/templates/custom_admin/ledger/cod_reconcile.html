@@ -1,0 +1,211 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}COD Remittance Reconciliation — Admin Console | Fitmeezo{% endblock %}
+
+{% block page_title %}COD Cash Remittance Reconciliation{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'custom_admin:ledger_list' %}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+  <i class="bi bi-journal-text"></i> View Ledger
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4 mb-4">
+  <div class="col-12 col-lg-8">
+    <!-- Unreconciled Delivered COD Packages Table -->
+    <div class="card border-0 shadow-sm overflow-hidden h-100">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <div>
+          <h6 class="mb-0 fw-bold"><i class="bi bi-hourglass-split text-warning me-2"></i>Awaiting Courier Cash Remittance ({{ unreconciled_count }})</h6>
+          <span class="small text-muted">Delivered COD orders whose funds remain held in PENDING status.</span>
+        </div>
+        <span class="badge bg-warning text-dark fs-6">Total Unreconciled: ₹{{ unreconciled_total }}</span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Package</th>
+              <th>Merchant</th>
+              <th>Customer / City</th>
+              <th>Courier</th>
+              <th>Amount</th>
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pkg in unreconciled_packages %}
+              <tr>
+                <td>
+                  <div class="fw-bold text-dark">#{{ pkg.sub_order_number }}</div>
+                  <span class="small text-muted">Order: {{ pkg.order.order_number }}</span>
+                </td>
+                <td>
+                  {% if pkg.seller %}
+                    <span class="fw-semibold text-dark">{{ pkg.seller.store_name }}</span>
+                  {% else %}
+                    <span class="badge bg-primary-subtle text-primary">Platform Store</span>
+                  {% endif %}
+                </td>
+                <td class="small">
+                  {{ pkg.order.shipping_full_name }}<br>
+                  <span class="text-muted">{{ pkg.order.shipping_city }}</span>
+                </td>
+                <td class="small text-muted">
+                  {{ pkg.courier_name|default:"Courier Partner" }}
+                  {% if pkg.tracking_number %}<br><code>{{ pkg.tracking_number }}</code>{% endif %}
+                </td>
+                <td class="fw-bold text-dark">
+                  ₹{{ pkg.subtotal }}
+                </td>
+                <td class="text-end">
+                  <button type="button" class="btn btn-sm btn-success" 
+                          onclick="populateReconcileModal('{{ pkg.id }}', '{{ pkg.sub_order_number }}', '{{ pkg.subtotal }}', '{{ pkg.courier_name|default:'' }}')">
+                    <i class="bi bi-check-circle me-1"></i>Reconcile
+                  </button>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="6" class="text-center py-5 text-muted">
+                  <i class="bi bi-patch-check fs-1 text-success d-block mb-2"></i>
+                  All delivered COD packages have been fully reconciled! Zero pending remittance hold.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Reconciliation Form Column -->
+  <div class="col-12 col-lg-4">
+    <div class="card border-0 shadow-sm sticky-top" style="top: 80px;">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-cash-coin text-success me-2"></i>Log Courier Cash Remittance</h6>
+      </div>
+
+      <div class="card-body p-4">
+        <form method="post" id="codReconcileForm">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Target Package</label>
+            <select name="seller_order_id" id="reconcilePackageSelect" class="form-select form-select-sm" required>
+              <option value="">-- Select Delivered Package --</option>
+              {% for pkg in unreconciled_packages %}
+                <option value="{{ pkg.id }}" data-subtotal="{{ pkg.subtotal }}" data-courier="{{ pkg.courier_name|default:'' }}">
+                  #{{ pkg.sub_order_number }} (₹{{ pkg.subtotal }} - {{ pkg.seller.store_name|default:'Platform Store' }})
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Courier Remittance Ref / UTR *</label>
+            {{ form.remittance_reference }}
+            <span class="form-text small text-muted">Enter courier invoice / consignment remittance reference.</span>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Collected Cash Amount (₹) *</label>
+            {{ form.collected_amount }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Courier Agency</label>
+            {{ form.courier_name }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Remitted Date</label>
+            {{ form.remitted_date }}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Audit Notes</label>
+            {{ form.notes }}
+          </div>
+
+          <button type="submit" class="btn btn-success w-100 fw-semibold">
+            <i class="bi bi-unlock-fill me-1"></i>Confirm &amp; Unlock Payout Funds
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Recent Reconciliations Audit Log -->
+<div class="card border-0 shadow-sm">
+  <div class="card-header bg-white border-bottom py-3">
+    <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2 text-primary"></i>Recent COD Remittance Settlements</h6>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Settled At</th>
+          <th>Remittance Reference</th>
+          <th>Package</th>
+          <th>Courier</th>
+          <th>Amount Remitted</th>
+          <th>Verified By</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rec in recent_reconciliations %}
+          <tr>
+            <td class="small text-muted">{{ rec.reconciled_at|date:"d M Y, H:i" }}</td>
+            <td><code class="fw-bold text-dark">{{ rec.remittance_reference }}</code></td>
+            <td>#{{ rec.seller_order.sub_order_number }}</td>
+            <td class="small text-muted">{{ rec.courier_name|default:"Courier Partner" }}</td>
+            <td class="fw-bold text-success">₹{{ rec.collected_amount }}</td>
+            <td class="small">{{ rec.reconciled_by.username|default:"System" }}</td>
+            <td class="small text-muted">{{ rec.notes|default:"—" }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="text-center py-4 text-muted">No reconciliation records logged yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+function populateReconcileModal(pkgId, pkgNumber, subtotal, courier) {
+  const select = document.getElementById('reconcilePackageSelect');
+  if (select) {
+    select.value = pkgId;
+  }
+  const amtInput = document.querySelector('input[name="collected_amount"]');
+  if (amtInput) {
+    amtInput.value = subtotal;
+  }
+  const courierInput = document.querySelector('input[name="courier_name"]');
+  if (courierInput && courier) {
+    courierInput.value = courier;
+  }
+}
+
+document.getElementById('reconcilePackageSelect')?.addEventListener('change', function(e) {
+  const selectedOpt = e.target.selectedOptions[0];
+  if (selectedOpt) {
+    const subtotal = selectedOpt.getAttribute('data-subtotal');
+    const courier = selectedOpt.getAttribute('data-courier');
+    if (subtotal) {
+      document.querySelector('input[name="collected_amount"]').value = subtotal;
+    }
+    if (courier) {
+      document.querySelector('input[name="courier_name"]').value = courier;
+    }
+  }
+});
+</script>
+{% endblock %}

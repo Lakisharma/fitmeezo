@@ -1,0 +1,60 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Record Manual Adjustment — Admin Console | Fitmeezo{% endblock %}
+
+{% block page_title %}Record Manual Financial Adjustment{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'custom_admin:ledger_list' %}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+  <i class="bi bi-arrow-left"></i> Back to Ledger
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-8 col-lg-6">
+    <div class="card border-0 shadow-sm rounded-3">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-sliders text-primary me-2"></i>Approved Manual Adjustment Entry</h6>
+      </div>
+
+      <div class="card-body p-4">
+        <div class="alert alert-info py-2 px-3 small mb-4">
+          <i class="bi bi-info-circle me-1"></i>
+          Manual adjustments post an immediate, immutable double-entry record to the merchant's financial ledger. Mandatory reasoning is required for regulatory audit trails.
+        </div>
+
+        <form method="post">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Beneficiary Merchant *</label>
+            {{ form.seller }}
+            <span class="form-text small text-muted">Select an approved merchant, or choose Platform Store for central warehouse adjustments.</span>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Adjustment Type *</label>
+            {{ form.entry_type }}
+            <span class="form-text small text-muted">Credit increases amount payable to seller; Debit reduces payable.</span>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Adjustment Amount (₹) *</label>
+            {{ form.amount }}
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-semibold small">Mandatory Audit Justification *</label>
+            {{ form.reason }}
+            <span class="form-text small text-muted">Provide full reasoning (e.g. lost in transit reimbursement, penalty deduction, goodwill credit).</span>
+          </div>
+
+          <button type="submit" class="btn btn-dark w-100 fw-semibold" onclick="return confirm('Post this manual adjustment to the financial ledger? This action cannot be deleted.');">
+            <i class="bi bi-check2-circle me-1"></i>Post Manual Adjustment to Ledger
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

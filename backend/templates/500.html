@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Server Error (500) — Fitmeezo{% endblock %}
+{% block meta_description %}An unexpected error occurred. Our engineering team has been notified.{% endblock %}
+
+{% block content %}
+<section class="py-5" style="min-height: 60vh; display: flex; align-items: center;">
+  <div class="fm-container text-center py-4">
+    <div class="mb-4">
+      <span class="badge px-3 py-2 rounded-pill fw-bold bg-danger-subtle text-danger" style="font-size: 0.9rem;">
+        SERVER ERROR 500
+      </span>
+    </div>
+
+    <h1 class="display-5 fw-extrabold mb-3" style="font-weight: 800;">
+      Something went wrong on our end
+    </h1>
+
+    <p class="text-muted mx-auto mb-4" style="max-width: 520px; font-size: 1.05rem;">
+      We encountered an unexpected technical glitch. No private data or order details were exposed. Please try refreshing or return to the storefront.
+    </p>
+
+    <div class="d-flex flex-wrap justify-content-center gap-2">
+      <a href="javascript:location.reload();" class="fm-btn fm-btn-primary">
+        <i class="bi bi-arrow-clockwise me-1"></i> Try Again
+      </a>
+      <a href="{% url 'core:home' %}" class="fm-btn fm-btn-outline">
+        <i class="bi bi-house-door-fill me-1"></i> Return to Homepage
+      </a>
+    </div>
+
+    <div class="mt-4 pt-3 text-muted small">
+      Need urgent assistance? Reach our customer helpline at <strong>1800-123-456</strong> or email <a href="mailto:support@fitmeezo.com" class="text-white text-decoration-underline"><strong>support@fitmeezo.com</strong></a>.
+    </div>
+  </div>
+</section>
+{% endblock %}

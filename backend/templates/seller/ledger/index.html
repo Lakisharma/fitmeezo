@@ -1,0 +1,236 @@
+{% extends "seller/base.html" %}
+{% load static %}
+
+{% block title %}Financial Ledger — {{ seller.store_name }} | Fitmeezo Seller Hub{% endblock %}
+
+{% block page_title %}Financial Ledger{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'core:seller_export_ledger_csv' %}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+  <i class="bi bi-download"></i> Export CSV
+</a>
+<a href="{% url 'core:seller_payout_list' %}" class="btn btn-sm seller-btn-gold d-flex align-items-center gap-1">
+  <i class="bi bi-cash-stack"></i> Payout History
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <!-- Top Financial Summary Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="seller-stat-card gold-accent h-100">
+        <div class="seller-stat-label d-flex justify-content-between align-items-center">
+          <span>Net Available Balance</span>
+          <i class="bi bi-wallet2 text-warning fs-5"></i>
+        </div>
+        <div class="seller-stat-value text-dark">₹{{ summary.current_balance }}</div>
+        <div class="seller-stat-meta text-muted small mt-1">
+          Settled balance eligible for scheduled mock payouts.
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="seller-stat-card h-100">
+        <div class="seller-stat-label d-flex justify-content-between align-items-center">
+          <span>Pending COD Remittance</span>
+          <i class="bi bi-hourglass-split text-info fs-5"></i>
+        </div>
+        <div class="seller-stat-value text-primary">₹{{ summary.pending_cod_amount }}</div>
+        <div class="seller-stat-meta text-muted small mt-1">
+          Cash collected by courier; unlocks upon platform reconciliation.
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="seller-stat-card success-accent h-100">
+        <div class="seller-stat-label d-flex justify-content-between align-items-center">
+          <span>Gross Sales (GMV)</span>
+          <i class="bi bi-graph-up-arrow text-success fs-5"></i>
+        </div>
+        <div class="seller-stat-value text-success">₹{{ summary.gmv }}</div>
+        <div class="seller-stat-meta text-muted small mt-1">
+          Total merchandise sales snapshot across all confirmed orders.
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-sm-6 col-xl-3">
+      <div class="seller-stat-card danger-accent h-100">
+        <div class="seller-stat-label d-flex justify-content-between align-items-center">
+          <span>Total Commission Deductions</span>
+          <i class="bi bi-percent text-danger fs-5"></i>
+        </div>
+        <div class="seller-stat-value text-danger">₹{{ summary.commission }}</div>
+        <div class="seller-stat-meta text-muted small mt-1">
+          Platform commission snapshotted at time of purchase.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filters & Search Toolbar -->
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-3">
+      <form method="get" class="row g-2 align-items-center">
+        <div class="col-12 col-md-4">
+          <div class="input-group input-group-sm">
+            <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
+            <input type="text" name="q" value="{{ search_query }}" class="form-control border-start-0" placeholder="Search reference, order, or description...">
+          </div>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <select name="category" class="form-select form-select-sm">
+            <option value="">All Categories</option>
+            {% for code, label in category_choices %}
+              <option value="{{ code }}" {% if selected_category == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <select name="type" class="form-select form-select-sm">
+            <option value="">Credit &amp; Debit</option>
+            <option value="credit" {% if selected_type == 'credit' %}selected{% endif %}>+ Credits Only</option>
+            <option value="debit" {% if selected_type == 'debit' %}selected{% endif %}>- Debits Only</option>
+          </select>
+        </div>
+
+        <div class="col-6 col-md-2">
+          <select name="status" class="form-select form-select-sm">
+            <option value="">All Statuses</option>
+            {% for code, label in status_choices %}
+              <option value="{{ code }}" {% if selected_status == code %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="col-6 col-md-2 d-flex gap-2">
+          <button type="submit" class="btn btn-sm btn-dark flex-grow-1">Filter</button>
+          {% if search_query or selected_category or selected_type or selected_status %}
+            <a href="{% url 'core:seller_ledger' %}" class="btn btn-sm btn-outline-secondary" title="Reset Filters"><i class="bi bi-x-lg"></i></a>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Immutable Ledger Table -->
+  <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+      <h6 class="mb-0 fw-bold"><i class="bi bi-journal-text me-2 text-primary"></i>Ledger Entries ({{ total_count }})</h6>
+      <span class="badge bg-light text-dark border">Currency: INR (₹)</span>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 seller-table">
+        <thead>
+          <tr>
+            <th>Date &amp; Time</th>
+            <th>Type</th>
+            <th>Category</th>
+            <th>Description / Source</th>
+            <th>Reference Key</th>
+            <th>Status</th>
+            <th class="text-end">Amount (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in page_obj %}
+            <tr>
+              <td class="text-nowrap small text-muted">
+                {{ entry.created_at|date:"d M Y, H:i" }}
+              </td>
+
+              <td>
+                {% if entry.entry_type == 'credit' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold">
+                    <i class="bi bi-plus-circle me-1"></i>CREDIT
+                  </span>
+                {% else %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold">
+                    <i class="bi bi-dash-circle me-1"></i>DEBIT
+                  </span>
+                {% endif %}
+              </td>
+
+              <td>
+                <span class="badge bg-secondary-subtle text-dark border border-secondary-subtle small">
+                  {{ entry.get_category_display }}
+                </span>
+              </td>
+
+              <td>
+                <div class="fw-semibold small text-dark">{{ entry.description|default:"Transaction record" }}</div>
+                {% if entry.seller_order %}
+                  <a href="{% url 'core:seller_order_detail' entry.seller_order.pk %}" class="small text-decoration-none text-primary">
+                    <i class="bi bi-box-seam me-1"></i>Pkg #{{ entry.seller_order.sub_order_number }}
+                  </a>
+                {% elif entry.source_reference %}
+                  <span class="small text-muted">{{ entry.source_reference }}</span>
+                {% endif %}
+              </td>
+
+              <td>
+                <code class="small text-muted">{{ entry.idempotency_key }}</code>
+              </td>
+
+              <td>
+                {% if entry.status == 'posted' %}
+                  <span class="badge bg-success text-white" style="font-size: 11px;">Posted</span>
+                {% elif entry.status == 'pending_cod' %}
+                  <span class="badge bg-warning text-dark" style="font-size: 11px;"><i class="bi bi-hourglass-split me-1"></i>Pending COD</span>
+                {% elif entry.status == 'reversed' %}
+                  <span class="badge bg-danger text-white" style="font-size: 11px;">Reversed</span>
+                {% else %}
+                  <span class="badge bg-light text-dark">{{ entry.get_status_display }}</span>
+                {% endif %}
+              </td>
+
+              <td class="text-end text-nowrap fw-bold {% if entry.entry_type == 'credit' %}text-success{% else %}text-danger{% endif %}">
+                {% if entry.entry_type == 'credit' %}+{% else %}-{% endif %}₹{{ entry.amount }}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-center py-5 text-muted">
+                <i class="bi bi-journal-x fs-1 d-block mb-2 text-secondary opacity-50"></i>
+                No ledger transactions match the current query.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+      <div class="card-footer bg-white border-top py-3 d-flex justify-content-between align-items-center">
+        <span class="small text-muted">
+          Showing page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </span>
+        <ul class="pagination pagination-sm mb-0">
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&category={{ selected_category }}&status={{ selected_status }}&type={{ selected_type }}">Previous</a>
+            </li>
+          {% endif %}
+
+          <li class="page-item active">
+            <span class="page-link">{{ page_obj.number }}</span>
+          </li>
+
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&category={{ selected_category }}&status={{ selected_status }}&type={{ selected_type }}">Next</a>
+            </li>
+          {% endif %}
+        </ul>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

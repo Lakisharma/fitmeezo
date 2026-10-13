@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Fitmeezo — Shop Smart, Live Better | India's Multi-Category Storefront{% endblock %}
+
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'css/homepage.css' %}">
+{% endblock %}
+
+{% block content %}
+<!-- ==========================================================================
+     SECTION 1: HERO SECTION
+     ========================================================================== -->
+<section class="fm-hero-section" aria-label="Welcome and Featured Spotlight">
+  <div class="fm-container">
+    <div class="fm-hero-grid">
+      <!-- Left Content -->
+      <div class="fm-hero-text-col">
+        <div class="fm-hero-tagline-badge">
+          <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
+          <span>Official Storefront • {{ BRAND_TAGLINE }}</span>
+        </div>
+
+        <h1 class="fm-hero-headline">
+          Smart Value for <span class="highlight">Every Home</span> Across India.
+        </h1>
+
+        <p class="fm-hero-subtext">
+          Discover verified essentials in electronics, fashion, lifestyle, and home living. Curated quality, guaranteed transparency, and express delivery across 19,000+ pin codes.
+        </p>
+
+        <div class="fm-hero-actions">
+          <a href="#featured-products" class="fm-btn fm-btn-primary fm-btn-lg" aria-label="Shop featured products now">
+            <i class="bi bi-bag-check-fill" aria-hidden="true"></i>
+            <span>Shop Now</span>
+          </a>
+          <a href="#category-grid" class="fm-btn fm-btn-outline fm-btn-lg text-white border-white" aria-label="Browse categories">
+            <i class="bi bi-grid-fill" aria-hidden="true"></i>
+            <span>Browse Categories</span>
+          </a>
+        </div>
+
+        <!-- Trust Badges -->
+        <div class="fm-hero-trust">
+          <div class="fm-hero-trust-item">
+            <i class="bi bi-truck" aria-hidden="true"></i>
+            <span>Free Shipping &gt; {{ CURRENCY_SYMBOL }}499</span>
+          </div>
+          <div class="fm-hero-trust-item">
+            <i class="bi bi-shield-check" aria-hidden="true"></i>
+            <span>100% Genuine Products</span>
+          </div>
+          <div class="fm-hero-trust-item">
+            <i class="bi bi-qr-code" aria-hidden="true"></i>
+            <span>Secure UPI &amp; Cards</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Spotlight Card -->
+      <div class="fm-hero-spotlight-col">
+        <div class="fm-hero-spotlight" aria-label="Spotlight Deal of the Day">
+          <span class="fm-spotlight-badge">{{ spotlight_product.badge }}</span>
+
+          <div class="fm-spotlight-img-wrap">
+            <img src="{{ spotlight_product.image_url }}"
+                 alt="{{ spotlight_product.title }}"
+                 class="fm-spotlight-img"
+                 loading="eager"
+                 onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+          </div>
+
+          <div class="text-uppercase text-warning fw-bold small mb-1" style="font-size: 11px; letter-spacing: 0.05em;">
+            {{ spotlight_product.category }}
+          </div>
+
+          <h2 class="fm-spotlight-title">{{ spotlight_product.title }}</h2>
+
+          <div class="d-flex align-items-center gap-2 mb-2 text-warning small">
+            <i class="bi bi-star-fill" aria-hidden="true"></i>
+            <span class="fw-bold text-white">{{ spotlight_product.rating }}</span>
+            <span class="text-white-50">({{ spotlight_product.rating_count }} reviews • Demo)</span>
+          </div>
+
+          <div class="fm-spotlight-price">
+            <span class="fm-spotlight-current">{{ CURRENCY_SYMBOL }}{{ spotlight_product.price }}</span>
+            <span class="fm-spotlight-original">{{ CURRENCY_SYMBOL }}{{ spotlight_product.original_price }}</span>
+            <span class="badge bg-success text-white">{{ spotlight_product.discount_percent }}% OFF</span>
+          </div>
+
+          <button type="button"
+                  class="fm-btn fm-btn-primary w-100"
+                  data-action="add-to-cart"
+                  data-product-title="{{ spotlight_product.title }}"
+                  aria-label="Add {{ spotlight_product.title }} to cart">
+            <i class="bi bi-lightning-charge-fill" aria-hidden="true"></i>
+            <span>Claim This Deal</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==========================================================================
+     SECTION 2: PROMOTIONAL CAMPAIGN BANNER
+     ========================================================================== -->
+<section class="fm-container" aria-label="Promotional Event Campaign">
+  <div class="fm-promo-campaign">
+    <div class="fm-campaign-info">
+      <div class="fm-campaign-icon" aria-hidden="true">
+        <i class="bi bi-gift-fill"></i>
+      </div>
+      <div>
+        <span class="fm-campaign-badge">{{ campaign_banner.badge }}</span>
+        <h2 class="fm-campaign-title">{{ campaign_banner.title }}</h2>
+        <p class="fm-campaign-desc">{{ campaign_banner.desc }}</p>
+      </div>
+    </div>
+
+    <div class="fm-campaign-cta">
+      <div class="text-end d-none d-md-block">
+        <div style="font-size: 11px; color: var(--fm-text-muted); font-weight: 700; text-transform: uppercase;">
+          Use Coupon Code
+        </div>
+        <span class="fm-code-pill">{{ campaign_banner.coupon_code }}</span>
+      </div>
+      <a href="#featured-products"
+         class="fm-btn fm-btn-primary"
+         data-placeholder="true"
+         data-placeholder-label="Festival Offers">
+        <span>Explore Offers</span>
+        <i class="bi bi-arrow-right" aria-hidden="true"></i>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ==========================================================================
+     SECTION 3: CATEGORY GRID
+     ========================================================================== -->
+<section id="category-grid" class="fm-container py-4" aria-labelledby="categories-title">
+  <div class="fm-section-header">
+    <div class="fm-section-title-wrap">
+      <span class="fm-section-pretitle">Explore Department Stores</span>
+      <h2 id="categories-title" class="fm-section-title">Shop by Category</h2>
+    </div>
+    <a href="{% url 'core:category_list' %}" class="fm-section-link" aria-label="View All Categories">
+      <span>All Categories</span>
+      <i class="bi bi-chevron-right" aria-hidden="true"></i>
+    </a>
+  </div>
+
+  <div class="fm-category-grid">
+    {% for cat in categories %}
+    <a href="{% url 'core:category_detail' slug=cat.slug %}"
+       class="fm-category-card"
+       aria-label="Category: {{ cat.name }}">
+      {% if cat.badge %}
+        <span class="fm-category-badge-chip">{{ cat.badge }}</span>
+      {% endif %}
+
+      <div class="fm-category-icon-bubble" aria-hidden="true">
+        <i class="bi {{ cat.icon_class|default:cat.icon }}"></i>
+      </div>
+
+      <span class="fm-category-name">{{ cat.name }}</span>
+      <span class="fm-category-subtitle">{{ cat.description|default:cat.desc }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ==========================================================================
+     SECTION 4: FEATURED PRODUCTS
+     ========================================================================== -->
+<section id="featured-products" class="fm-container py-4" aria-labelledby="featured-title">
+  <div class="fm-section-header">
+    <div class="fm-section-title-wrap">
+      <span class="fm-section-pretitle">Handpicked Selections</span>
+      <h2 id="featured-title" class="fm-section-title">Featured Products</h2>
+    </div>
+    <a href="#" class="fm-section-link" data-placeholder="true" data-placeholder-label="View All Featured Products">
+      <span>View All</span>
+      <i class="bi bi-chevron-right" aria-hidden="true"></i>
+    </a>
+  </div>
+
+  <div class="fm-products-grid">
+    {% for product in featured_products %}
+      {% include "includes/product_card.html" with product=product %}
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ==========================================================================
+     SECTION 5: VALUE PROPOSITIONS & BENEFITS STRIP
+     ========================================================================== -->
+<section class="fm-benefits-strip" aria-label="Fitmeezo Customer Guarantees">
+  <div class="fm-container">
+    <div class="fm-benefits-grid">
+      {% for benefit in benefits %}
+      <div class="fm-benefit-item">
+        <div class="fm-benefit-icon" aria-hidden="true">
+          <i class="bi {{ benefit.icon }}"></i>
+        </div>
+        <div>
+          <h3 class="fm-benefit-title">{{ benefit.title }}</h3>
+          <p class="fm-benefit-desc">{{ benefit.desc }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<!-- ==========================================================================
+     SECTION 6: TRENDING & POPULAR PRODUCTS
+     ========================================================================== -->
+<section id="trending-products" class="fm-container py-4" aria-labelledby="trending-title">
+  <div class="fm-section-header">
+    <div class="fm-section-title-wrap">
+      <span class="fm-section-pretitle">Trending in India Right Now</span>
+      <h2 id="trending-title" class="fm-section-title">Popular Demands</h2>
+    </div>
+    <a href="#" class="fm-section-link" data-placeholder="true" data-placeholder-label="View All Trending Products">
+      <span>See What's Hot</span>
+      <i class="bi bi-fire" aria-hidden="true"></i>
+    </a>
+  </div>
+
+  <div class="fm-products-grid">
+    {% for product in trending_products %}
+      {% include "includes/product_card.html" with product=product %}
+    {% endfor %}
+  </div>
+</section>
+
+<!-- ==========================================================================
+     SECTION 7: NEWSLETTER SIGNUP UI
+     ========================================================================== -->
+<section class="fm-container my-5" aria-label="Newsletter Subscription">
+  <div class="fm-newsletter-card">
+    <div class="fm-newsletter-inner">
+      <div>
+        <span class="badge bg-warning text-dark fw-bold mb-2 text-uppercase" style="font-size: 11px;">
+          Fitmeezo Insider
+        </span>
+        <h2 class="fm-newsletter-heading">Never Miss a Smart Saving.</h2>
+        <p class="fm-newsletter-sub">
+          Subscribe to get secret weekly deals, festival flash sale alerts, and verified product launches delivered straight to your inbox.
+        </p>
+      </div>
+
+      <div>
+        <form id="fmNewsletterForm" class="fm-newsletter-form" action="#" method="post" aria-label="Newsletter Subscription Form">
+          <div class="fm-newsletter-form-row">
+            <label for="fmNewsletterEmail" class="visually-hidden">Email Address</label>
+            <input type="email"
+                   id="fmNewsletterEmail"
+                   name="email"
+                   class="fm-newsletter-input"
+                   placeholder="Enter your email address..."
+                   required
+                   autocomplete="email">
+            <button type="submit" class="fm-btn fm-btn-primary" aria-label="Subscribe to Fitmeezo newsletter">
+              <span>Subscribe</span>
+              <i class="bi bi-send-fill" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="fm-newsletter-fineprint">
+            <i class="bi bi-shield-lock me-1" aria-hidden="true"></i> We respect your privacy. No spam, ever. Unsubscribe anytime.
+            <span class="text-white-50 ms-1">(Demo subscription form)</span>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ==========================================================================
+     SECTION 8: FINAL SHOPPING CTA
+     ========================================================================== -->
+<section class="fm-container" aria-label="Final Shopping Call to Action">
+  <div class="fm-final-cta-section">
+    <h2 class="fm-final-cta-title">Ready to Shop Smarter?</h2>
+    <p class="fm-final-cta-sub">
+      Join smart shoppers across India discovering authentic products with transparent pricing, zero hidden charges, and quick doorstep delivery.
+    </p>
+    <div class="fm-final-cta-actions">
+      <a href="{% url 'core:category_list' %}" class="fm-btn fm-btn-final-primary fm-btn-lg" aria-label="Start exploring departments">
+        <i class="bi bi-compass" aria-hidden="true"></i>
+        <span>Explore All Categories</span>
+      </a>
+      <a href="#trending-products" class="fm-btn fm-btn-final-outline fm-btn-lg" aria-label="Browse top trending picks">
+        <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+        <span>Browse Today's Deals</span>
+      </a>
+    </div>
+  </div>
+</section>
+{% endblock %}

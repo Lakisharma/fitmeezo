@@ -1,0 +1,125 @@
+{% load static %}
+<a href="#main-content" class="fm-skip-link">Skip to main content</a>
+
+<header class="fm-header" role="banner">
+  <div class="fm-container">
+    <div class="fm-header-main">
+      <!-- Mobile Menu Toggle Button -->
+      <button type="button"
+              id="fmMenuToggle"
+              class="fm-menu-toggle"
+              aria-label="Open mobile navigation menu"
+              aria-expanded="false"
+              aria-controls="fmMobileDrawer">
+        <i class="bi bi-list" aria-hidden="true"></i>
+      </button>
+
+      <!-- Brand Logo / Wordmark -->
+      <a href="{% url 'core:home' %}" class="fm-brand-link" aria-label="{{ BRAND_NAME }} - Home">
+        <img src="{% static 'images/brand/fitmeezo-logo.svg' %}"
+             alt="{{ BRAND_NAME }} - {{ BRAND_TAGLINE }}"
+             class="fm-brand-logo-img"
+             width="200"
+             height="46">
+      </a>
+
+      <!-- Search Bar -->
+      <div class="fm-search-wrapper" role="search">
+        <form id="fmSearchForm" class="fm-search-form" action="{% url 'core:product_search' %}" method="get" aria-label="Product Search Form">
+          <label for="fmSearchCategory" class="visually-hidden">Search Category</label>
+          <select id="fmSearchCategory" name="category" class="fm-search-category-select" aria-label="Select Category">
+            <option value="all" {% if not selected_category or selected_category == 'all' %}selected{% endif %}>All Categories</option>
+            {% if nav_categories %}
+              {% for cat in nav_categories %}
+                <option value="{{ cat.slug }}" {% if selected_category == cat.slug %}selected{% endif %}>{{ cat.name }}</option>
+              {% endfor %}
+            {% else %}
+              <option value="electronics" {% if selected_category == 'electronics' %}selected{% endif %}>Electronics</option>
+              <option value="fashion" {% if selected_category == 'fashion' %}selected{% endif %}>Fashion</option>
+              <option value="home-living" {% if selected_category == 'home-living' %}selected{% endif %}>Home &amp; Living</option>
+              <option value="beauty" {% if selected_category == 'beauty' %}selected{% endif %}>Beauty</option>
+              <option value="sports" {% if selected_category == 'sports' %}selected{% endif %}>Sports</option>
+              <option value="baby-kids" {% if selected_category == 'baby-kids' %}selected{% endif %}>Baby &amp; Kids</option>
+            {% endif %}
+          </select>
+
+          <label for="fmSearchInput" class="visually-hidden">Search products</label>
+          <input type="search"
+                 id="fmSearchInput"
+                 name="q"
+                 value="{{ search_query|default:'' }}"
+                 class="fm-search-input"
+                 placeholder="Search products, brands, essentials... (Press '/' to focus)"
+                 autocomplete="off"
+                 aria-label="Search Fitmeezo catalogue">
+
+          <button type="submit" class="fm-search-submit" aria-label="Submit search">
+            <i class="bi bi-search" aria-hidden="true"></i>
+          </button>
+        </form>
+      </div>
+
+      <!-- Header Action Elements -->
+      <nav class="fm-header-actions" aria-label="User and Shopping Links">
+        <!-- Account Link -->
+        {% if user.is_authenticated %}
+          <a href="{% url 'core:account_dashboard' %}"
+             class="fm-action-btn"
+             id="fmHeaderAccountBtn"
+             aria-label="My Account ({{ user.first_name|default:user.username }})">
+            <div class="fm-action-icon-wrap">
+              <i class="bi bi-person-check-fill" style="color: var(--fm-primary);" aria-hidden="true"></i>
+            </div>
+            <div class="fm-action-text">
+              <span class="fm-action-subtext text-truncate" style="max-width: 90px;">Hi, {{ user.first_name|default:user.username }}</span>
+              <span class="fm-action-label">Account</span>
+            </div>
+          </a>
+        {% else %}
+          <a href="{% url 'core:account_login' %}"
+             class="fm-action-btn"
+             id="fmHeaderAccountBtn"
+             aria-label="Account and Sign In">
+            <div class="fm-action-icon-wrap">
+              <i class="bi bi-person" aria-hidden="true"></i>
+            </div>
+            <div class="fm-action-text">
+              <span class="fm-action-subtext">Welcome</span>
+              <span class="fm-action-label">Sign In</span>
+            </div>
+          </a>
+        {% endif %}
+
+        <!-- Wishlist Link -->
+        <a href="{% url 'core:wishlist_detail' %}"
+           class="fm-action-btn"
+           id="fmHeaderWishlistBtn"
+           aria-label="Wishlist with {{ wishlist_count|default:0 }} saved item{{ wishlist_count|pluralize }}">
+          <div class="fm-action-icon-wrap">
+            <i class="bi bi-heart{% if wishlist_count > 0 %}-fill text-danger{% endif %}" id="fmHeaderWishlistIcon" aria-hidden="true"></i>
+            <span class="fm-badge-count" id="fmHeaderWishlistBadge" aria-hidden="true">{{ wishlist_count|default:0 }}</span>
+          </div>
+          <div class="fm-action-text">
+            <span class="fm-action-subtext">Favorites</span>
+            <span class="fm-action-label">Wishlist</span>
+          </div>
+        </a>
+
+        <!-- Cart Link -->
+        <a href="{% url 'core:cart_detail' %}"
+           class="fm-action-btn"
+           id="fmHeaderCartBtn"
+           aria-label="Shopping cart with {{ cart_total_units|default:0 }} item{{ cart_total_units|pluralize }}">
+          <div class="fm-action-icon-wrap">
+            <i class="bi bi-bag" aria-hidden="true"></i>
+            <span class="fm-badge-count" id="fmHeaderCartBadge" aria-hidden="true">{{ cart_total_units|default:0 }}</span>
+          </div>
+          <div class="fm-action-text">
+            <span class="fm-action-subtext" id="fmHeaderCartPrice">{{ CURRENCY_SYMBOL }}{{ cart_subtotal|default:"0.00"|floatformat:2 }}</span>
+            <span class="fm-action-label">Cart</span>
+          </div>
+        </a>
+      </nav>
+    </div>
+  </div>
+</header>

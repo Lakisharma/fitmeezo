@@ -1,0 +1,177 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Customer Orders{% endblock %}
+{% block page_title %}Customer Order Fulfillment{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+  <div>
+    <h4 class="fw-bold mb-1">Customer Orders</h4>
+    <p class="text-muted small mb-0">Track customer purchases, manage fulfillment stages, and monitor COD/online payment status.</p>
+  </div>
+</div>
+
+<!-- Filters Card -->
+<div class="fm-card mb-4 p-3">
+  <form method="get" action="{% url 'custom_admin:order_list' %}" class="row g-2 align-items-center">
+    <div class="col-12 col-md-4">
+      <div class="input-group">
+        <span class="input-group-text bg-white text-muted"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="Order #, name, phone, email...">
+      </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+      <select name="status" class="form-select">
+        <option value="">All Fulfillment Statuses</option>
+        {% for val, label in status_choices %}
+          <option value="{{ val }}" {% if status_filter == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-6 col-md-2">
+      <select name="payment_status" class="form-select">
+        <option value="">All Payment States</option>
+        {% for val, label in payment_status_choices %}
+          <option value="{{ val }}" {% if payment_status_filter == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-6 col-md-2">
+      <select name="payment_method" class="form-select">
+        <option value="">All Payment Methods</option>
+        {% for val, label in payment_method_choices %}
+          <option value="{{ val }}" {% if payment_method_filter == val %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-6 col-md-1 d-flex gap-1">
+      <button type="submit" class="btn btn-dark w-100" title="Apply Filters">
+        <i class="bi bi-funnel"></i>
+      </button>
+      {% if q or status_filter or payment_status_filter or payment_method_filter %}
+        <a href="{% url 'custom_admin:order_list' %}" class="btn btn-outline-secondary" title="Clear Filters">
+          <i class="bi bi-x-lg"></i>
+        </a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Orders Table -->
+<div class="fm-card">
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>Order #</th>
+          <th>Recipient &amp; Customer</th>
+          <th>Placed On</th>
+          <th>Items</th>
+          <th>Total</th>
+          <th>Payment</th>
+          <th>Fulfillment</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for order in page_obj %}
+          <tr>
+            <td>
+              <a href="{% url 'custom_admin:order_detail' pk=order.pk %}" class="fw-bold text-dark text-decoration-none">
+                #{{ order.order_number }}
+              </a>
+            </td>
+            <td>
+              <div class="fw-semibold text-truncate" style="max-width: 160px;">{{ order.shipping_full_name }}</div>
+              <small class="text-muted">{{ order.shipping_phone_number }} • {{ order.user.username }}</small>
+            </td>
+            <td>
+              <div>{{ order.created_at|date:"d M Y" }}</div>
+              <small class="text-muted">{{ order.created_at|date:"H:i" }}</small>
+            </td>
+            <td>
+              <span class="badge bg-light text-dark border">{{ order.items.count }} item{{ order.items.count|pluralize }}</span>
+            </td>
+            <td>
+              <div class="fw-bold">₹{{ order.total_amount|floatformat:2 }}</div>
+            </td>
+            <td>
+              <div>
+                <span class="badge badge-status badge-pay-{{ order.payment_status }}">
+                  {{ order.get_payment_status_display }}
+                </span>
+              </div>
+              <small class="text-muted" style="font-size: 0.75rem;">{{ order.get_payment_method_display }}</small>
+            </td>
+            <td>
+              <span class="badge badge-status badge-status-{{ order.status }}">
+                {{ order.get_status_display }}
+              </span>
+            </td>
+            <td class="text-end">
+              <a href="{% url 'custom_admin:order_detail' pk=order.pk %}" class="btn btn-sm btn-outline-dark" title="View Order Details">
+                <i class="bi bi-eye"></i> Details
+              </a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="8" class="text-center py-5 text-muted">
+              <i class="bi bi-receipt fs-1 d-block mb-2 text-secondary"></i>
+              No orders found matching the filter criteria.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+    <div class="p-3 border-top d-flex align-items-center justify-content-between">
+      <small class="text-muted">
+        Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ page_obj.paginator.count }} orders
+      </small>
+      <nav>
+        <ul class="pagination pagination-sm mb-0">
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if payment_status_filter %}&payment_status={{ payment_status_filter }}{% endif %}{% if payment_method_filter %}&payment_method={{ payment_method_filter }}{% endif %}">
+                Previous
+              </a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Previous</span></li>
+          {% endif %}
+
+          {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+              <li class="page-item active"><span class="page-link" style="background-color: var(--fm-primary); border-color: var(--fm-primary);">{{ num }}</span></li>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+              <li class="page-item">
+                <a class="page-link text-dark" href="?page={{ num }}{% if q %}&q={{ q }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if payment_status_filter %}&payment_status={{ payment_status_filter }}{% endif %}{% if payment_method_filter %}&payment_method={{ payment_method_filter }}{% endif %}">
+                  {{ num }}
+                </a>
+              </li>
+            {% endif %}
+          {% endfor %}
+
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}{% if payment_status_filter %}&payment_status={{ payment_status_filter }}{% endif %}{% if payment_method_filter %}&payment_method={{ payment_method_filter }}{% endif %}">
+                Next
+              </a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Next</span></li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Wishlist ({{ wishlist_count|default:0 }}) — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}View and manage your saved wishlist items at {{ BRAND_NAME }}. Save products for later, monitor prices, and add directly to your shopping cart.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4">
+  <!-- Breadcrumbs -->
+  <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">My Wishlist</span>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h2 fw-bold text-dark mb-1">
+        <i class="bi bi-heart-fill me-2" style="color: var(--fm-primary);"></i>My Wishlist
+      </h1>
+      <p class="text-secondary small mb-0">
+        {% if wishlist_items %}
+          You have <strong>{{ wishlist_count }}</strong> saved item{{ wishlist_count|pluralize }} in your wishlist.
+        {% else %}
+          Your wishlist is currently empty.
+        {% endif %}
+      </p>
+    </div>
+
+    {% if wishlist_items %}
+      <div>
+        <a href="{% url 'core:home' %}" class="fm-btn fm-btn-outline fm-btn-sm text-decoration-none">
+          <i class="bi bi-arrow-left me-1"></i> Continue Shopping
+        </a>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if not wishlist_items %}
+    <!-- Empty Wishlist State -->
+    <div class="fm-cart-empty-box text-center py-5 px-3 bg-white rounded-3 border shadow-sm">
+      <div class="fm-empty-icon-wrap mb-3" style="width: 80px; height: 80px; border-radius: 50%; background: var(--fm-primary-subtle); display: inline-flex; align-items: center; justify-content: center;">
+        <i class="bi bi-heart" style="font-size: 2.5rem; color: var(--fm-primary);"></i>
+      </div>
+      <h2 class="h4 fw-bold text-dark mb-2">Your Wishlist is Empty</h2>
+      <p class="text-secondary mb-4 mx-auto" style="max-width: 480px;">
+        Explore your favorite products and tap the heart icon to save them for later. You can monitor stock and add them to your cart anytime!
+      </p>
+      <div class="d-flex justify-content-center gap-3 flex-wrap">
+        <a href="{% url 'core:home' %}" class="fm-btn fm-btn-primary text-decoration-none">
+          <i class="bi bi-bag me-1"></i> Continue Shopping
+        </a>
+        <a href="{% url 'core:category_list' %}" class="fm-btn fm-btn-outline text-decoration-none">
+          <i class="bi bi-grid me-1"></i> Browse Categories
+        </a>
+      </div>
+    </div>
+  {% else %}
+    <!-- Wishlist Items Grid / Table -->
+    <div class="bg-white rounded-3 border shadow-sm overflow-hidden mb-4">
+      <div class="table-responsive">
+        <table class="table align-middle mb-0" id="fmWishlistTable">
+          <thead class="table-light text-secondary small text-uppercase">
+            <tr>
+              <th scope="col" style="min-width: 280px;" class="ps-4">Product Details</th>
+              <th scope="col" style="min-width: 140px;" class="text-center">Price</th>
+              <th scope="col" style="min-width: 130px;" class="text-center">Stock Status</th>
+              <th scope="col" style="min-width: 220px;" class="text-end pe-4">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in wishlist_items %}
+              <tr id="wishlist-row-{{ item.pk }}">
+                <!-- Product Details -->
+                <td class="ps-4 py-3">
+                  <div class="d-flex align-items-center gap-3">
+                    <div class="flex-shrink-0 position-relative">
+                      <a href="{{ item.product.get_absolute_url }}">
+                        {% if item.product.image %}
+                          <img src="{{ item.product.image.url }}"
+                               alt="{{ item.product.name }}"
+                               class="rounded border"
+                               style="width: 72px; height: 72px; object-fit: cover;"
+                               loading="lazy"
+                               onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+                        {% else %}
+                          <img src="{% static 'images/brand/product-fallback.svg' %}"
+                               alt="{{ item.product.name }}"
+                               class="rounded border"
+                               style="width: 72px; height: 72px; object-fit: cover;"
+                               loading="lazy">
+                        {% endif %}
+                      </a>
+                    </div>
+                    <div class="flex-grow-1 min-w-0">
+                      {% if item.product.category %}
+                        <span class="badge bg-light text-secondary border mb-1" style="font-size: 0.75rem;">
+                          {{ item.product.category.name }}
+                        </span>
+                      {% endif %}
+                      <h3 class="h6 mb-1 text-truncate" style="max-width: 320px;">
+                        <a href="{{ item.product.get_absolute_url }}" class="text-decoration-none text-dark fw-bold hover-primary">
+                          {{ item.product.name }}
+                        </a>
+                      </h3>
+                      <div class="text-muted small">
+                        <span class="me-2">SKU: {{ item.product.sku }}</span>
+                        <span>• Saved {{ item.created_at|date:"M d, Y" }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </td>
+
+                <!-- Price -->
+                <td class="text-center py-3">
+                  <div class="d-flex flex-column align-items-center">
+                    <span class="fw-bold text-dark fs-6">
+                      {{ CURRENCY_SYMBOL }}{{ item.product.min_price|default:item.product.price }}
+                    </span>
+                    {% if item.product.compare_at_price and item.product.compare_at_price > item.product.price %}
+                      <div class="d-flex align-items-center gap-1 small">
+                        <span class="text-decoration-line-through text-muted">
+                          {{ CURRENCY_SYMBOL }}{{ item.product.compare_at_price }}
+                        </span>
+                        {% if item.product.discount_percentage %}
+                          <span class="badge bg-danger-subtle text-danger" style="font-size: 0.7rem;">
+                            {{ item.product.discount_percentage }}% OFF
+                          </span>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  </div>
+                </td>
+
+                <!-- Stock Status -->
+                <td class="text-center py-3">
+                  {% if not item.product.is_active %}
+                    <span class="badge bg-secondary px-2 py-1">
+                      <i class="bi bi-slash-circle me-1"></i> Unavailable
+                    </span>
+                  {% elif not item.product.is_in_stock %}
+                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                      <i class="bi bi-x-circle me-1"></i> Out of Stock
+                    </span>
+                  {% else %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                      <i class="bi bi-check-circle me-1"></i> In Stock
+                    </span>
+                  {% endif %}
+                </td>
+
+                <!-- Actions -->
+                <td class="text-end pe-4 py-3">
+                  <div class="d-inline-flex align-items-center gap-2 flex-wrap justify-content-end">
+                    <!-- Add to Cart or Select Options -->
+                    {% if not item.product.is_active %}
+                      <button type="button" class="fm-btn fm-btn-sm is-disabled" disabled aria-disabled="true" style="opacity: 0.6; cursor: not-allowed;">
+                        <i class="bi bi-x-circle me-1"></i> Unavailable
+                      </button>
+                    {% elif not item.product.is_in_stock %}
+                      <button type="button" class="fm-btn fm-btn-sm is-disabled" disabled aria-disabled="true" style="opacity: 0.6; cursor: not-allowed;" title="Product is currently out of stock">
+                        <i class="bi bi-x-circle me-1"></i> Out of Stock
+                      </button>
+                    {% elif item.product.has_variants %}
+                      <a href="{{ item.product.get_absolute_url }}" class="fm-btn fm-btn-primary fm-btn-sm text-decoration-none" aria-label="Select options for {{ item.product.name }}">
+                        <i class="bi bi-sliders me-1"></i> Select Options
+                      </a>
+                    {% else %}
+                      <form action="{% url 'core:wishlist_move_to_cart' pk=item.pk %}" method="post" class="d-inline m-0">
+                        {% csrf_token %}
+                        <button type="submit" class="fm-btn fm-btn-primary fm-btn-sm" aria-label="Add {{ item.product.name }} to cart">
+                          <i class="bi bi-cart-plus me-1"></i> Add to Cart
+                        </button>
+                      </form>
+                    {% endif %}
+
+                    <!-- Remove Button -->
+                    <form action="{% url 'core:wishlist_remove' pk=item.pk %}" method="post" class="d-inline m-0">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-outline-danger btn-sm" aria-label="Remove {{ item.product.name }} from wishlist" title="Remove from Wishlist">
+                        <i class="bi bi-trash3" aria-hidden="true"></i>
+                        <span class="d-none d-md-inline ms-1">Remove</span>
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}My Orders — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}View and track all your orders, invoices, and shipment deliveries on Fitmeezo.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4">
+  <!-- Breadcrumbs -->
+  <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <a href="{% url 'core:account_dashboard' %}" class="fm-breadcrumb-item">
+      <span>My Account</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">My Orders</span>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h3 fw-bold text-dark mb-1">
+        <i class="bi bi-box-seam me-2" style="color: var(--fm-primary);"></i>My Orders
+      </h1>
+      <p class="text-secondary small mb-0">Track shipments, view detailed invoices, and manage past purchases</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'core:account_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-speedometer2 me-1"></i> Dashboard
+      </a>
+      <a href="{% url 'core:home' %}" class="fm-btn fm-btn-primary fm-btn-sm">
+        <i class="bi bi-cart-plus me-1"></i> Continue Shopping
+      </a>
+    </div>
+  </div>
+
+  {% if not orders %}
+    <!-- Empty Orders State -->
+    <div class="card border shadow-sm rounded-3 bg-white p-5 text-center">
+      <div class="d-inline-flex align-items-center justify-content-center mb-3 mx-auto" style="width: 76px; height: 76px; border-radius: 50%; background: var(--fm-primary-subtle); color: var(--fm-primary);">
+        <i class="bi bi-box-seam fs-1"></i>
+      </div>
+      <h2 class="h5 fw-bold text-dark mb-2">No Orders Placed Yet</h2>
+      <p class="text-secondary small mx-auto mb-4" style="max-width: 440px;">
+        Looks like you haven't placed any orders yet. Discover our curated collection of electronics, fashion, and home essentials!
+      </p>
+      <div>
+        <a href="{% url 'core:home' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-bag-plus me-1"></i> Start Shopping
+        </a>
+      </div>
+    </div>
+  {% else %}
+    <!-- Orders Cards List -->
+    <div class="d-flex flex-column gap-3 mb-4">
+      {% for order in orders %}
+        <div class="card border shadow-sm rounded-3 bg-white overflow-hidden">
+          <!-- Order Card Header -->
+          <div class="card-header bg-light border-bottom p-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+              <div>
+                <span class="text-muted" style="font-size: 11px;">Order Number</span>
+                <div class="fw-bold text-dark font-monospace">#{{ order.order_number }}</div>
+              </div>
+              <div class="border-start ps-3">
+                <span class="text-muted" style="font-size: 11px;">Placed On</span>
+                <div class="small text-dark fw-semibold">{{ order.created_at|date:"d M Y, h:i A" }}</div>
+              </div>
+              <div class="border-start ps-3">
+                <span class="text-muted" style="font-size: 11px;">Total Amount</span>
+                <div class="small fw-extrabold text-dark" style="color: var(--fm-primary);">
+                  {{ CURRENCY_SYMBOL }}{{ order.total_amount }}
+                </div>
+              </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+              <!-- Fulfillment Status Badge -->
+              {% if order.status == 'delivered' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle">
+                  <i class="bi bi-check-circle-fill me-1"></i> Delivered
+                </span>
+              {% elif order.status == 'shipped' %}
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                  <i class="bi bi-truck me-1"></i> Shipped
+                </span>
+              {% elif order.status == 'processing' %}
+                <span class="badge bg-info-subtle text-info border border-info-subtle">
+                  <i class="bi bi-gear-fill me-1"></i> Processing
+                </span>
+              {% elif order.status == 'cancelled' %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                  <i class="bi bi-x-circle-fill me-1"></i> Cancelled
+                </span>
+              {% else %}
+                <span class="badge bg-warning-subtle text-dark border border-warning-subtle">
+                  <i class="bi bi-clock-fill me-1"></i> Pending
+                </span>
+              {% endif %}
+
+              <!-- Payment Status Badge -->
+              {% if order.payment_status == 'paid' %}
+                <span class="badge bg-success text-white">Paid</span>
+              {% else %}
+                <span class="badge bg-warning text-dark">COD (Unpaid)</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- Order Items Snippet -->
+          <div class="card-body p-3">
+            <div class="row align-items-center g-3">
+              <div class="col-12 col-md-8">
+                <div class="d-flex align-items-center gap-3 flex-wrap">
+                  {% for item in order.items.all|slice:":4" %}
+                    <div class="d-flex align-items-center gap-2 border rounded p-1 bg-light bg-opacity-50" style="max-width: 240px;">
+                      <div style="width: 42px; height: 42px; flex-shrink: 0;">
+                        {% if item.product and item.product.image %}
+                          <img src="{{ item.product.image.url }}" alt="{{ item.product_name }}" class="w-100 h-100 rounded object-fit-cover border">
+                        {% else %}
+                          <div class="w-100 h-100 rounded bg-white border d-flex align-items-center justify-content-center text-muted" style="font-size: 10px;">
+                            <i class="bi bi-image"></i>
+                          </div>
+                        {% endif %}
+                      </div>
+                      <div class="min-w-0" style="font-size: 11px;">
+                        <div class="fw-semibold text-dark text-truncate">{{ item.product_name }}</div>
+                        <div class="text-muted">Qty: {{ item.quantity }} • {{ CURRENCY_SYMBOL }}{{ item.line_total }}</div>
+                      </div>
+                    </div>
+                  {% endfor %}
+
+                  {% if order.items.count > 4 %}
+                    <span class="badge bg-secondary-subtle text-secondary">+{{ order.items.count|add:"-4" }} more item{{ order.items.count|add:"-4"|pluralize }}</span>
+                  {% endif %}
+                </div>
+
+                <div class="text-secondary small mt-2">
+                  <i class="bi bi-geo-alt me-1 text-muted"></i>
+                  Delivering to: <strong class="text-dark">{{ order.shipping_full_name }}</strong>, {{ order.shipping_city }} ({{ order.shipping_postal_code }})
+                </div>
+              </div>
+
+              <!-- Action Links -->
+              <div class="col-12 col-md-4 text-md-end d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
+                {% if order.payment_status == 'paid' or order.payment_method == 'cod' %}
+                  {% if order.status != 'cancelled' %}
+                    <a href="{% url 'core:order_invoice' order_number=order.order_number %}" class="btn btn-outline-primary btn-sm" target="_blank" title="Download Invoice PDF">
+                      <i class="bi bi-file-earmark-pdf me-1"></i> Invoice
+                    </a>
+                  {% endif %}
+                {% endif %}
+                {% if order.is_cancellable %}
+                  <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#cancelOrderModal{{ order.id }}">
+                    <i class="bi bi-x-circle me-1"></i> Cancel Order
+                  </button>
+                {% endif %}
+                <a href="{% url 'core:order_detail' order.order_number %}" class="fm-btn fm-btn-outline fm-btn-sm d-inline-flex align-items-center gap-1">
+                  <span>View Details</span>
+                  <i class="bi bi-chevron-right"></i>
+                </a>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Cancel Order Confirmation Modal -->
+          {% if order.is_cancellable %}
+            <div class="modal fade" id="cancelOrderModal{{ order.id }}" tabindex="-1" aria-labelledby="cancelOrderModalLabel{{ order.id }}" aria-hidden="true">
+              <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow">
+                  <div class="modal-header border-bottom bg-danger-subtle text-danger py-3">
+                    <h5 class="modal-title fs-6 fw-bold" id="cancelOrderModalLabel{{ order.id }}">
+                      <i class="bi bi-exclamation-triangle-fill me-1"></i> Cancel Order #{{ order.order_number }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <form method="post" action="{% url 'core:order_cancel' order.order_number %}">
+                    {% csrf_token %}
+                    <div class="modal-body p-4 text-start">
+                      <p class="text-secondary small mb-3">
+                        Are you sure you want to cancel this order? Once cancelled, this action cannot be reversed and reserved items will be released back to inventory.
+                      </p>
+
+                      {% if order.payment_status == 'paid' %}
+                        <div class="alert alert-warning py-2 px-3 small mb-3">
+                          <i class="bi bi-info-circle-fill me-1"></i>
+                          <strong>Online Payment:</strong> Your verified payment of {{ CURRENCY_SYMBOL }}{{ order.total_amount }} will be flagged for refund review.
+                        </div>
+                      {% else %}
+                        <div class="alert alert-light border py-2 px-3 small mb-3 text-muted">
+                          <i class="bi bi-check-circle-fill me-1 text-success"></i>
+                          <strong>Cash on Delivery:</strong> No payment has been charged.
+                        </div>
+                      {% endif %}
+
+                      <div class="mb-3">
+                        <label for="cancelReason{{ order.id }}" class="form-label small fw-semibold">Reason for cancellation (optional):</label>
+                        <select name="reason" id="cancelReason{{ order.id }}" class="form-select form-select-sm">
+                          <option value="Changed my mind">Changed my mind</option>
+                          <option value="Ordered by mistake">Ordered by mistake</option>
+                          <option value="Found a better price elsewhere">Found a better price elsewhere</option>
+                          <option value="Delivery time is too long">Delivery time is too long</option>
+                          <option value="Need to change shipping address">Need to change shipping address</option>
+                          <option value="Other">Other reason</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="modal-footer border-top bg-light py-2">
+                      <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Keep Order</button>
+                      <button type="submit" class="btn btn-sm btn-danger fw-semibold">
+                        <i class="bi bi-x-circle me-1"></i> Confirm Cancellation
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- Pagination Controls -->
+    {% if orders_page.has_other_pages %}
+      <nav aria-label="Orders pagination" class="d-flex justify-content-center my-4">
+        <ul class="pagination pagination-sm">
+          {% if orders_page.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ orders_page.previous_page_number }}">Previous</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Previous</span></li>
+          {% endif %}
+
+          {% for num in orders_page.paginator.page_range %}
+            {% if orders_page.number == num %}
+              <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% else %}
+              <li class="page-item"><a class="page-link" href="?page={{ num }}">{{ num }}</a></li>
+            {% endif %}
+          {% endfor %}
+
+          {% if orders_page.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ orders_page.next_page_number }}">Next</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">Next</span></li>
+          {% endif %}
+        </ul>
+      </nav>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

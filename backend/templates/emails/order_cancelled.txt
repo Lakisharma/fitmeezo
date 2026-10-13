@@ -1,0 +1,25 @@
+FITMEEZO - SHOP SMART • LIVE BETTER
+Order Cancellation Confirmation
+
+Dear {{ order.shipping_full_name }},
+
+Your order #{{ order.order_number }} has been cancelled.
+
+Order Summary:
+- Order Number: #{{ order.order_number }}
+- Total Amount: ₹{{ order.total_amount }}
+- Payment Method: {{ order.get_payment_method_display }}
+{% if order.payment_status == 'paid' %}
+- Refund Status: Online payment verified. Refund review is pending with our accounts support team.
+{% else %}
+- Payment Status: Unpaid (Cash on Delivery). No charges were collected.
+{% endif %}
+{% if reason %}
+- Reason: {{ reason }}
+{% endif %}
+
+All reserved items have been returned to available inventory.
+Browse our catalogue at any time to place a new order.
+
+Questions? Reach our customer care team at support@fitmeezo.com.
+© Fitmeezo. All Rights Reserved. Developed by Lakshman Sharma

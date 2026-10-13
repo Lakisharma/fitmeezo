@@ -1,0 +1,252 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}
+  {% if search_query %}
+    "{{ search_query }}" — Search Results | {{ BRAND_NAME }}
+  {% elif selected_cat_obj %}
+    {{ selected_cat_obj.name }} — Search Results | {{ BRAND_NAME }}
+  {% else %}
+    Search Products — {{ BRAND_NAME }}
+  {% endif %}
+{% endblock %}
+
+{% block meta_description %}
+  {% if search_query %}
+    Find the best deals and authentic products matching "{{ search_query }}" on {{ BRAND_NAME }}. Fast delivery and assured genuine quality across India.
+  {% elif selected_cat_obj %}
+    Explore authentic {{ selected_cat_obj.name }} products on {{ BRAND_NAME }}. Best prices and fast delivery.
+  {% else %}
+    Search verified products across electronics, fashion, home essentials, beauty, and more on {{ BRAND_NAME }}.
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="fm-container py-3">
+  <!-- Breadcrumbs -->
+  <nav class="fm-breadcrumbs" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <a href="{% url 'core:product_search' %}" class="fm-breadcrumb-item">
+      <span>Search</span>
+    </a>
+    {% if search_query %}
+      <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+      <span class="fm-breadcrumb-item is-current" aria-current="page">"{{ search_query }}"</span>
+    {% elif selected_cat_obj %}
+      <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+      <span class="fm-breadcrumb-item is-current" aria-current="page">{{ selected_cat_obj.name }}</span>
+    {% endif %}
+  </nav>
+
+  <!-- Search Hero Header Banner -->
+  <header class="fm-category-hero" aria-labelledby="search-results-heading">
+    <div class="fm-category-hero-inner">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="fm-category-pretitle mb-0">
+          <i class="bi bi-search" aria-hidden="true"></i>
+          <span>Product Search</span>
+        </span>
+        {% if selected_cat_obj %}
+          <span class="fm-badge fm-badge-primary">{{ selected_cat_obj.name }}</span>
+        {% endif %}
+      </div>
+
+      <h1 id="search-results-heading" class="fm-category-hero-title">
+        {% if search_query %}
+          Results for <span style="color: var(--fm-primary);">"{{ search_query }}"</span>
+        {% elif selected_cat_obj %}
+          Browsing in <span style="color: var(--fm-primary);">{{ selected_cat_obj.name }}</span>
+        {% else %}
+          Explore Fitmeezo Catalogue
+        {% endif %}
+      </h1>
+
+      <p class="fm-category-hero-desc">
+        {% if search_query %}
+          Found {{ total_products_count }} matching product{{ total_products_count|pluralize }}{% if selected_cat_obj %} in {{ selected_cat_obj.name }}{% endif %}. Verified genuine products, assured warranty, and secure doorstep delivery.
+        {% elif selected_cat_obj %}
+          Showing active verified merchandise in {{ selected_cat_obj.name }}.
+        {% else %}
+          Discover top quality brands, latest electronics, fashion, home essentials, and everyday savings.
+        {% endif %}
+      </p>
+
+      <div class="fm-category-hero-meta">
+        <div class="fm-category-meta-pill">
+          <i class="bi bi-box-seam text-warning" aria-hidden="true"></i>
+          <span>{{ total_products_count }} Item{{ total_products_count|pluralize }}</span>
+        </div>
+        <div class="fm-category-meta-pill">
+          <i class="bi bi-shield-check text-success" aria-hidden="true"></i>
+          <span>100% Genuine</span>
+        </div>
+        <div class="fm-category-meta-pill">
+          <i class="bi bi-truck text-info" aria-hidden="true"></i>
+          <span>Pan-India Delivery</span>
+        </div>
+        <div class="fm-category-meta-pill">
+          <i class="bi bi-arrow-repeat text-primary" aria-hidden="true"></i>
+          <span>7-Day Replacement</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Quick Category Filter Chips -->
+  {% if nav_categories %}
+    <div class="d-flex align-items-center gap-2 overflow-x-auto pb-2 mb-3" style="scrollbar-width: thin;" aria-label="Quick Category Filter">
+      <span class="text-muted small fw-semibold text-nowrap"><i class="bi bi-funnel me-1"></i>Filter by:</span>
+      <a href="{% url 'core:product_search' %}?q={{ search_query|urlencode }}&category=all&sort={{ current_sort|urlencode }}"
+         class="btn btn-sm {% if not selected_category or selected_category == 'all' %}btn-dark{% else %}btn-outline-secondary border{% endif %} rounded-pill text-nowrap px-3 py-1"
+         style="font-size: 0.8rem;">
+        All Categories
+      </a>
+      {% for cat in nav_categories %}
+        <a href="{% url 'core:product_search' %}?q={{ search_query|urlencode }}&category={{ cat.slug }}&sort={{ current_sort|urlencode }}"
+           class="btn btn-sm {% if selected_category == cat.slug %}btn-dark{% else %}btn-outline-secondary border{% endif %} rounded-pill text-nowrap px-3 py-1"
+           style="font-size: 0.8rem;">
+          <i class="bi {{ cat.icon_class|default:'bi-tag' }} me-1"></i>{{ cat.name }}
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <!-- Listing Area -->
+  <section id="search-results-section" aria-labelledby="listing-toolbar-heading">
+    <h2 id="listing-toolbar-heading" class="visually-hidden">Search Results List</h2>
+
+    <!-- Listing Toolbar & Filter Strip -->
+    <div class="fm-listing-toolbar">
+      <div class="fm-toolbar-count">
+        {% if total_products_count > 0 %}
+          Showing <strong>{{ products|length }}</strong> of <strong>{{ total_products_count }}</strong> items
+          {% if search_query %}for <em>"{{ search_query }}"</em>{% endif %}
+        {% else %}
+          Search status: <strong>{{ total_products_count }} results</strong>
+        {% endif %}
+      </div>
+
+      <div class="fm-toolbar-controls">
+        <form id="fmSearchSortForm" method="get" action="{% url 'core:product_search' %}" class="d-flex align-items-center gap-2 m-0 p-0">
+          <input type="hidden" name="q" value="{{ search_query }}">
+          {% if selected_category %}
+            <input type="hidden" name="category" value="{{ selected_category }}">
+          {% endif %}
+          <label for="fmSortSelect" class="text-muted d-none d-sm-inline small">Sort by:</label>
+          <select id="fmSortSelect" name="sort" class="fm-sort-select" onchange="this.form.submit()" aria-label="Sort products">
+            <option value="featured" {% if current_sort == 'featured' %}selected{% endif %}>Featured</option>
+            <option value="price-asc" {% if current_sort == 'price-asc' %}selected{% endif %}>Price: Low to High</option>
+            <option value="price-desc" {% if current_sort == 'price-desc' %}selected{% endif %}>Price: High to Low</option>
+            <option value="rating" {% if current_sort == 'rating' %}selected{% endif %}>Customer Rating</option>
+            <option value="newest" {% if current_sort == 'newest' %}selected{% endif %}>Newest Arrivals</option>
+            <option value="name-asc" {% if current_sort == 'name-asc' %}selected{% endif %}>Name: A to Z</option>
+          </select>
+        </form>
+      </div>
+    </div>
+
+    <!-- Products Grid OR Empty State -->
+    {% if products and products|length > 0 %}
+      <div class="fm-products-grid">
+        {% for product in products %}
+          {% include "includes/product_card.html" with product=product %}
+        {% endfor %}
+      </div>
+
+      <!-- Pagination Block -->
+      {% if page_obj and page_obj.has_other_pages %}
+        <nav class="fm-pagination" aria-label="Search results page navigation">
+          {% if page_obj.has_previous %}
+            <a href="?q={{ search_query|urlencode }}&category={{ selected_category|urlencode }}&sort={{ current_sort|urlencode }}&page={{ page_obj.previous_page_number }}"
+               class="fm-page-item"
+               aria-label="Previous page">
+              <i class="bi bi-chevron-left" aria-hidden="true"></i>
+            </a>
+          {% endif %}
+
+          {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+              <span class="fm-page-item is-active" aria-current="page">{{ num }}</span>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+              <a href="?q={{ search_query|urlencode }}&category={{ selected_category|urlencode }}&sort={{ current_sort|urlencode }}&page={{ num }}"
+                 class="fm-page-item">
+                {{ num }}
+              </a>
+            {% endif %}
+          {% endfor %}
+
+          {% if page_obj.has_next %}
+            <a href="?q={{ search_query|urlencode }}&category={{ selected_category|urlencode }}&sort={{ current_sort|urlencode }}&page={{ page_obj.next_page_number }}"
+               class="fm-page-item"
+               aria-label="Next page">
+              <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </a>
+          {% endif %}
+        </nav>
+      {% endif %}
+
+    {% elif is_empty_query %}
+      <!-- Empty Query State: user arrived without entering search query -->
+      <div class="fm-category-empty-state">
+        <div class="fm-empty-icon-bubble" aria-hidden="true">
+          <i class="bi bi-search"></i>
+        </div>
+        <h3 class="fm-empty-title">Looking for Something Specific?</h3>
+        <p class="fm-empty-desc">
+          Enter product names, brand keywords, or model numbers in the search bar above to quickly locate items across our departments.
+        </p>
+        <div class="fm-empty-actions">
+          <a href="{% url 'core:category_list' %}" class="fm-btn fm-btn-outline">
+            <i class="bi bi-grid me-1" aria-hidden="true"></i> Browse All Categories
+          </a>
+          <a href="{% url 'core:home' %}" class="fm-btn fm-btn-primary">
+            <i class="bi bi-house-door me-1" aria-hidden="true"></i> Back to Homepage
+          </a>
+        </div>
+      </div>
+
+    {% else %}
+      <!-- No Matching Results State -->
+      <div class="fm-category-empty-state">
+        <div class="fm-empty-icon-bubble" aria-hidden="true">
+          <i class="bi bi-search"></i>
+        </div>
+        <h3 class="fm-empty-title">No Matching Products Found</h3>
+        <p class="fm-empty-desc">
+          We couldn't find any products matching <strong>"{{ search_query }}"</strong>{% if selected_cat_obj %} in <strong>{{ selected_cat_obj.name }}</strong>{% endif %}.
+        </p>
+
+        <div class="p-3 mb-4 bg-light rounded text-start mx-auto" style="max-width: 480px; font-size: 0.9rem;">
+          <div class="fw-bold mb-2 text-dark"><i class="bi bi-lightbulb text-warning me-1" aria-hidden="true"></i> Search Tips:</div>
+          <ul class="mb-0 text-muted ps-3">
+            <li>Check for spelling mistakes or typos.</li>
+            <li>Try using fewer, simpler, or more generic terms.</li>
+            {% if selected_cat_obj %}
+              <li>Try switching the category selector to <strong>All Categories</strong>.</li>
+            {% endif %}
+            <li>Browse through our department categories below.</li>
+          </ul>
+        </div>
+
+        <div class="fm-empty-actions">
+          {% if selected_cat_obj and search_query %}
+            <a href="{% url 'core:product_search' %}?q={{ search_query|urlencode }}&category=all" class="fm-btn fm-btn-outline">
+              <i class="bi bi-globe me-1" aria-hidden="true"></i> Search Across All Categories
+            </a>
+          {% endif %}
+          <a href="{% url 'core:category_list' %}" class="fm-btn fm-btn-outline">
+            <i class="bi bi-grid me-1" aria-hidden="true"></i> Browse All Categories
+          </a>
+          <a href="{% url 'core:home' %}" class="fm-btn fm-btn-primary">
+            <i class="bi bi-house-door me-1" aria-hidden="true"></i> Back to Homepage
+          </a>
+        </div>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,303 @@
+{% load static %}
+<!-- Mobile Horizontal-Scroll Category Strip -->
+<nav class="fm-mobile-cat-strip" aria-label="Mobile Category Navigation">
+  <div class="fm-mobile-cat-scroll" role="tablist">
+    <a href="{% url 'core:category_list' %}"
+       class="fm-mobile-cat-item {% if not category %}is-active{% endif %}"
+       role="tab"
+       aria-selected="{% if not category %}true{% else %}false{% endif %}"
+       data-category="all"
+       aria-label="All Categories">
+      <div class="fm-mobile-cat-icon">
+        <i class="bi bi-grid-fill" aria-hidden="true"></i>
+      </div>
+      <span class="fm-mobile-cat-text">All</span>
+    </a>
+
+    {% if nav_categories %}
+      {% for cat in nav_categories %}
+        <a href="{% url 'core:category_detail' slug=cat.slug %}"
+           class="fm-mobile-cat-item {% if category and category.slug == cat.slug %}is-active{% endif %}"
+           role="tab"
+           aria-selected="{% if category and category.slug == cat.slug %}true{% else %}false{% endif %}"
+           data-category="{{ cat.slug }}"
+           aria-label="{{ cat.name }}">
+          <div class="fm-mobile-cat-icon">
+            <i class="bi {{ cat.icon_class|default:'bi-tag' }}" aria-hidden="true"></i>
+          </div>
+          <span class="fm-mobile-cat-text">{{ cat.name }}</span>
+        </a>
+      {% endfor %}
+    {% else %}
+      <a href="{% url 'core:category_detail' slug='electronics' %}" class="fm-mobile-cat-item" role="tab" aria-selected="false" data-category="electronics" aria-label="Electronics">
+        <div class="fm-mobile-cat-icon"><i class="bi bi-laptop" aria-hidden="true"></i></div>
+        <span class="fm-mobile-cat-text">Electronics</span>
+      </a>
+      <a href="{% url 'core:category_detail' slug='fashion' %}" class="fm-mobile-cat-item" role="tab" aria-selected="false" data-category="fashion" aria-label="Fashion">
+        <div class="fm-mobile-cat-icon"><i class="bi bi-bag" aria-hidden="true"></i></div>
+        <span class="fm-mobile-cat-text">Fashion</span>
+      </a>
+      <a href="{% url 'core:category_detail' slug='home-living' %}" class="fm-mobile-cat-item" role="tab" aria-selected="false" data-category="home-living" aria-label="Home & Living">
+        <div class="fm-mobile-cat-icon"><i class="bi bi-house-door" aria-hidden="true"></i></div>
+        <span class="fm-mobile-cat-text">Home &amp; Living</span>
+      </a>
+      <a href="{% url 'core:category_detail' slug='beauty' %}" class="fm-mobile-cat-item" role="tab" aria-selected="false" data-category="beauty" aria-label="Beauty">
+        <div class="fm-mobile-cat-icon"><i class="bi bi-stars" aria-hidden="true"></i></div>
+        <span class="fm-mobile-cat-text">Beauty</span>
+      </a>
+      <a href="{% url 'core:category_detail' slug='sports' %}" class="fm-mobile-cat-item" role="tab" aria-selected="false" data-category="sports" aria-label="Sports">
+        <div class="fm-mobile-cat-icon"><i class="bi bi-bicycle" aria-hidden="true"></i></div>
+        <span class="fm-mobile-cat-text">Sports</span>
+      </a>
+      <a href="{% url 'core:category_detail' slug='baby-kids' %}" class="fm-mobile-cat-item" role="tab" aria-selected="false" data-category="baby-kids" aria-label="Baby & Kids">
+        <div class="fm-mobile-cat-icon"><i class="bi bi-emoji-smile" aria-hidden="true"></i></div>
+        <span class="fm-mobile-cat-text">Baby &amp; Kids</span>
+      </a>
+    {% endif %}
+  </div>
+</nav>
+
+<!-- Desktop Category Navigation Bar -->
+<nav class="fm-category-nav" aria-label="Main Category Navigation">
+  <div class="fm-container">
+    <div class="fm-category-nav-inner">
+      <ul class="fm-category-list">
+        <li class="fm-category-item">
+          <a href="{% url 'core:category_list' %}" class="fm-category-link {% if not category %}is-active{% endif %}" aria-label="All Categories Browse">
+            <i class="bi bi-grid-fill" aria-hidden="true"></i>
+            <span>All Categories</span>
+          </a>
+        </li>
+
+        {% if nav_categories %}
+          {% for cat in nav_categories %}
+            <li class="fm-category-item">
+              <a href="{% url 'core:category_detail' slug=cat.slug %}"
+                 class="fm-category-link {% if category and category.slug == cat.slug %}is-active{% endif %}"
+                 aria-label="{{ cat.name }} Category">
+                <i class="bi {{ cat.icon_class|default:'bi-tag' }}" aria-hidden="true"></i>
+                <span>{{ cat.name }}</span>
+                {% if cat.badge %}
+                  <span class="fm-category-badge">{{ cat.badge }}</span>
+                {% endif %}
+              </a>
+            </li>
+          {% endfor %}
+        {% else %}
+          <li class="fm-category-item">
+            <a href="{% url 'core:category_detail' slug='electronics' %}" class="fm-category-link" aria-label="Electronics Category">
+              <i class="bi bi-laptop" aria-hidden="true"></i>
+              <span>Electronics</span>
+              <span class="fm-category-badge">Hot</span>
+            </a>
+          </li>
+          <li class="fm-category-item">
+            <a href="{% url 'core:category_detail' slug='fashion' %}" class="fm-category-link" aria-label="Fashion Category">
+              <i class="bi bi-bag" aria-hidden="true"></i>
+              <span>Fashion</span>
+            </a>
+          </li>
+          <li class="fm-category-item">
+            <a href="{% url 'core:category_detail' slug='home-living' %}" class="fm-category-link" aria-label="Home & Living Category">
+              <i class="bi bi-house-door" aria-hidden="true"></i>
+              <span>Home &amp; Living</span>
+            </a>
+          </li>
+          <li class="fm-category-item">
+            <a href="{% url 'core:category_detail' slug='beauty' %}" class="fm-category-link" aria-label="Beauty Category">
+              <i class="bi bi-stars" aria-hidden="true"></i>
+              <span>Beauty</span>
+            </a>
+          </li>
+          <li class="fm-category-item">
+            <a href="{% url 'core:category_detail' slug='sports' %}" class="fm-category-link" aria-label="Sports Category">
+              <i class="bi bi-bicycle" aria-hidden="true"></i>
+              <span>Sports</span>
+            </a>
+          </li>
+          <li class="fm-category-item">
+            <a href="{% url 'core:category_detail' slug='baby-kids' %}" class="fm-category-link" aria-label="Baby & Kids Category">
+              <i class="bi bi-emoji-smile" aria-hidden="true"></i>
+              <span>Baby &amp; Kids</span>
+            </a>
+          </li>
+        {% endif %}
+      </ul>
+
+      <div class="fm-nav-perk" title="Standard Fitmeezo shipping benefit">
+        <i class="bi bi-shield-check" aria-hidden="true"></i>
+        <span>100% Genuine Products • Assured Quality</span>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- Accessible Mobile Navigation Drawer (Offcanvas) -->
+<div id="fmDrawerBackdrop" class="fm-drawer-backdrop" aria-hidden="true"></div>
+
+<aside id="fmMobileDrawer"
+       class="fm-mobile-drawer"
+       role="dialog"
+       aria-modal="true"
+       aria-label="Navigation Menu"
+       aria-hidden="true">
+  <div class="fm-drawer-header">
+    <div style="font-weight: 800; font-size: 1.1rem; color: var(--fm-dark);">
+      Fitmee<span style="color: var(--fm-primary);">zo</span>
+    </div>
+    <button type="button" id="fmDrawerClose" class="fm-drawer-close" aria-label="Close navigation menu">
+      <i class="bi bi-x-lg" aria-hidden="true"></i>
+    </button>
+  </div>
+
+  <div class="fm-drawer-body">
+    <!-- User Account Fast-Access -->
+    <div>
+      <div class="fm-drawer-section-title">My Account</div>
+      <ul class="fm-drawer-menu">
+        {% if request.user.is_authenticated %}
+          <li>
+            <a href="{% url 'core:account_dashboard' %}" class="fm-drawer-link">
+              <span><i class="bi bi-speedometer2 me-2" aria-hidden="true"></i> Dashboard ({{ request.user.first_name|default:request.user.username }})</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'core:account_profile' %}" class="fm-drawer-link">
+              <span><i class="bi bi-person me-2" aria-hidden="true"></i> My Profile</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'core:account_addresses' %}" class="fm-drawer-link">
+              <span><i class="bi bi-geo-alt me-2" aria-hidden="true"></i> Saved Addresses</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'core:account_orders' %}" class="fm-drawer-link">
+              <span><i class="bi bi-box-seam me-2" aria-hidden="true"></i> My Orders</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+        {% else %}
+          <li>
+            <a href="{% url 'core:account_login' %}" class="fm-drawer-link">
+              <span><i class="bi bi-box-arrow-in-right me-2" aria-hidden="true"></i> Sign In</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'core:account_register' %}" class="fm-drawer-link">
+              <span><i class="bi bi-person-plus me-2" aria-hidden="true"></i> Register</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+        {% endif %}
+        <li>
+          <a href="{% url 'core:wishlist_detail' %}" class="fm-drawer-link" aria-label="My Wishlist">
+            <span><i class="bi bi-heart me-2" aria-hidden="true"></i> Wishlist</span>
+            <span class="fm-badge fm-badge-primary" id="fmDrawerWishlistBadge">{{ wishlist_count|default:0 }}</span>
+          </a>
+        </li>
+        <li>
+          <a href="{% url 'core:cart_detail' %}" class="fm-drawer-link" aria-label="Shopping Cart">
+            <span><i class="bi bi-bag me-2" aria-hidden="true"></i> Cart</span>
+            <span class="fm-badge fm-badge-primary" id="fmDrawerCartBadge">{{ cart_total_units|default:0 }}</span>
+          </a>
+        </li>
+        {% if request.user.is_authenticated %}
+          <li>
+            <form action="{% url 'core:account_logout' %}" method="post" class="m-0 p-0">
+              {% csrf_token %}
+              <button type="submit" class="fm-drawer-link w-100 text-start border-0 bg-transparent" style="cursor: pointer;">
+                <span class="text-danger"><i class="bi bi-box-arrow-right me-2" aria-hidden="true"></i> Sign Out</span>
+                <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+              </button>
+            </form>
+          </li>
+        {% endif %}
+      </ul>
+    </div>
+
+    <!-- Categories List -->
+    <div>
+      <div class="fm-drawer-section-title">Shop by Category</div>
+      <ul class="fm-drawer-menu">
+        <li>
+          <a href="{% url 'core:category_list' %}" class="fm-drawer-link">
+            <span><i class="bi bi-grid me-2" aria-hidden="true"></i> All Categories</span>
+            <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+          </a>
+        </li>
+
+        {% if nav_categories %}
+          {% for cat in nav_categories %}
+            <li>
+              <a href="{% url 'core:category_detail' slug=cat.slug %}" class="fm-drawer-link">
+                <span><i class="bi {{ cat.icon_class|default:'bi-tag' }} me-2" aria-hidden="true"></i> {{ cat.name }}</span>
+                <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+              </a>
+            </li>
+          {% endfor %}
+        {% else %}
+          <li>
+            <a href="{% url 'core:category_detail' slug='electronics' %}" class="fm-drawer-link">
+              <span><i class="bi bi-laptop me-2" aria-hidden="true"></i> Electronics</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'core:category_detail' slug='fashion' %}" class="fm-drawer-link">
+              <span><i class="bi bi-bag me-2" aria-hidden="true"></i> Fashion</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'core:category_detail' slug='home-living' %}" class="fm-drawer-link">
+              <span><i class="bi bi-house-door me-2" aria-hidden="true"></i> Home &amp; Living</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'core:category_detail' slug='beauty' %}" class="fm-drawer-link">
+              <span><i class="bi bi-stars me-2" aria-hidden="true"></i> Beauty</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'core:category_detail' slug='sports' %}" class="fm-drawer-link">
+              <span><i class="bi bi-bicycle me-2" aria-hidden="true"></i> Sports</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+          <li>
+            <a href="{% url 'core:category_detail' slug='baby-kids' %}" class="fm-drawer-link">
+              <span><i class="bi bi-emoji-smile me-2" aria-hidden="true"></i> Baby &amp; Kids</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </a>
+          </li>
+        {% endif %}
+      </ul>
+    </div>
+
+    <!-- Help & Region Info -->
+    <div>
+      <div class="fm-drawer-section-title">Support &amp; Preferences</div>
+      <ul class="fm-drawer-menu">
+        <li>
+          <a href="#" class="fm-drawer-link" data-placeholder="true" data-placeholder-label="Customer Support">
+            <span><i class="bi bi-headset me-2" aria-hidden="true"></i> Customer Support</span>
+            <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+          </a>
+        </li>
+        <li>
+          <div class="fm-drawer-link text-muted" style="cursor: default;">
+            <span><i class="bi bi-geo-alt me-2" aria-hidden="true"></i> Region &amp; Currency</span>
+            <span class="badge bg-secondary">India ({{ CURRENCY }})</span>
+          </div>
+        </li>
+      </ul>
+    </div>
+  </div>
+</aside>

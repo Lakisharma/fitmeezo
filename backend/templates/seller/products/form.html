@@ -1,0 +1,368 @@
+{% extends "seller/base.html" %}
+{% load static %}
+
+{% block title %}
+  {% if is_create %}Add New Product{% else %}Edit {{ product.name }}{% endif %} — {{ seller.store_name }} | {{ BRAND_NAME }}
+{% endblock %}
+
+{% block meta_description %}Manage product specifications, pricing, inventory, variants, and gallery showcase on Fitmeezo Partner Panel.{% endblock %}
+
+{% block page_header_title %}
+  {% if is_create %}Add New Product{% else %}Edit Product: {{ product.name|truncatechars:25 }}{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="seller-product-form-wrapper">
+  <!-- Breadcrumbs -->
+  <nav class="d-flex align-items-center gap-2 small text-muted mb-3" aria-label="Breadcrumbs">
+    <a href="{% url 'core:home' %}" class="text-decoration-none text-muted d-flex align-items-center gap-1">
+      <i class="bi bi-house"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <a href="{% url 'core:seller_dashboard' %}" class="text-decoration-none text-muted">Dashboard</a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <a href="{% url 'core:seller_product_list' %}" class="text-decoration-none text-muted">My Products</a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <span class="text-dark fw-semibold" aria-current="page">
+      {% if is_create %}Add Product{% else %}Edit Product{% endif %}
+    </span>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+    <div>
+      <h1 class="h3 fw-bold mb-1 text-dark">
+        {% if is_create %}Add New Product{% else %}Edit Product: {{ product.name }}{% endif %}
+      </h1>
+      <p class="text-secondary small mb-0">
+        {% if is_create %}
+          Fill in details below to submit a new product listing for platform approval.
+        {% else %}
+          Update product information, manage purchasable variants, and upload gallery images.
+        {% endif %}
+      </p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'core:seller_product_list' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Back to Products
+      </a>
+      {% if not is_create %}
+        <a href="{% url 'core:seller_product_inventory' product.pk %}" class="btn btn-outline-secondary btn-sm">
+          <i class="bi bi-boxes me-1"></i> Manage Stock
+        </a>
+        {% if product.is_approved and product.is_active %}
+          <a href="{{ product.get_absolute_url }}" target="_blank" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-box-arrow-up-right me-1"></i> View Live
+          </a>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Moderation Status Banner (for existing products) -->
+  {% if not is_create %}
+    {% if product.approval_status == "pending" %}
+      <div class="alert alert-warning d-flex align-items-center gap-3 rounded-3 shadow-sm mb-4" role="alert">
+        <i class="bi bi-hourglass-split fs-3 text-warning"></i>
+        <div>
+          <div class="fw-bold">Pending Platform Admin Approval</div>
+          <div class="small">This product is awaiting review by our moderation team. It will become publicly visible on search and category catalogs once approved.</div>
+        </div>
+      </div>
+    {% elif product.approval_status == "rejected" %}
+      <div class="alert alert-danger d-flex align-items-center gap-3 rounded-3 shadow-sm mb-4" role="alert">
+        <i class="bi bi-x-octagon fs-3 text-danger"></i>
+        <div>
+          <div class="fw-bold">Product Approval Rejected</div>
+          <div class="small">
+            {% if product.rejection_reason %}
+              <strong>Reason:</strong> {{ product.rejection_reason }}
+            {% else %}
+              This listing did not pass administrative review. Please update product details to comply with marketplace quality standards.
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    {% elif product.approval_status == "approved" %}
+      <div class="alert alert-success d-flex align-items-center gap-3 rounded-3 shadow-sm mb-4" role="alert">
+        <i class="bi bi-patch-check-fill fs-3 text-success"></i>
+        <div>
+          <div class="fw-bold">Approved &amp; Live</div>
+          <div class="small">This product is approved by Platform Administration. Note that editing material details (name, price, SKU, category, or photos) will automatically resubmit it for moderation.</div>
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+
+  <div class="row g-4">
+    <!-- Main Product Form Column -->
+    <div class="col-12 col-lg-8">
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger mb-4">
+            {% for error in form.non_field_errors %}
+              <div>{{ error }}</div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        <!-- Basic Information Card -->
+        <div class="card seller-card mb-4">
+          <div class="card-header bg-white border-0 py-3">
+            <h2 class="h6 fw-bold mb-0 text-dark"><i class="bi bi-info-circle me-1 text-primary"></i> Basic Information</h2>
+          </div>
+          <div class="card-body p-4 pt-0">
+            <div class="mb-3">
+              <label for="{{ form.name.id_for_label }}" class="form-label small fw-semibold">
+                Product Title <span class="text-danger">*</span>
+              </label>
+              {{ form.name }}
+              {% if form.name.errors %}
+                <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-6">
+                <label for="{{ form.category.id_for_label }}" class="form-label small fw-semibold">
+                  Category <span class="text-danger">*</span>
+                </label>
+                {{ form.category }}
+                {% if form.category.errors %}
+                  <div class="text-danger small mt-1">{{ form.category.errors.0 }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-12 col-md-6">
+                <label for="{{ form.sku.id_for_label }}" class="form-label small fw-semibold">
+                  SKU (Stock Keeping Unit) <span class="text-danger">*</span>
+                </label>
+                {{ form.sku }}
+                {% if form.sku.errors %}
+                  <div class="text-danger small mt-1">{{ form.sku.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="mb-0">
+              <label for="{{ form.description.id_for_label }}" class="form-label small fw-semibold">
+                Product Description
+              </label>
+              {{ form.description }}
+              {% if form.description.errors %}
+                <div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Pricing & Inventory Card -->
+        <div class="card seller-card mb-4">
+          <div class="card-header bg-white border-0 py-3">
+            <h2 class="h6 fw-bold mb-0 text-dark"><i class="bi bi-currency-rupee me-1 text-success"></i> Pricing &amp; Stock</h2>
+          </div>
+          <div class="card-body p-4 pt-0">
+            <div class="row g-3 mb-3">
+              <div class="col-12 col-md-6">
+                <label for="{{ form.price.id_for_label }}" class="form-label small fw-semibold">
+                  Selling Price (₹) <span class="text-danger">*</span>
+                </label>
+                {{ form.price }}
+                {% if form.price.errors %}
+                  <div class="text-danger small mt-1">{{ form.price.errors.0 }}</div>
+                {% endif %}
+              </div>
+
+              <div class="col-12 col-md-6">
+                <label for="{{ form.compare_at_price.id_for_label }}" class="form-label small fw-semibold">
+                  Compare-at / Original Price (₹)
+                </label>
+                {{ form.compare_at_price }}
+                {% if form.compare_at_price.errors %}
+                  <div class="text-danger small mt-1">{{ form.compare_at_price.errors.0 }}</div>
+                {% endif %}
+                <div class="form-text small">Shows crossed-out MRP discount to shoppers.</div>
+              </div>
+            </div>
+
+            <div class="row g-3">
+              <div class="col-12 col-md-6">
+                <label for="{{ form.stock_quantity.id_for_label }}" class="form-label small fw-semibold">
+                  Base Stock Quantity <span class="text-danger">*</span>
+                </label>
+                {{ form.stock_quantity }}
+                {% if form.stock_quantity.errors %}
+                  <div class="text-danger small mt-1">{{ form.stock_quantity.errors.0 }}</div>
+                {% endif %}
+                <div class="form-text small">Units available if this item does not use size/color variants.</div>
+              </div>
+
+              <div class="col-12 col-md-6 d-flex align-items-center">
+                <div class="form-check form-switch mt-3">
+                  {{ form.is_active }}
+                  <label class="form-check-label small fw-semibold" for="{{ form.is_active.id_for_label }}">
+                    Active on Storefront (when approved)
+                  </label>
+                  <div class="form-text small">Toggle to temporarily hide item from shoppers.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Featured Image Card -->
+        <div class="card seller-card mb-4">
+          <div class="card-header bg-white border-0 py-3">
+            <h2 class="h6 fw-bold mb-0 text-dark"><i class="bi bi-image me-1 text-primary"></i> Primary Showcase Image</h2>
+          </div>
+          <div class="card-body p-4 pt-0">
+            {% if not is_create and product.image %}
+              <div class="d-flex align-items-center gap-3 mb-3 p-2 bg-light rounded-2 border">
+                <img src="{{ product.image.url }}" alt="{{ product.name }}" class="rounded object-fit-cover" style="width: 72px; height: 72px;">
+                <div>
+                  <div class="fw-semibold small">Current Main Image</div>
+                  <div class="text-muted small">Select a new file below to replace it.</div>
+                </div>
+              </div>
+            {% endif %}
+
+            <div class="mb-0">
+              <label for="{{ form.image.id_for_label }}" class="form-label small fw-semibold">
+                Upload Image File
+              </label>
+              {{ form.image }}
+              {% if form.image.errors %}
+                <div class="text-danger small mt-1">{{ form.image.errors.0 }}</div>
+              {% endif %}
+              <div class="form-text small">Accepted formats: JPEG, PNG, WEBP. High resolution square ratio (1:1) recommended.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit Bar -->
+        <div class="d-flex align-items-center justify-content-between p-3 bg-white rounded-3 border mb-4">
+          <a href="{% url 'core:seller_product_list' %}" class="btn btn-outline-secondary btn-sm">
+            Cancel
+          </a>
+          <button type="submit" class="btn seller-btn-navy btn-sm px-4">
+            <i class="bi bi-check2-circle me-1"></i>
+            {% if is_create %}Submit for Approval{% else %}Save Changes{% endif %}
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Right Sidebar: Variants & Gallery (Available after product creation) -->
+    <div class="col-12 col-lg-4">
+      {% if is_create %}
+        <div class="card seller-card p-4 text-center">
+          <i class="bi bi-layers text-muted fs-2 mb-2"></i>
+          <h2 class="h6 fw-bold mb-1 text-dark">Variants &amp; Photo Gallery</h2>
+          <p class="small text-muted mb-0">
+            Save this product first to unlock variant configurations (size, color) and additional gallery photo uploads.
+          </p>
+        </div>
+      {% else %}
+        <!-- Product Variants Section -->
+        <div class="card seller-card mb-4">
+          <div class="card-header bg-white border-0 py-3 d-flex align-items-center justify-content-between">
+            <h2 class="h6 fw-bold mb-0 text-dark">
+              <i class="bi bi-layers me-1 text-primary"></i> Variants ({{ variants.count }})
+            </h2>
+            <a href="{% url 'core:seller_product_variant_add' product.pk %}" class="btn seller-btn-gold btn-sm py-0 px-2" style="font-size: 11px;">
+              <i class="bi bi-plus-lg me-1"></i> Add Variant
+            </a>
+          </div>
+          <div class="card-body p-3 pt-0">
+            {% if variants %}
+              <div class="list-group list-group-flush small">
+                {% for variant in variants %}
+                  <div class="list-group-item d-flex align-items-center justify-content-between px-0 py-2">
+                    <div>
+                      <div class="fw-semibold text-dark">
+                        {{ variant.option_type }}: {{ variant.option_value }}
+                      </div>
+                      <span class="text-muted" style="font-size: 11px;">
+                        SKU: <code>{{ variant.sku }}</code> • Stock: <strong>{{ variant.stock_quantity }}</strong>
+                        {% if variant.price %}
+                          • ₹{{ variant.price }}
+                        {% endif %}
+                      </span>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                      <a href="{% url 'core:seller_product_variant_edit' product.pk variant.pk %}" class="btn btn-outline-secondary btn-sm py-0 px-1" title="Edit Variant" style="font-size: 11px;">
+                        <i class="bi bi-pencil"></i>
+                      </a>
+                      <form method="post" action="{% url 'core:seller_product_variant_toggle' product.pk variant.pk %}" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-sm py-0 px-1 {% if variant.is_active %}btn-outline-success{% else %}btn-outline-secondary{% endif %}" title="Toggle Active" style="font-size: 11px;">
+                          {% if variant.is_active %}<i class="bi bi-eye"></i>{% else %}<i class="bi bi-eye-slash"></i>{% endif %}
+                        </button>
+                      </form>
+                      <form method="post" action="{% url 'core:seller_product_variant_delete' product.pk variant.pk %}" class="d-inline" onsubmit="return confirm('Delete this variant?');">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-danger btn-sm py-0 px-1" title="Delete Variant" style="font-size: 11px;">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="small text-muted mb-0">No variants added yet. Add size, color, or style variations.</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Additional Photo Gallery Section -->
+        <div class="card seller-card mb-4">
+          <div class="card-header bg-white border-0 py-3">
+            <h2 class="h6 fw-bold mb-0 text-dark">
+              <i class="bi bi-images me-1 text-info"></i> Photo Gallery ({{ images.count }})
+            </h2>
+          </div>
+          <div class="card-body p-3 pt-0">
+            {% if images %}
+              <div class="row g-2 mb-3">
+                {% for img in images %}
+                  <div class="col-4 position-relative">
+                    <img src="{{ img.image.url }}" alt="{{ img.alt_text|default:product.name }}" class="img-fluid rounded border object-fit-cover" style="width: 100%; height: 75px;">
+                    <form method="post" action="{% url 'core:seller_product_image_delete' product.pk img.pk %}" class="position-absolute top-0 end-0 m-1" onsubmit="return confirm('Remove this image?');">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-danger btn-sm p-0 rounded-circle" style="width: 22px; height: 22px; line-height: 20px;" title="Remove image">
+                        <i class="bi bi-x"></i>
+                      </button>
+                    </form>
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="small text-muted mb-3">No additional gallery photos yet.</p>
+            {% endif %}
+
+            <!-- Quick Add Image Form -->
+            <div class="border rounded-3 p-3 bg-light">
+              <div class="fw-semibold small mb-2"><i class="bi bi-cloud-arrow-up me-1"></i> Upload Gallery Photo</div>
+              <form method="post" enctype="multipart/form-data" action="{% url 'core:seller_product_image_add' product.pk %}">
+                {% csrf_token %}
+                <div class="mb-2">
+                  {{ image_form.image }}
+                </div>
+                <div class="mb-2">
+                  <label class="form-label" style="font-size: 11px;">Alt Text (SEO description)</label>
+                  {{ image_form.alt_text }}
+                </div>
+                <button type="submit" class="btn btn-outline-dark btn-sm w-100">Upload Photo</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

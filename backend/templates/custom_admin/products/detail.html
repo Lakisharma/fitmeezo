@@ -1,0 +1,311 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}{{ product.name }}{% endblock %}
+{% block page_title %}Product: {{ product.name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{% url 'custom_admin:product_list' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Products
+    </a>
+    <span class="badge {% if product.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+      {% if product.is_active %}Active{% else %}Inactive{% endif %}
+    </span>
+    {% if product.is_featured %}
+      <span class="badge bg-warning text-dark">Featured</span>
+    {% endif %}
+  </div>
+
+  <div class="d-flex align-items-center gap-2">
+    <a href="{{ product.get_absolute_url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-box-arrow-up-right"></i> View on Storefront
+    </a>
+    <a href="{% url 'custom_admin:product_edit' pk=product.pk %}" class="btn btn-sm btn-dark">
+      <i class="bi bi-pencil"></i> Edit Product
+    </a>
+    <form method="post" action="{% url 'custom_admin:product_toggle_status' pk=product.pk %}" class="d-inline">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm {% if product.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
+        {% if product.is_active %}<i class="bi bi-slash-circle"></i> Deactivate{% else %}<i class="bi bi-check-circle"></i> Activate{% endif %}
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- Left Column: Product Information Card -->
+  <div class="col-12 col-lg-8">
+    <div class="fm-card h-100">
+      <div class="fm-card-header">
+        <span>Product Overview</span>
+        <span class="text-muted small">SKU: <strong>{{ product.sku }}</strong></span>
+      </div>
+      <div class="fm-card-body">
+        <div class="row g-3">
+          <div class="col-12 col-sm-4 text-center">
+            {% if product.image %}
+              <img src="{{ product.image.url }}" alt="{{ product.name }}" class="img-fluid rounded border shadow-sm" style="max-height: 220px; object-fit: cover;">
+            {% else %}
+              <div class="rounded border bg-light d-flex align-items-center justify-content-center text-muted" style="height: 180px;">
+                <i class="bi bi-image fs-1"></i>
+              </div>
+            {% endif %}
+          </div>
+          <div class="col-12 col-sm-8">
+            <h4 class="fw-bold mb-1">{{ product.name }}</h4>
+            <div class="text-muted small mb-3">
+              Category: <span class="badge bg-light text-dark border">{{ product.category.name }}</span> • 
+              Slug: <code>{{ product.slug }}</code>
+            </div>
+
+            <div class="p-3 bg-light rounded-3 mb-3">
+              <div class="row g-2">
+                <div class="col-6 col-sm-3">
+                  <span class="text-muted small d-block">Selling Price</span>
+                  <span class="fs-5 fw-bold text-dark">₹{{ product.price|floatformat:2 }}</span>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <span class="text-muted small d-block">M.R.P. Price</span>
+                  <span class="fs-6 text-muted text-decoration-line-through">
+                    {% if product.compare_at_price %}₹{{ product.compare_at_price|floatformat:2 }}{% else %}—{% endif %}
+                  </span>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <span class="text-muted small d-block">Available Stock</span>
+                  <span class="fs-5 fw-bold {% if product.available_inventory == 0 %}text-danger{% elif product.available_inventory < 10 %}text-warning{% else %}text-success{% endif %}">
+                    {{ product.available_inventory }}
+                  </span>
+                </div>
+                <div class="col-6 col-sm-3">
+                  <span class="text-muted small d-block">Avg Rating</span>
+                  <span class="fs-6 fw-bold text-warning">
+                    <i class="bi bi-star-fill"></i> {{ product.average_rating }} <small class="text-muted">({{ product.review_count }})</small>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {% if product.short_description %}
+              <p class="text-muted small mb-2"><strong>Summary:</strong> {{ product.short_description }}</p>
+            {% endif %}
+            {% if product.description %}
+              <div class="small text-secondary">
+                <strong>Description:</strong>
+                <div class="mt-1" style="white-space: pre-line;">{{ product.description }}</div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Gallery Images -->
+  <div class="col-12 col-lg-4">
+    <div class="fm-card h-100 d-flex flex-column">
+      <div class="fm-card-header">
+        <span>Gallery Showcase</span>
+        <button class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#addImageModal">
+          <i class="bi bi-plus-lg"></i> Add Image
+        </button>
+      </div>
+      <div class="fm-card-body flex-grow-1">
+        {% if product.images.all %}
+          <div class="row g-2">
+            {% for img in product.images.all %}
+              <div class="col-6 col-sm-4 col-lg-6 position-relative">
+                <div class="border rounded p-1 text-center bg-light">
+                  <img src="{{ img.image.url }}" alt="{{ img.alt_text|default:product.name }}" class="img-fluid rounded" style="height: 100px; width: 100%; object-fit: cover;">
+                  <form method="post" action="{% url 'custom_admin:product_image_delete' pk=product.pk image_pk=img.pk %}" class="mt-1">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger w-100 py-0" style="font-size: 0.75rem;" onclick="return confirm('Delete this gallery photo?');">
+                      <i class="bi bi-trash"></i> Remove
+                    </button>
+                  </form>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center py-4 text-muted small">
+            <i class="bi bi-images fs-2 d-block mb-2 text-secondary"></i>
+            No additional gallery photographs uploaded yet.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Product Variants Table & Management -->
+<div class="fm-card mb-4">
+  <div class="fm-card-header">
+    <div class="d-flex align-items-center gap-2">
+      <i class="bi bi-diagram-3-fill text-primary"></i>
+      <span>Product Variants &amp; Options ({{ product.variants.count }})</span>
+    </div>
+    <button class="btn btn-sm btn-fm-primary" data-bs-toggle="modal" data-bs-target="#addVariantModal">
+      <i class="bi bi-plus-lg"></i> Add Variant
+    </button>
+  </div>
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead>
+        <tr>
+          <th>Option Type</th>
+          <th>Option Value</th>
+          <th>SKU</th>
+          <th>Price Override</th>
+          <th>Stock Quantity</th>
+          <th>Status</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for var in product.variants.all %}
+          <tr>
+            <td><span class="badge bg-light text-dark border">{{ var.option_type }}</span></td>
+            <td class="fw-bold">{{ var.option_value }}</td>
+            <td><code>{{ var.sku }}</code></td>
+            <td>
+              {% if var.price %}
+                <span class="fw-semibold">₹{{ var.price|floatformat:2 }}</span>
+                {% if var.compare_at_price %}
+                  <small class="text-muted text-decoration-line-through">₹{{ var.compare_at_price|floatformat:2 }}</small>
+                {% endif %}
+              {% else %}
+                <span class="text-muted">Inherits (₹{{ product.price|floatformat:2 }})</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if var.stock_quantity == 0 %}
+                <span class="badge bg-danger">0 (Out of stock)</span>
+              {% elif var.stock_quantity < 10 %}
+                <span class="badge bg-warning text-dark">{{ var.stock_quantity }} (Low stock)</span>
+              {% else %}
+                <span class="badge bg-success">{{ var.stock_quantity }} units</span>
+              {% endif %}
+            </td>
+            <td>
+              <form method="post" action="{% url 'custom_admin:product_variant_toggle' pk=product.pk variant_pk=var.pk %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm {% if var.is_active %}btn-success{% else %}btn-outline-secondary{% endif %}" title="Toggle active">
+                  {% if var.is_active %}Active{% else %}Inactive{% endif %}
+                </button>
+              </form>
+            </td>
+            <td class="text-end">
+              <div class="btn-group btn-group-sm">
+                <a href="{% url 'custom_admin:product_variant_edit' pk=product.pk variant_pk=var.pk %}" class="btn btn-outline-dark" title="Edit Variant">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post" action="{% url 'custom_admin:product_variant_delete' pk=product.pk variant_pk=var.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-outline-danger" title="Delete Variant" onclick="return confirm('Delete variant {{ var.sku }}?');">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="text-center py-4 text-muted small">
+              This product has no variants configured. It operates using the standalone stock quantity ({{ product.stock_quantity }} units).
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Add Gallery Image -->
+<div class="modal fade" id="addImageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'custom_admin:product_image_add' pk=product.pk %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h6 class="modal-title fw-bold">Upload Gallery Photograph</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Image File <span class="text-danger">*</span></label>
+            {{ image_form.image }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Alternate Text (SEO/Accessibility)</label>
+            {{ image_form.alt_text }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Display Order</label>
+            {{ image_form.display_order }}
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-fm-primary">Upload Photograph</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add Product Variant -->
+<div class="modal fade" id="addVariantModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'custom_admin:product_variant_add' pk=product.pk %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h6 class="modal-title fw-bold">Add Product Variant</h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold">Option Type <span class="text-danger">*</span></label>
+              {{ variant_form.option_type }}
+              <small class="text-muted">e.g. Size, Color</small>
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Option Value <span class="text-danger">*</span></label>
+              {{ variant_form.option_value }}
+              <small class="text-muted">e.g. XL, Midnight Blue</small>
+            </div>
+            <div class="col-12">
+              <label class="form-label fw-semibold">Variant SKU <span class="text-danger">*</span></label>
+              {{ variant_form.sku }}
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Price Override (₹)</label>
+              {{ variant_form.price }}
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Compare-at Override (₹)</label>
+              {{ variant_form.compare_at_price }}
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Stock Quantity <span class="text-danger">*</span></label>
+              {{ variant_form.stock_quantity }}
+            </div>
+            <div class="col-6 d-flex align-items-center pt-3">
+              <div class="form-check">
+                {{ variant_form.is_active }}
+                <label class="form-check-label fw-semibold" for="{{ variant_form.is_active.id_for_label }}">Active</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-fm-primary">Create Variant</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

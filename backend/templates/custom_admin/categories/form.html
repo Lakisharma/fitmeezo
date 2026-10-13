@@ -1,0 +1,98 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}{% if is_create %}Add Category{% else %}Edit Category: {{ category.name }}{% endif %}{% endblock %}
+{% block page_title %}{% if is_create %}Create New Category{% else %}Edit Category{% endif %}{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <a href="{% url 'custom_admin:category_list' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i> Back to Categories
+  </a>
+</div>
+
+<div class="fm-card" style="max-width: 700px;">
+  <div class="fm-card-header">
+    <span>{% if is_create %}Add Department Category{% else %}Modify Category{% endif %}</span>
+  </div>
+  <div class="fm-card-body">
+    <form method="post" enctype="multipart/form-data" novalidate>
+      {% csrf_token %}
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger mb-3">
+          {% for err in form.non_field_errors %}
+            <div><i class="bi bi-exclamation-circle-fill me-1"></i> {{ err }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <div class="row g-3">
+        <div class="col-12 col-md-8">
+          <label class="form-label fw-semibold">Category Name <span class="text-danger">*</span></label>
+          {{ form.name }}
+          {% if form.name.errors %}
+            <div class="text-danger small mt-1">{{ form.name.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="col-12 col-md-4">
+          <label class="form-label fw-semibold">Display Order</label>
+          {{ form.display_order }}
+          <small class="text-muted">Lower numbers show first.</small>
+          {% if form.display_order.errors %}
+            <div class="text-danger small mt-1">{{ form.display_order.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">URL Slug</label>
+          {{ form.slug }}
+          <small class="text-muted">Auto-generated from name if left empty.</small>
+          {% if form.slug.errors %}
+            <div class="text-danger small mt-1">{{ form.slug.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Description</label>
+          {{ form.description }}
+          {% if form.description.errors %}
+            <div class="text-danger small mt-1">{{ form.description.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="col-12">
+          <label class="form-label fw-semibold">Promotional / Department Image</label>
+          {% if category and category.image %}
+            <div class="mb-2 d-flex align-items-center gap-3">
+              <img src="{{ category.image.url }}" alt="{{ category.name }}" class="rounded border" style="width: 72px; height: 72px; object-fit: cover;">
+              <small class="text-muted">Current image. Select a new file below to replace it.</small>
+            </div>
+          {% endif %}
+          {{ form.image }}
+          <small class="text-muted">Accepted formats: JPG, PNG, WebP (Max 5 MB).</small>
+          {% if form.image.errors %}
+            <div class="text-danger small mt-1">{{ form.image.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="col-12">
+          <div class="form-check form-switch p-3 border rounded bg-light">
+            {{ form.is_active }}
+            <label class="form-check-label fw-semibold ms-2" for="{{ form.is_active.id_for_label }}">
+              Active Status (Visible across storefront navigation)
+            </label>
+          </div>
+        </div>
+
+        <div class="col-12 mt-4 pt-3 border-top d-flex justify-content-end gap-2">
+          <a href="{% url 'custom_admin:category_list' %}" class="btn btn-outline-secondary">Cancel</a>
+          <button type="submit" class="btn btn-fm-primary">
+            {% if is_create %}Save Category{% else %}Update Category{% endif %}
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

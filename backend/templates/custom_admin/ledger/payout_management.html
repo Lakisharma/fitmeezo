@@ -1,0 +1,539 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Seller Payout Management — Admin Console | Fitmeezo{% endblock %}
+
+{% block page_title %}Seller Payout Management{% endblock %}
+
+{% block header_actions %}
+<div class="d-flex align-items-center gap-2">
+  <a href="{% url 'custom_admin:payout_create' %}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+    <i class="bi bi-wallet2"></i> Legacy Preparer
+  </a>
+  <button type="button" class="btn btn-sm btn-primary d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#generateAllModal">
+    <i class="bi bi-lightning-charge"></i> Generate Cycle Batches
+  </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Subsystem Provider Status Warning Banner -->
+<div class="alert alert-warning border-warning border-start border-4 d-flex align-items-start gap-3 shadow-sm mb-4" role="alert">
+  <i class="bi bi-shield-exclamation fs-3 text-warning-emphasis mt-1"></i>
+  <div class="flex-grow-1">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <h6 class="alert-heading fw-bold mb-0 text-warning-emphasis">
+        <span class="badge {{ payout_system_status.badge_class }} me-2">{{ payout_system_status.status_label }}</span>
+        Banking Mode: {{ payout_system_status.provider_name }}
+      </h6>
+      <span class="badge bg-dark text-white font-monospace">Cycle Day: 5th of Month</span>
+    </div>
+    <p class="mb-0 small mt-1 text-secondary">
+      Live automated bank transfers are <strong>strictly disabled by default</strong>. Payout batches prepared here are recorded in 
+      the double-entry ledger with full idempotency and cooling checks. No real funds are disbursed until official payout provider 
+      credentials (e.g. RazorpayX / Route) are configured and live transfers are explicitly activated.
+    </p>
+  </div>
+</div>
+
+<!-- 6 Summary Stat Cards -->
+<div class="row g-3 mb-4">
+  <!-- 1. Total Seller Payable -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 border-start border-primary border-3">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 11px;">Total Seller Payable</span>
+        <h4 class="fw-bold mb-0 text-primary">₹{{ total_seller_payable|floatformat:2 }}</h4>
+        <span class="small text-muted" style="font-size: 11px;">Net eligible this cycle</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Eligible for this monthly cycle -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 border-start border-info border-3">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 11px;">Eligible Sellers</span>
+        <h4 class="fw-bold mb-0 text-dark">{{ eligible_cycle_count }}</h4>
+        <span class="small text-muted" style="font-size: 11px;">Verified &amp; above threshold</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. On Hold -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 border-start border-warning border-3">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 11px;">Amount On Hold</span>
+        <h4 class="fw-bold mb-0 text-warning-emphasis">₹{{ on_hold_amount|floatformat:2 }}</h4>
+        <span class="small text-muted" style="font-size: 11px;">{{ on_hold_count }} batch(es) / orders held</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Pending Admin Approval -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 border-start border-secondary border-3">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 11px;">Pending Approval</span>
+        <h4 class="fw-bold mb-0 text-secondary">₹{{ pending_approval_amount|floatformat:2 }}</h4>
+        <span class="small text-muted" style="font-size: 11px;">{{ pending_approval_count }} prepared batch(es)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Paid Successfully -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 border-start border-success border-3">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 11px;">Paid (Simulated)</span>
+        <h4 class="fw-bold mb-0 text-success">₹{{ paid_successfully_amount|floatformat:2 }}</h4>
+        <span class="small text-muted" style="font-size: 11px;">{{ paid_successfully_count }} settled batch(es)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Failed Payments -->
+  <div class="col-12 col-sm-6 col-xl-2">
+    <div class="card border-0 shadow-sm h-100 border-start border-danger border-3">
+      <div class="card-body p-3">
+        <span class="text-muted small fw-semibold text-uppercase d-block mb-1" style="font-size: 11px;">Failed / Rejected</span>
+        <h4 class="fw-bold mb-0 text-danger">₹{{ failed_payments_amount|floatformat:2 }}</h4>
+        <span class="small text-muted" style="font-size: 11px;">{{ failed_payments_count }} batch exception(s)</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="card border-0 shadow-sm mb-4">
+  <div class="card-body p-3">
+    <form method="get" class="row g-2 align-items-center">
+      <!-- Cycle Filter -->
+      <div class="col-12 col-md-3">
+        <label class="form-label small fw-semibold text-muted mb-1">Monthly Cycle</label>
+        <select name="cycle" class="form-select form-select-sm" onchange="this.form.submit()">
+          {% for opt in cycle_options %}
+            <option value="{{ opt.code }}" {% if opt.code == canonical_cycle %}selected{% endif %}>
+              {{ opt.label }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Seller Filter -->
+      <div class="col-12 col-md-2">
+        <label class="form-label small fw-semibold text-muted mb-1">Specific Seller</label>
+        <select name="seller" class="form-select form-select-sm">
+          <option value="">All Sellers</option>
+          {% for s in all_sellers_dropdown %}
+            <option value="{{ s.id }}" {% if selected_seller_id == s.id|stringformat:"s" %}selected{% endif %}>
+              {{ s.store_name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Store Search -->
+      <div class="col-12 col-md-2">
+        <label class="form-label small fw-semibold text-muted mb-1">Store / Business Name</label>
+        <input type="text" name="store" class="form-control form-control-sm" placeholder="Search store name..." value="{{ store_query }}">
+      </div>
+
+      <!-- Status Filter -->
+      <div class="col-12 col-md-2">
+        <label class="form-label small fw-semibold text-muted mb-1">Payout Status</label>
+        <select name="status" class="form-select form-select-sm">
+          <option value="">All Statuses</option>
+          <option value="eligible" {% if selected_status == 'eligible' %}selected{% endif %}>Eligible (Ready)</option>
+          <option value="draft" {% if selected_status == 'draft' %}selected{% endif %}>Batch Draft (Pending)</option>
+          <option value="approved" {% if selected_status == 'approved' %}selected{% endif %}>Approved</option>
+          <option value="on_hold" {% if selected_status == 'on_hold' %}selected{% endif %}>On Hold</option>
+          <option value="completed" {% if selected_status == 'completed' %}selected{% endif %}>Paid (Simulated)</option>
+          <option value="failed" {% if selected_status == 'failed' %}selected{% endif %}>Failed / Rejected</option>
+          <option value="unverified" {% if selected_status == 'unverified' %}selected{% endif %}>Bank Unverified</option>
+          <option value="no_balance" {% if selected_status == 'no_balance' %}selected{% endif %}>No Balance</option>
+        </select>
+      </div>
+
+      <!-- Hold Filter -->
+      <div class="col-12 col-md-1">
+        <label class="form-label small fw-semibold text-muted mb-1">Hold Filter</label>
+        <select name="hold" class="form-select form-select-sm">
+          <option value="">All</option>
+          <option value="held" {% if selected_hold == 'held' %}selected{% endif %}>Held</option>
+          <option value="not_held" {% if selected_hold == 'not_held' %}selected{% endif %}>Not Held</option>
+        </select>
+      </div>
+
+      <!-- Filter Actions -->
+      <div class="col-12 col-md-2 d-flex gap-1 align-self-end">
+        <button type="submit" class="btn btn-sm btn-dark flex-grow-1">
+          <i class="bi bi-funnel"></i> Filter
+        </button>
+        <a href="{% url 'custom_admin:seller_payout_management' %}" class="btn btn-sm btn-outline-secondary" title="Reset Filters">
+          <i class="bi bi-arrow-counterclockwise"></i>
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Cycle Context Info Banner -->
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h5 class="fw-bold text-dark mb-0">Cycle {{ canonical_cycle }} Sellers Overview</h5>
+    <span class="text-muted small">
+      Evaluating orders delivered on or before {{ cycle_payout_date|date:"d M Y" }} (previous calendar month: {{ prev_month_start|date:"d M Y" }} to {{ prev_month_end|date:"d M Y" }} with 7-day cooling window).
+    </span>
+  </div>
+  <div class="text-muted small">
+    Showing <strong>{{ seller_rows|length }}</strong> merchant records
+  </div>
+</div>
+
+<!-- Seller-Wise Payout Table -->
+<div class="card border-0 shadow-sm overflow-hidden mb-4">
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th style="min-width: 180px;">Seller &amp; Store</th>
+          <th class="text-end">Prev Month Sales</th>
+          <th class="text-end">Commission</th>
+          <th class="text-end">Refunds / Adj.</th>
+          <th class="text-end">On Hold</th>
+          <th class="text-end">Final Payable</th>
+          <th>Bank Verification</th>
+          <th>Payout Status</th>
+          <th class="text-end" style="min-width: 160px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in seller_rows %}
+          <tr {% if row.is_held %}class="table-warning bg-opacity-25"{% endif %}>
+            <!-- Seller & Store Name -->
+            <td>
+              <div class="fw-bold text-dark">{{ row.seller.store_name }}</div>
+              <span class="small text-muted">{{ row.seller.business_name|default:row.seller.user.get_full_name|default:row.seller.user.username }}</span>
+            </td>
+
+            <!-- Previous Month Sales (Gross GMV) -->
+            <td class="text-end fw-semibold text-dark">
+              ₹{{ row.sales_volume|floatformat:2 }}
+            </td>
+
+            <!-- Platform Commission -->
+            <td class="text-end text-danger small">
+              -₹{{ row.commission|floatformat:2 }}
+            </td>
+
+            <!-- Refunds and Adjustments -->
+            <td class="text-end text-muted small">
+              {% if row.refunds_and_adjustments > 0 %}
+                -₹{{ row.refunds_and_adjustments|floatformat:2 }}
+              {% elif row.refunds_and_adjustments < 0 %}
+                +₹{{ row.refunds_and_adjustments|stringformat:"s"|slice:"1:" }}
+              {% else %}
+                ₹0.00
+              {% endif %}
+            </td>
+
+            <!-- Amount on Hold -->
+            <td class="text-end">
+              {% if row.amount_on_hold > 0 %}
+                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-semibold" title="Held due to cooling period, returns, dispute, or batch hold">
+                  ₹{{ row.amount_on_hold|floatformat:2 }}
+                </span>
+              {% else %}
+                <span class="text-muted small">₹0.00</span>
+              {% endif %}
+            </td>
+
+            <!-- Final Payable Amount -->
+            <td class="text-end fw-bold fs-6 {% if row.final_payable > 0 %}text-success{% else %}text-muted{% endif %}">
+              ₹{{ row.final_payable|floatformat:2 }}
+            </td>
+
+            <!-- Bank Verification Status (Masked) -->
+            <td>
+              <div class="d-flex align-items-center gap-1">
+                {% if row.bank_verification_status == 'verified' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle" title="Admin Verified Beneficiary">
+                    <i class="bi bi-patch-check-fill me-1"></i>Verified
+                  </span>
+                {% elif row.bank_verification_status == 'pending' %}
+                  <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle" title="Verification Pending">
+                    <i class="bi bi-clock-history me-1"></i>Pending
+                  </span>
+                {% else %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle" title="Bank Details Incomplete or Rejected">
+                    <i class="bi bi-exclamation-triangle me-1"></i>{{ row.bank_status_label }}
+                  </span>
+                {% endif %}
+                <a href="{% url 'custom_admin:seller_bank_verify' row.seller.id %}" class="btn btn-sm btn-link p-0 text-muted" title="Inspect Bank Verification">
+                  <i class="bi bi-shield-lock"></i>
+                </a>
+              </div>
+              <div class="font-monospace small text-muted" style="font-size: 11px;">
+                {{ row.masked_account }}
+              </div>
+            </td>
+
+            <!-- Payout Status Badge -->
+            <td>
+              <span class="badge {{ row.status_badge }} fw-semibold">
+                {{ row.status_label }}
+              </span>
+              {% if row.batch %}
+                <div class="small">
+                  <a href="{% url 'custom_admin:payout_detail' row.batch.batch_reference %}" class="text-decoration-none font-monospace text-muted" style="font-size: 11px;">
+                    #{{ row.batch.batch_reference }}
+                  </a>
+                </div>
+              {% endif %}
+            </td>
+
+            <!-- Server-Side Authorized Actions -->
+            <td class="text-end">
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  Actions
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                  <!-- Review Details -->
+                  <li>
+                    <a class="dropdown-item" href="{% url 'custom_admin:seller_payout_review' row.seller.id %}?cycle={{ canonical_cycle }}">
+                      <i class="bi bi-eye text-primary me-2"></i>Review Details
+                    </a>
+                  </li>
+
+                  <!-- Generate Batch (if eligible & unbatched) -->
+                  {% if row.can_generate_batch %}
+                    <li>
+                      <form method="post" action="{% url 'custom_admin:seller_payout_generate' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="seller_id" value="{{ row.seller.id }}">
+                        <input type="hidden" name="cycle" value="{{ canonical_cycle }}">
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button type="submit" class="dropdown-item text-primary" onclick="return confirm('Prepare payout batch for {{ row.seller.store_name }} (₹{{ row.final_payable }})?');">
+                          <i class="bi bi-plus-circle text-primary me-2"></i>Generate Batch
+                        </button>
+                      </form>
+                    </li>
+                  {% endif %}
+
+                  <!-- Approve for Payout -->
+                  {% if row.can_approve %}
+                    <li>
+                      <form method="post" action="{% url 'custom_admin:payout_approve' row.batch.batch_reference %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button type="submit" class="dropdown-item text-success" onclick="return confirm('Approve payout batch #{{ row.batch.batch_reference }} for ₹{{ row.batch.amount }}?');">
+                          <i class="bi bi-check-circle text-success me-2"></i>Approve for Payout
+                        </button>
+                      </form>
+                    </li>
+                  {% endif %}
+
+                  <!-- Hold Payment -->
+                  {% if row.can_hold %}
+                    <li>
+                      <button type="button" class="dropdown-item text-warning-emphasis" data-bs-toggle="modal" data-bs-target="#holdModal" data-batch-ref="{{ row.batch.batch_reference }}" data-seller-name="{{ row.seller.store_name }}">
+                        <i class="bi bi-pause-circle text-warning me-2"></i>Hold Payment
+                      </button>
+                    </li>
+                  {% endif %}
+
+                  <!-- Release Hold -->
+                  {% if row.can_release %}
+                    <li>
+                      <form method="post" action="{% url 'custom_admin:payout_release' row.batch.batch_reference %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button type="submit" class="dropdown-item text-info" onclick="return confirm('Release hold on batch #{{ row.batch.batch_reference }} for {{ row.seller.store_name }}?');">
+                          <i class="bi bi-play-circle text-info me-2"></i>Release Hold
+                        </button>
+                      </form>
+                    </li>
+                  {% endif %}
+
+                  <!-- Reject Payout -->
+                  {% if row.can_reject %}
+                    <li>
+                      <button type="button" class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#rejectModal" data-batch-ref="{{ row.batch.batch_reference }}" data-seller-name="{{ row.seller.store_name }}">
+                        <i class="bi bi-x-circle text-danger me-2"></i>Reject Payout
+                      </button>
+                    </li>
+                  {% endif %}
+
+                  <li><hr class="dropdown-divider"></li>
+
+                  <!-- View Payout History -->
+                  <li>
+                    <a class="dropdown-item text-secondary" href="{% url 'custom_admin:seller_payout_history' row.seller.id %}">
+                      <i class="bi bi-clock-history me-2"></i>View History
+                    </a>
+                  </li>
+
+                  <!-- Inspect Bank Details -->
+                  <li>
+                    <a class="dropdown-item text-muted" href="{% url 'custom_admin:seller_bank_verify' row.seller.id %}">
+                      <i class="bi bi-bank2 me-2"></i>Bank Beneficiary
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="9" class="text-center py-5 text-muted">
+              <i class="bi bi-inbox fs-2 text-secondary mb-2 d-block"></i>
+              No sellers found matching the current filters for cycle <strong>{{ canonical_cycle }}</strong>.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal: Generate All Eligible Batches -->
+<div class="modal fade" id="generateAllModal" tabindex="-1" aria-labelledby="generateAllModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <form method="post" action="{% url 'custom_admin:seller_payout_generate' %}">
+        {% csrf_token %}
+        <input type="hidden" name="seller_id" value="all">
+        <input type="hidden" name="cycle" value="{{ canonical_cycle }}">
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold" id="generateAllModalLabel">
+            <i class="bi bi-lightning-charge text-primary me-2"></i>Generate Cycle Batches
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-content-body p-3">
+          <p class="small text-muted mb-3">
+            This will prepare draft payout batches for all active sellers with verified bank accounts 
+            who have a positive net eligible balance for cycle <strong>{{ canonical_cycle }}</strong>.
+          </p>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold">Optional Preparation Notes</label>
+            <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="e.g. Monthly scheduled cycle run on 5th"></textarea>
+          </div>
+          <div class="alert alert-info py-2 small mb-0">
+            <i class="bi bi-info-circle me-1"></i>Batches are generated in DRAFT state and will require explicit admin approval before settlement.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-primary fw-semibold">
+            <i class="bi bi-check2"></i> Generate Eligible Batches
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Hold Payout Batch -->
+<div class="modal fade" id="holdModal" tabindex="-1" aria-labelledby="holdModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <form id="holdBatchForm" method="post" action="">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold text-warning-emphasis" id="holdModalLabel">
+            <i class="bi bi-pause-circle text-warning me-2"></i>Place Payout On Hold
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Placing this batch on hold will prevent disbursement settlement while keeping other sellers unaffected. 
+            A mandatory auditable explanation is required.
+          </p>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold text-dark">Mandatory Hold Reason *</label>
+            <textarea name="reason" class="form-control" rows="3" placeholder="Provide reason (e.g. Pending audit of suspicious return rate / dispute review)" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-warning text-dark fw-semibold">
+            <i class="bi bi-pause-fill"></i> Confirm Hold
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Reject Payout Batch -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content border-0 shadow">
+      <form id="rejectBatchForm" method="post" action="">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold text-danger" id="rejectModalLabel">
+            <i class="bi bi-x-circle text-danger me-2"></i>Reject Payout Batch
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Rejecting this payout batch marks it as failed and unlinks covered ledger entries so they can be re-evaluated 
+            in a subsequent cycle. A mandatory auditable reason is required.
+          </p>
+          <div class="mb-3">
+            <label class="form-label small fw-semibold text-dark">Mandatory Rejection Reason *</label>
+            <textarea name="reason" class="form-control" rows="3" placeholder="Explain why this batch is being rejected" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-danger fw-semibold">
+            <i class="bi bi-x-lg"></i> Confirm Rejection
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  // Dynamic action URL wiring for hold modal using proper reverse resolution
+  const holdModal = document.getElementById('holdModal');
+  if (holdModal) {
+    const holdUrlTemplate = "{% url 'custom_admin:payout_hold' batch_reference='__BATCH_REF__' %}";
+    holdModal.addEventListener('show.bs.modal', function (event) {
+      const button = event.relatedTarget;
+      const batchRef = button.getAttribute('data-batch-ref');
+      const sellerName = button.getAttribute('data-seller-name');
+      const form = document.getElementById('holdBatchForm');
+      form.action = holdUrlTemplate.replace('__BATCH_REF__', encodeURIComponent(batchRef));
+      holdModal.querySelector('.modal-title').textContent = `Hold Payout for ${sellerName} (#${batchRef})`;
+    });
+  }
+
+  // Dynamic action URL wiring for reject modal using proper reverse resolution
+  const rejectModal = document.getElementById('rejectModal');
+  if (rejectModal) {
+    const rejectUrlTemplate = "{% url 'custom_admin:payout_reject' batch_reference='__BATCH_REF__' %}";
+    rejectModal.addEventListener('show.bs.modal', function (event) {
+      const button = event.relatedTarget;
+      const batchRef = button.getAttribute('data-batch-ref');
+      const sellerName = button.getAttribute('data-seller-name');
+      const form = document.getElementById('rejectBatchForm');
+      form.action = rejectUrlTemplate.replace('__BATCH_REF__', encodeURIComponent(batchRef));
+      rejectModal.querySelector('.modal-title').textContent = `Reject Payout for ${sellerName} (#${batchRef})`;
+    });
+  }
+});
+</script>
+{% endblock %}

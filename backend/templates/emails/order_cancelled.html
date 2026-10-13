@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Order Cancellation Confirmation - #{{ order.order_number }}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+    .header { background: #0f172a; padding: 28px 24px; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 1px; }
+    .header p { margin: 6px 0 0; font-size: 11px; color: #94a3b8; letter-spacing: 2px; }
+    .body { padding: 32px 24px; }
+    .badge-cancelled { display: inline-block; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; background: #fee2e2; color: #b91c1c; }
+    .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin: 20px 0; font-size: 14px; }
+    .footer { background: #f8fafc; padding: 20px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>FITMEEZO</h1>
+      <p>SHOP SMART • LIVE BETTER</p>
+    </div>
+    <div class="body">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span class="badge-cancelled">Order Cancelled</span>
+        <h2 style="margin: 12px 0 6px; font-size: 20px; color: #0f172a;">Your Order Has Been Cancelled</h2>
+        <p style="margin: 0; font-size: 14px; color: #64748b;">Order Number: <strong style="color: #0f172a;">#{{ order.order_number }}</strong></p>
+      </div>
+
+      <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+        Dear {{ order.shipping_full_name }}, as requested, your order <strong>#{{ order.order_number }}</strong> has been cancelled.
+      </p>
+
+      <div class="info-box">
+        <p style="margin: 0 0 6px; font-weight: 600; color: #0f172a;">Cancellation Summary</p>
+        <p style="margin: 0 0 4px; font-size: 13px; color: #475569;">Total Order Amount: ₹{{ order.total_amount }}</p>
+        <p style="margin: 0 0 4px; font-size: 13px; color: #475569;">Payment Method: {{ order.get_payment_method_display }}</p>
+        {% if order.payment_status == 'paid' %}
+          <p style="margin: 0 0 4px; font-size: 13px; color: #b45309; font-weight: 600;">
+            Refund Status: Online payment verified. Refund review is pending with our accounts support team.
+          </p>
+        {% else %}
+          <p style="margin: 0 0 4px; font-size: 13px; color: #15803d;">
+            Payment Status: Unpaid (Cash on Delivery) - No charges were deducted.
+          </p>
+        {% endif %}
+        {% if reason %}
+          <p style="margin: 6px 0 0; font-size: 12px; color: #64748b;">Reason: {{ reason }}</p>
+        {% endif %}
+      </div>
+
+      <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+        All reserved items have been returned to store stock. You can browse our catalogue anytime to place a new order.
+      </p>
+    </div>
+    <div class="footer">
+      <p style="margin: 0 0 6px;">Questions? Contact customer care at <a href="mailto:support@fitmeezo.com" style="color: #0d6efd; text-decoration: none;">support@fitmeezo.com</a></p>
+      <p style="margin: 0;">&copy; Fitmeezo. All Rights Reserved. Developed by Lakshman Sharma</p>
+    </div>
+  </div>
+</body>
+</html>

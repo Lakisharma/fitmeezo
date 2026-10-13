@@ -1,0 +1,280 @@
+{% extends "seller/base.html" %}
+{% load static %}
+
+{% block title %}Orders &amp; Packages — {{ seller.store_name }} | {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Manage and fulfill your assigned customer packages, dispatch tracking, and shipment statuses on Fitmeezo Partner Panel.{% endblock %}
+
+{% block page_header_title %}Orders &amp; Packages{% endblock %}
+
+{% block content %}
+<div class="seller-orders-wrapper">
+  <!-- Breadcrumbs -->
+  <nav class="d-flex align-items-center gap-2 small text-muted mb-3" aria-label="Breadcrumbs">
+    <a href="{% url 'core:home' %}" class="text-decoration-none text-muted d-flex align-items-center gap-1">
+      <i class="bi bi-house"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <a href="{% url 'core:seller_dashboard' %}" class="text-decoration-none text-muted">Dashboard</a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <span class="text-dark fw-semibold" aria-current="page">My Orders</span>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+    <div>
+      <h1 class="h3 fw-bold mb-1 text-dark">My Orders &amp; Packages</h1>
+      <p class="text-secondary small mb-0">Track and fulfill customer packages assigned strictly to your store.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'core:seller_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Dashboard
+      </a>
+      <a href="{% url 'core:seller_reports' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-graph-up me-1"></i> Reports
+      </a>
+      <a href="{% url 'core:seller_product_list' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-tags me-1"></i> My Products
+      </a>
+    </div>
+  </div>
+
+  <!-- Status Filter Pills & Search Card -->
+  <div class="card seller-card mb-4">
+    <div class="card-body p-3">
+      <div class="row g-3 align-items-center">
+        <!-- Status Filter Pills -->
+        <div class="col-12 col-lg-8">
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'core:seller_order_list' %}{% if query %}?q={{ query }}{% endif %}"
+               class="btn btn-sm {% if not status_filter %}seller-btn-navy{% else %}btn-outline-secondary{% endif %}">
+              All ({{ total_count }})
+            </a>
+            <a href="{% url 'core:seller_order_list' %}?status=pending{% if query %}&q={{ query }}{% endif %}"
+               class="btn btn-sm {% if status_filter == 'pending' %}btn-warning text-dark{% else %}btn-outline-warning text-dark{% endif %}">
+              Pending ({{ pending_count }})
+            </a>
+            <a href="{% url 'core:seller_order_list' %}?status=processing{% if query %}&q={{ query }}{% endif %}"
+               class="btn btn-sm {% if status_filter == 'processing' %}btn-info text-dark{% else %}btn-outline-info text-dark{% endif %}">
+              Processing ({{ processing_count }})
+            </a>
+            <a href="{% url 'core:seller_order_list' %}?status=ready_to_ship{% if query %}&q={{ query }}{% endif %}"
+               class="btn btn-sm {% if status_filter == 'ready_to_ship' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+              Ready to Ship ({{ ready_to_ship_count }})
+            </a>
+            <a href="{% url 'core:seller_order_list' %}?status=shipped{% if query %}&q={{ query }}{% endif %}"
+               class="btn btn-sm {% if status_filter == 'shipped' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+              Shipped ({{ shipped_count }})
+            </a>
+            <a href="{% url 'core:seller_order_list' %}?status=delivered{% if query %}&q={{ query }}{% endif %}"
+               class="btn btn-sm {% if status_filter == 'delivered' %}btn-success{% else %}btn-outline-success{% endif %}">
+              Delivered ({{ delivered_count }})
+            </a>
+            <a href="{% url 'core:seller_order_list' %}?status=cancelled{% if query %}&q={{ query }}{% endif %}"
+               class="btn btn-sm {% if status_filter == 'cancelled' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+              Cancelled ({{ cancelled_count }})
+            </a>
+          </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="col-12 col-lg-4">
+          <form method="get" action="{% url 'core:seller_order_list' %}" class="d-flex gap-2">
+            {% if status_filter %}
+              <input type="hidden" name="status" value="{{ status_filter }}">
+            {% endif %}
+            <div class="input-group input-group-sm">
+              <input type="text" name="q" class="form-control" placeholder="Search package # or SKU..." value="{{ query }}">
+              <button class="btn seller-btn-navy" type="submit" aria-label="Search">
+                <i class="bi bi-search"></i>
+              </button>
+            </div>
+            {% if query or status_filter %}
+              <a href="{% url 'core:seller_order_list' %}" class="btn btn-outline-secondary btn-sm" title="Clear Filters">
+                <i class="bi bi-x-lg"></i>
+              </a>
+            {% endif %}
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Packages Table Card -->
+  <div class="card seller-card overflow-hidden">
+    {% if packages %}
+      <div class="table-responsive">
+        <table class="table seller-table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th scope="col" class="ps-3">Package Number</th>
+              <th scope="col">Date Placed</th>
+              <th scope="col">Destination</th>
+              <th scope="col">Items</th>
+              <th scope="col">Logistics Tracking</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="text-end pe-3">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for pkg in packages %}
+              <tr>
+                <!-- Package ID -->
+                <td class="ps-3">
+                  <a href="{% url 'core:seller_order_detail' pkg.pk %}" class="fw-bold text-dark text-decoration-none">
+                    {{ pkg.sub_order_number }}
+                  </a>
+                </td>
+
+                <!-- Date -->
+                <td class="text-secondary small">
+                  {{ pkg.created_at|date:"d M Y, h:i A" }}
+                </td>
+
+                <!-- Destination City / State -->
+                <td class="text-secondary small">
+                  {% if pkg.order.shipping_city and pkg.order.shipping_state %}
+                    <i class="bi bi-geo-alt me-1 text-muted"></i>
+                    {{ pkg.order.shipping_city }}, {{ pkg.order.shipping_state }}
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+
+                <!-- Items Count & Summary -->
+                <td>
+                  <span class="badge bg-light text-dark border">
+                    {{ pkg.items.count }} item{% if pkg.items.count != 1 %}s{% endif %}
+                  </span>
+                  <div class="text-muted small mt-1" style="max-width: 220px; font-size: 11px;">
+                    {% for item in pkg.items.all|slice:":2" %}
+                      <div class="text-truncate">• {{ item.product_name }} (x{{ item.quantity }})</div>
+                    {% endfor %}
+                    {% if pkg.items.count > 2 %}
+                      <div class="text-muted fst-italic">+{{ pkg.items.count|add:"-2" }} more</div>
+                    {% endif %}
+                  </div>
+                </td>
+
+                <!-- Logistics / Courier -->
+                <td class="small">
+                  {% if pkg.courier_name and pkg.tracking_number %}
+                    <div><strong>{{ pkg.courier_name }}</strong></div>
+                    <code class="text-muted">{{ pkg.tracking_number }}</code>
+                  {% elif pkg.status == "ready_to_ship" %}
+                    <span class="badge bg-light text-primary border">Awaiting Dispatch</span>
+                  {% elif pkg.status == "processing" %}
+                    <span class="text-muted fst-italic">In Packing</span>
+                  {% elif pkg.status == "pending" %}
+                    <span class="text-muted fst-italic">Unacknowledged</span>
+                  {% else %}
+                    <span class="text-muted">—</span>
+                  {% endif %}
+                </td>
+
+                <!-- Status Badge -->
+                <td>
+                  {% if pkg.status == "pending" %}
+                    <span class="badge bg-warning text-dark">Pending</span>
+                  {% elif pkg.status == "processing" %}
+                    <span class="badge bg-info text-dark">Processing</span>
+                  {% elif pkg.status == "ready_to_ship" %}
+                    <span class="badge bg-primary">Ready to Ship</span>
+                  {% elif pkg.status == "shipped" %}
+                    <span class="badge bg-secondary">Shipped</span>
+                  {% elif pkg.status == "delivered" %}
+                    <span class="badge bg-success">Delivered</span>
+                  {% elif pkg.status == "cancelled" %}
+                    <span class="badge bg-danger">Cancelled</span>
+                  {% else %}
+                    <span class="badge bg-light text-dark">{{ pkg.get_status_display }}</span>
+                  {% endif %}
+                </td>
+
+                <!-- Action Button -->
+                <td class="text-end pe-3">
+                  <a href="{% url 'core:seller_order_detail' pkg.pk %}" class="btn btn-outline-dark btn-sm">
+                    Manage <i class="bi bi-chevron-right ms-1"></i>
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination -->
+      {% if page_obj.has_other_pages %}
+        <div class="card-footer bg-white border-0 py-3">
+          <nav aria-label="Package pagination">
+            <ul class="pagination pagination-sm justify-content-center mb-0">
+              {% if page_obj.has_previous %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                    Previous
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">Previous</span></li>
+              {% endif %}
+
+              {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                  <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                  <li class="page-item">
+                    <a class="page-link" href="?page={{ num }}{% if query %}&q={{ query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                      {{ num }}
+                    </a>
+                  </li>
+                {% endif %}
+              {% endfor %}
+
+              {% if page_obj.has_next %}
+                <li class="page-item">
+                  <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if status_filter %}&status={{ status_filter }}{% endif %}">
+                    Next
+                  </a>
+                </li>
+              {% else %}
+                <li class="page-item disabled"><span class="page-link">Next</span></li>
+              {% endif %}
+            </ul>
+          </nav>
+        </div>
+      {% endif %}
+
+    {% else %}
+      <!-- Empty State -->
+      <div class="text-center py-5 px-3">
+        <div class="mb-3">
+          <i class="bi bi-box-seam text-muted" style="font-size: 3rem;"></i>
+        </div>
+        <h2 class="h5 fw-bold mb-2">
+          {% if query or status_filter %}
+            No packages match your filters
+          {% else %}
+            No orders assigned yet
+          {% endif %}
+        </h2>
+        <p class="text-secondary small mb-4" style="max-width: 420px; margin: 0 auto;">
+          {% if query or status_filter %}
+            Try clearing search keywords or selecting a different status filter above.
+          {% else %}
+            When customers purchase your listed products, fulfillment packages will appear here ready for dispatch processing.
+          {% endif %}
+        </p>
+        <div>
+          {% if query or status_filter %}
+            <a href="{% url 'core:seller_order_list' %}" class="btn btn-outline-secondary btn-sm me-2">Clear Filters</a>
+          {% endif %}
+          <a href="{% url 'core:seller_dashboard' %}" class="btn seller-btn-navy btn-sm">
+            <i class="bi bi-speedometer2 me-1"></i> Seller Dashboard
+          </a>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,495 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Seller Hub Login — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Access your Fitmeezo Merchant Portal using Mobile OTP or account credentials. Manage inventory, process orders, and view seller financials.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-5">
+      <!-- Breadcrumbs -->
+      <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+        <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+          <i class="bi bi-house-door" aria-hidden="true"></i>
+          <span>Home</span>
+        </a>
+        <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+        <span class="fm-breadcrumb-item is-current" aria-current="page">Seller Login</span>
+      </nav>
+
+      <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+        <!-- Card Header Banner -->
+        <div class="p-4 text-center text-white" style="background: linear-gradient(135deg, #060D1A 0%, #0A192F 50%, #112B52 100%); border-bottom: 2px solid #D4AF37;">
+          <div class="d-inline-flex align-items-center justify-content-center rounded-circle p-3 mb-2 shadow-sm" style="background: rgba(212, 175, 55, 0.15); border: 1px solid rgba(212, 175, 55, 0.4);">
+            <i class="bi bi-shield-lock-fill fs-2" style="color: #D4AF37;" aria-hidden="true"></i>
+          </div>
+          <h1 class="h4 fw-bold mb-1 text-white">Fitmeezo Seller Hub</h1>
+          <p class="small text-light text-opacity-75 mb-0">Merchant Portal &amp; Fulfillment Operations</p>
+        </div>
+
+        <div class="card-body p-4 p-md-5 bg-white">
+          <!-- Server Flash Messages -->
+          {% if messages %}
+            {% for message in messages %}
+              <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags %}{{ message.tags }}{% else %}info{% endif %} alert-dismissible fade show small d-flex align-items-center gap-2 mb-3" role="alert">
+                {% if message.tags == 'error' or message.tags == 'danger' %}
+                  <i class="bi bi-exclamation-triangle-fill text-danger fs-6"></i>
+                {% elif message.tags == 'success' %}
+                  <i class="bi bi-check-circle-fill text-success fs-6"></i>
+                {% else %}
+                  <i class="bi bi-info-circle-fill text-primary fs-6"></i>
+                {% endif %}
+                <div>{{ message }}</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          {% endif %}
+
+          <!-- Client-side Dynamic Alert Box -->
+          <div id="dynamicAlert" class="alert small d-none align-items-center gap-2 mb-3" role="alert">
+            <i id="dynamicAlertIcon" class="bi fs-6"></i>
+            <span id="dynamicAlertText"></span>
+            <button type="button" class="btn-close ms-auto" onclick="hideDynamicAlert()" aria-label="Close"></button>
+          </div>
+
+          <div class="text-center mb-4">
+            <h2 class="h5 fw-bold text-dark mb-1">Sign In to Seller Hub</h2>
+            <p class="text-muted small mb-0">Access merchant inventory, orders, and fulfillment operations</p>
+          </div>
+
+          <!-- Auth Mode Navigation Tabs -->
+          <ul class="nav nav-pills nav-fill bg-light p-1 rounded-3 mb-4" id="sellerAuthTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active fw-semibold py-2 rounded-2 small" id="tab-otp-btn" data-bs-toggle="pill" data-bs-target="#tab-otp" type="button" role="tab" aria-controls="tab-otp" aria-selected="true">
+                <i class="bi bi-phone-vibrate me-1"></i> Mobile OTP
+              </button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link fw-semibold py-2 rounded-2 small text-muted" id="tab-password-btn" data-bs-toggle="pill" data-bs-target="#tab-password" type="button" role="tab" aria-controls="tab-password" aria-selected="false">
+                <i class="bi bi-key me-1"></i> Password
+              </button>
+            </li>
+          </ul>
+
+          <div class="tab-content" id="sellerAuthTabContent">
+            <!-- ============================================================= -->
+            <!-- TAB 1: MOBILE OTP LOGIN                                       -->
+            <!-- ============================================================= -->
+            <div class="tab-pane fade show active" id="tab-otp" role="tabpanel" aria-labelledby="tab-otp-btn">
+              <!-- STEP 1: Enter Mobile Number -->
+              <div id="otpStep1">
+                <form id="sendOtpForm" method="post" action="{% url 'core:seller_send_otp' %}" novalidate>
+                  {% csrf_token %}
+                  {% if next %}
+                    <input type="hidden" name="next" value="{{ next }}">
+                  {% endif %}
+
+                  <div class="mb-3">
+                    <label for="sellerMobileInput" class="form-label fw-semibold small text-dark">
+                      Registered Mobile Number <span class="text-danger">*</span>
+                    </label>
+                    <div class="input-group">
+                      <span class="input-group-text bg-light border-end-0 fw-semibold text-muted px-3">
+                        🇮🇳 +91
+                      </span>
+                      <input
+                        type="tel"
+                        name="mobile"
+                        id="sellerMobileInput"
+                        class="form-control fm-input"
+                        placeholder="Enter 10-digit mobile"
+                        maxlength="10"
+                        pattern="[6-9][0-9]{9}"
+                        value="{{ active_otp_mobile }}"
+                        required
+                        autocomplete="tel"
+                      >
+                    </div>
+                    <div class="form-text small text-muted">
+                      We'll send a 6-digit verification code to your registered seller phone.
+                    </div>
+                  </div>
+
+                  <button type="submit" id="sendOtpBtn" class="btn w-100 py-2 fw-semibold text-white shadow-sm mb-3" style="background: linear-gradient(135deg, #0A192F 0%, #112B52 100%); border: 1px solid #060D1A;">
+                    <span id="sendOtpBtnText">Send Login OTP <i class="bi bi-arrow-right ms-1"></i></span>
+                    <span id="sendOtpBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                  </button>
+                </form>
+              </div>
+
+              <!-- STEP 2: Enter & Verify OTP -->
+              <div id="otpStep2" class="{% if not active_otp_mobile %}d-none{% endif %}">
+                <div class="p-3 bg-light rounded-3 mb-3 border d-flex align-items-center justify-content-between">
+                  <div>
+                    <div class="small text-muted">Registered Mobile:</div>
+                    <div class="fw-bold text-dark" id="displayMaskedMobile">
+                      +91 {% if active_otp_mobile %}{{ active_otp_mobile }}{% else %}••••••••••{% endif %}
+                    </div>
+                  </div>
+                  <button type="button" id="editMobileBtn" class="btn btn-sm btn-outline-secondary">
+                    <i class="bi bi-pencil-square me-1"></i> Edit
+                  </button>
+                </div>
+
+                <form id="verifyOtpForm" method="post" action="{% url 'core:seller_verify_otp' %}" novalidate>
+                  {% csrf_token %}
+                  <input type="hidden" name="mobile" id="verifyMobileHidden" value="{{ active_otp_mobile }}">
+                  {% if next %}
+                    <input type="hidden" name="next" value="{{ next }}">
+                  {% endif %}
+
+                  <div class="mb-3 text-center">
+                    <label for="sellerOtpInput" class="form-label fw-semibold small text-dark">
+                      Enter 6-Digit OTP Code <span class="text-danger">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="otp"
+                      id="sellerOtpInput"
+                      class="form-control form-control-lg text-center fw-bold fs-3 letter-spacing-3 mx-auto"
+                      style="letter-spacing: 0.35em; max-width: 260px;"
+                      placeholder="••••••"
+                      maxlength="6"
+                      pattern="[0-9]{6}"
+                      required
+                      autocomplete="one-time-code"
+                      inputmode="numeric"
+                    >
+                    <div class="form-text small text-muted mt-2">
+                      Code expires in 5 minutes.
+                    </div>
+                  </div>
+
+                  <!-- Resend Timer Section -->
+                  <div class="text-center mb-4 small">
+                    <span id="countdownContainer" class="text-muted">
+                      Resend code in <strong id="countdownTimer" class="text-dark">60</strong>s
+                    </span>
+                    <button type="button" id="resendOtpBtn" class="btn btn-link btn-sm text-decoration-none fw-semibold p-0 d-none" style="color: #0A192F;">
+                      <i class="bi bi-arrow-repeat me-1"></i> Resend OTP
+                    </button>
+                  </div>
+
+                  <!-- Remember Me -->
+                  <div class="mb-4 form-check">
+                    <input type="checkbox" name="remember_me" class="form-check-input" id="otpRememberMe" checked>
+                    <label class="form-check-label small text-muted" for="otpRememberMe">
+                      Keep me signed in on this device
+                    </label>
+                  </div>
+
+                  <button type="submit" id="verifyOtpBtn" class="btn w-100 py-2 fw-semibold text-white shadow-sm mb-3" style="background: linear-gradient(135deg, #0A192F 0%, #112B52 100%); border: 1px solid #060D1A;">
+                    <span id="verifyOtpBtnText">Verify &amp; Enter Seller Hub <i class="bi bi-check2-circle ms-1"></i></span>
+                    <span id="verifyOtpBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                  </button>
+                </form>
+              </div>
+
+              <!-- Customer Link -->
+              <div class="text-center pt-3 border-top small text-muted">
+                <span>Looking for customer shopping?</span>
+                <a href="{% url 'core:account_login' %}" class="fw-semibold text-dark text-decoration-underline ms-1">
+                  Customer Sign In
+                </a>
+              </div>
+            </div>
+
+            <!-- ============================================================= -->
+            <!-- TAB 2: PASSWORD LOGIN (PRESERVED)                             -->
+            <!-- ============================================================= -->
+            <div class="tab-pane fade" id="tab-password" role="tabpanel" aria-labelledby="tab-password-btn">
+              {% if form.non_field_errors %}
+                <div class="alert alert-danger small mb-4" role="alert">
+                  {% for error in form.non_field_errors %}
+                    <div><i class="bi bi-exclamation-circle-fill me-1"></i> {{ error }}</div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+
+              <form method="post" action="{% url 'core:seller_login' %}" novalidate>
+                {% csrf_token %}
+                {% if next %}
+                  <input type="hidden" name="next" value="{{ next }}">
+                {% endif %}
+
+                <!-- Username or Email -->
+                <div class="mb-3">
+                  <label for="{{ form.username_or_email.id_for_label }}" class="form-label fw-semibold small text-dark">
+                    Merchant Username or Email <span class="text-danger">*</span>
+                  </label>
+                  <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0 text-muted">
+                      <i class="bi bi-person-fill"></i>
+                    </span>
+                    {{ form.username_or_email }}
+                  </div>
+                  {% if form.username_or_email.errors %}
+                    <div class="text-danger small mt-1">{{ form.username_or_email.errors.0 }}</div>
+                  {% endif %}
+                </div>
+
+                <!-- Password -->
+                <div class="mb-3">
+                  <div class="d-flex align-items-center justify-content-between mb-1">
+                    <label for="{{ form.password.id_for_label }}" class="form-label fw-semibold small text-dark mb-0">
+                      Password <span class="text-danger">*</span>
+                    </label>
+                    <a href="{% url 'core:seller_password_reset' %}" class="small text-decoration-none fw-semibold" style="color: #0A192F;">
+                      Forgot password?
+                    </a>
+                  </div>
+                  <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0 text-muted">
+                      <i class="bi bi-key-fill"></i>
+                    </span>
+                    {{ form.password }}
+                  </div>
+                  {% if form.password.errors %}
+                    <div class="text-danger small mt-1">{{ form.password.errors.0 }}</div>
+                  {% endif %}
+                </div>
+
+                <!-- Remember Me -->
+                <div class="mb-4 form-check">
+                  {{ form.remember_me }}
+                  <label class="form-check-label small text-muted" for="{{ form.remember_me.id_for_label }}">
+                    {{ form.remember_me.label }}
+                  </label>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" class="btn w-100 py-2 fw-semibold text-white shadow-sm mb-3" style="background: linear-gradient(135deg, #0A192F 0%, #112B52 100%); border: 1px solid #060D1A;">
+                  Sign In to Seller Hub <i class="bi bi-arrow-right ms-1"></i>
+                </button>
+
+                <!-- Customer Link -->
+                <div class="text-center pt-3 border-top small text-muted">
+                  <span>Looking for customer shopping?</span>
+                  <a href="{% url 'core:account_login' %}" class="fw-semibold text-dark text-decoration-underline ms-1">
+                    Customer Sign In
+                  </a>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card Footer -->
+        <div class="card-footer bg-light p-3 text-center border-top small">
+          <span class="text-muted">New merchant partner?</span>
+          <a href="{% url 'core:seller_register' %}" class="fw-bold text-dark text-decoration-none ms-1">
+            Apply to Become a Seller &rarr;
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dynamic Client-Side Script for OTP Flow -->
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const sendForm = document.getElementById("sendOtpForm");
+  const verifyForm = document.getElementById("verifyOtpForm");
+  const mobileInput = document.getElementById("sellerMobileInput");
+  const verifyMobileHidden = document.getElementById("verifyMobileHidden");
+  const otpInput = document.getElementById("sellerOtpInput");
+  const otpStep1 = document.getElementById("otpStep1");
+  const otpStep2 = document.getElementById("otpStep2");
+  const displayMaskedMobile = document.getElementById("displayMaskedMobile");
+  const editMobileBtn = document.getElementById("editMobileBtn");
+  const sendOtpBtn = document.getElementById("sendOtpBtn");
+  const sendOtpBtnText = document.getElementById("sendOtpBtnText");
+  const sendOtpBtnSpinner = document.getElementById("sendOtpBtnSpinner");
+  const verifyOtpBtn = document.getElementById("verifyOtpBtn");
+  const verifyOtpBtnText = document.getElementById("verifyOtpBtnText");
+  const verifyOtpBtnSpinner = document.getElementById("verifyOtpBtnSpinner");
+  const countdownContainer = document.getElementById("countdownContainer");
+  const countdownTimer = document.getElementById("countdownTimer");
+  const resendOtpBtn = document.getElementById("resendOtpBtn");
+
+  let timerInterval = null;
+
+  function showDynamicAlert(message, isError = true) {
+    const alertBox = document.getElementById("dynamicAlert");
+    const alertText = document.getElementById("dynamicAlertText");
+    const alertIcon = document.getElementById("dynamicAlertIcon");
+
+    alertBox.className = "alert small d-flex align-items-center gap-2 mb-3 " + (isError ? "alert-danger" : "alert-success");
+    alertIcon.className = "bi " + (isError ? "bi-exclamation-triangle-fill text-danger" : "bi-check-circle-fill text-success");
+    alertText.textContent = message;
+    alertBox.classList.remove("d-none");
+  }
+
+  window.hideDynamicAlert = function () {
+    const alertBox = document.getElementById("dynamicAlert");
+    if (alertBox) alertBox.classList.add("d-none");
+  };
+
+  function startCountdown(seconds) {
+    if (timerInterval) clearInterval(timerInterval);
+    let remaining = seconds || 60;
+    countdownContainer.classList.remove("d-none");
+    resendOtpBtn.classList.add("d-none");
+    countdownTimer.textContent = remaining;
+
+    timerInterval = setInterval(() => {
+      remaining -= 1;
+      countdownTimer.textContent = remaining;
+      if (remaining <= 0) {
+        clearInterval(timerInterval);
+        countdownContainer.classList.add("d-none");
+        resendOtpBtn.classList.remove("d-none");
+      }
+    }, 1000);
+  }
+
+  function maskMobile(num) {
+    const clean = num.replace(/\D/g, "");
+    if (clean.length >= 4) {
+      return "******" + clean.slice(-4);
+    }
+    return "******" + clean;
+  }
+
+  // Handle Send OTP
+  if (sendForm) {
+    sendForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      hideDynamicAlert();
+
+      const rawMobile = mobileInput.value.trim();
+      const cleanMobile = rawMobile.replace(/\D/g, "");
+
+      if (cleanMobile.length < 10 || !["6", "7", "8", "9"].includes(cleanMobile.slice(-10)[0])) {
+        showDynamicAlert("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.", true);
+        mobileInput.focus();
+        return;
+      }
+
+      sendOtpBtn.disabled = true;
+      sendOtpBtnText.classList.add("d-none");
+      sendOtpBtnSpinner.classList.remove("d-none");
+
+      const formData = new FormData(sendForm);
+
+      fetch("{% url 'core:seller_send_otp' %}", {
+        method: "POST",
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: formData,
+      })
+        .then(async (res) => {
+          const data = await res.json();
+          return { status: res.status, ok: res.ok, data };
+        })
+        .then(({ ok, data }) => {
+          sendOtpBtn.disabled = false;
+          sendOtpBtnText.classList.remove("d-none");
+          sendOtpBtnSpinner.classList.add("d-none");
+
+          if (ok && data.success) {
+            showDynamicAlert(data.message, false);
+            verifyMobileHidden.value = cleanMobile.slice(-10);
+            displayMaskedMobile.textContent = "+91 " + maskMobile(cleanMobile.slice(-10));
+            otpStep1.classList.add("d-none");
+            otpStep2.classList.remove("d-none");
+            otpInput.value = "";
+            otpInput.focus();
+            startCountdown(data.cooldown || 60);
+          } else {
+            showDynamicAlert(data.message || "Failed to send OTP. Please check your number.", true);
+            if (data.cooldown) {
+              startCountdown(data.cooldown);
+            }
+          }
+        })
+        .catch((err) => {
+          sendOtpBtn.disabled = false;
+          sendOtpBtnText.classList.remove("d-none");
+          sendOtpBtnSpinner.classList.add("d-none");
+          showDynamicAlert("Network error while requesting OTP. Please try again.", true);
+        });
+    });
+  }
+
+  // Handle Edit Mobile Number
+  if (editMobileBtn) {
+    editMobileBtn.addEventListener("click", function () {
+      hideDynamicAlert();
+      otpStep2.classList.add("d-none");
+      otpStep1.classList.remove("d-none");
+      mobileInput.focus();
+    });
+  }
+
+  // Handle Resend OTP
+  if (resendOtpBtn) {
+    resendOtpBtn.addEventListener("click", function () {
+      hideDynamicAlert();
+      const mobileVal = verifyMobileHidden.value;
+      if (!mobileVal) {
+        editMobileBtn.click();
+        return;
+      }
+      mobileInput.value = mobileVal;
+      sendForm.dispatchEvent(new Event("submit", { cancelable: true }));
+    });
+  }
+
+  // Handle Verify OTP
+  if (verifyForm) {
+    verifyForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      hideDynamicAlert();
+
+      const rawOtp = otpInput.value.trim().replace(/\D/g, "");
+      if (rawOtp.length !== 6) {
+        showDynamicAlert("Please enter the complete 6-digit verification code.", true);
+        otpInput.focus();
+        return;
+      }
+
+      verifyOtpBtn.disabled = true;
+      verifyOtpBtnText.classList.add("d-none");
+      verifyOtpBtnSpinner.classList.remove("d-none");
+
+      const formData = new FormData(verifyForm);
+
+      fetch("{% url 'core:seller_verify_otp' %}", {
+        method: "POST",
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: formData,
+      })
+        .then(async (res) => {
+          const data = await res.json();
+          return { status: res.status, ok: res.ok, data };
+        })
+        .then(({ ok, data }) => {
+          if (ok && data.success) {
+            showDynamicAlert("Verification successful! Directing to Seller Hub...", false);
+            window.location.href = data.redirect_url || "{% url 'core:seller_dashboard' %}";
+          } else {
+            verifyOtpBtn.disabled = false;
+            verifyOtpBtnText.classList.remove("d-none");
+            verifyOtpBtnSpinner.classList.add("d-none");
+            showDynamicAlert(data.message || "Invalid or expired OTP. Please try again.", true);
+            otpInput.select();
+          }
+        })
+        .catch((err) => {
+          verifyOtpBtn.disabled = false;
+          verifyOtpBtnText.classList.remove("d-none");
+          verifyOtpBtnSpinner.classList.add("d-none");
+          showDynamicAlert("Network error during verification. Please try again.", true);
+        });
+    });
+  }
+});
+</script>
+{% endblock %}

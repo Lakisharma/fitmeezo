@@ -1,0 +1,157 @@
+{% load static %}
+<div class="fm-product-card" data-product-id="{{ product.id }}">
+  <!-- Product Media & Badges -->
+  <div class="fm-product-media">
+    {% if product.badge %}
+      <span class="fm-product-badge">{{ product.badge }}</span>
+    {% elif product.is_featured %}
+      <span class="fm-product-badge">Featured</span>
+    {% endif %}
+
+    {% if product.has_variants %}
+      {% if not product.is_in_stock %}
+        <span class="fm-badge-stock-out">Out of Stock</span>
+      {% endif %}
+    {% elif product.stock_quantity is not None and product.stock_quantity <= 0 %}
+      <span class="fm-badge-stock-out">Out of Stock</span>
+    {% endif %}
+
+    {% if product.id in user_wishlist_product_ids %}
+      <button type="button"
+              class="fm-product-wishlist-btn is-active"
+              data-action="wishlist-toggle"
+              data-product-id="{{ product.id }}"
+              data-product-title="{{ product.name|default:product.title }}"
+              aria-label="Remove {{ product.name|default:product.title }} from wishlist"
+              title="Remove from Wishlist">
+        <i class="bi bi-heart-fill text-danger" aria-hidden="true"></i>
+      </button>
+    {% else %}
+      <button type="button"
+              class="fm-product-wishlist-btn"
+              data-action="wishlist-toggle"
+              data-product-id="{{ product.id }}"
+              data-product-title="{{ product.name|default:product.title }}"
+              aria-label="Add {{ product.name|default:product.title }} to wishlist"
+              title="Save to Wishlist">
+        <i class="bi bi-heart" aria-hidden="true"></i>
+      </button>
+    {% endif %}
+
+    {% if product.image %}
+      <img src="{{ product.image.url }}"
+           alt="{{ product.name|default:product.title }}"
+           class="fm-product-img"
+           loading="lazy"
+           onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+    {% elif product.image_url %}
+      <img src="{{ product.image_url }}"
+           alt="{{ product.name|default:product.title }}"
+           class="fm-product-img"
+           loading="lazy"
+           onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+    {% else %}
+      <img src="{% static 'images/brand/product-fallback.svg' %}"
+           alt="{{ product.name|default:product.title }}"
+           class="fm-product-img"
+           loading="lazy">
+    {% endif %}
+  </div>
+
+  <!-- Product Details -->
+  <div class="fm-product-body">
+    <span class="fm-product-cat">{{ product.category.name|default:product.category }}</span>
+
+    <h3 class="fm-product-title" title="{{ product.name|default:product.title }}">
+      {% if product.slug %}
+        <a href="{% url 'core:product_detail' slug=product.slug %}">
+          {{ product.name|default:product.title }}
+        </a>
+      {% else %}
+        <a href="#" data-placeholder="true" data-placeholder-label="{{ product.name|default:product.title }} Details">
+          {{ product.name|default:product.title }}
+        </a>
+      {% endif %}
+    </h3>
+
+    <!-- Star Rating Score (Honest display: show authentic reviews when available, or demo indicator on seed data) -->
+    {% if product.review_count and product.review_count > 0 %}
+      <div class="fm-product-rating" aria-label="Rating: {{ product.average_rating }} out of 5 stars">
+        <i class="bi bi-star-fill text-warning" aria-hidden="true"></i>
+        <span class="fw-bold text-dark">{{ product.average_rating }}</span>
+        <span class="fm-rating-count">({{ product.review_count }})</span>
+      </div>
+    {% elif is_demo_data and product.rating %}
+      <div class="fm-product-rating" aria-label="Rating: {{ product.rating }} out of 5 stars (Demo)">
+        <i class="bi bi-star-fill text-warning" aria-hidden="true"></i>
+        <span class="fw-bold text-dark">{{ product.rating }}</span>
+        <span class="fm-rating-count">({{ product.rating_count|default:"85" }})</span>
+        <span class="badge bg-light text-muted border ms-auto" style="font-size: 9px;">Demo</span>
+      </div>
+    {% endif %}
+
+    <!-- Pricing Row -->
+    <div class="fm-product-pricing">
+      {% if product.has_variants and product.has_variable_pricing %}
+        <span class="fm-price-from small text-muted me-1">From</span>
+        <span class="fm-price-current">{{ CURRENCY_SYMBOL }}{{ product.min_price }}</span>
+      {% elif product.has_variants %}
+        <span class="fm-price-current">{{ CURRENCY_SYMBOL }}{{ product.min_price }}</span>
+      {% else %}
+        <span class="fm-price-current">{{ CURRENCY_SYMBOL }}{{ product.price }}</span>
+      {% endif %}
+
+      {% if product.compare_at_price and product.compare_at_price > product.price %}
+        <span class="fm-price-original">{{ CURRENCY_SYMBOL }}{{ product.compare_at_price }}</span>
+      {% elif product.original_price %}
+        <span class="fm-price-original">{{ CURRENCY_SYMBOL }}{{ product.original_price }}</span>
+      {% endif %}
+
+      {% if product.discount_percentage and product.discount_percentage > 0 %}
+        <span class="fm-discount-chip">{{ product.discount_percentage }}% OFF</span>
+      {% elif product.discount_percent %}
+        <span class="fm-discount-chip">{{ product.discount_percent }}% OFF</span>
+      {% endif %}
+    </div>
+
+    <!-- Quick Action -->
+    {% if product.has_variants %}
+      {% if not product.is_in_stock %}
+        <button type="button"
+                class="fm-btn-add-cart is-disabled"
+                disabled
+                aria-disabled="true"
+                aria-label="{{ product.name|default:product.title }} is out of stock">
+          <i class="bi bi-x-circle" aria-hidden="true"></i>
+          <span>Out of Stock</span>
+        </button>
+      {% else %}
+        <a href="{% url 'core:product_detail' slug=product.slug %}"
+           class="fm-btn-add-cart text-decoration-none"
+           aria-label="Select options for {{ product.name|default:product.title }}">
+          <i class="bi bi-sliders" aria-hidden="true"></i>
+          <span>Select Options</span>
+        </a>
+      {% endif %}
+    {% elif product.stock_quantity is not None and product.stock_quantity <= 0 %}
+      <button type="button"
+              class="fm-btn-add-cart is-disabled"
+              disabled
+              aria-disabled="true"
+              aria-label="{{ product.name|default:product.title }} is out of stock">
+        <i class="bi bi-x-circle" aria-hidden="true"></i>
+        <span>Out of Stock</span>
+      </button>
+    {% else %}
+      <button type="button"
+              class="fm-btn-add-cart"
+              data-action="add-to-cart"
+              data-product-id="{{ product.id }}"
+              data-product-title="{{ product.name|default:product.title }}"
+              aria-label="Add {{ product.name|default:product.title }} to cart">
+        <i class="bi bi-cart-plus" aria-hidden="true"></i>
+        <span>Add to Cart</span>
+      </button>
+    {% endif %}
+  </div>
+</div>

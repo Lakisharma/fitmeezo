@@ -1,0 +1,596 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Secure Checkout — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Complete your order safely on Fitmeezo with Cash on Delivery and Pan-India doorstep delivery.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4">
+  <!-- Breadcrumb Navigation -->
+  <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <a href="{% url 'core:cart_detail' %}" class="fm-breadcrumb-item">
+      <span>Shopping Cart</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Checkout</span>
+  </nav>
+
+  <!-- Checkout Header -->
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h3 fw-bold text-dark mb-1">
+        <i class="bi bi-shield-lock text-success me-2"></i>Secure Checkout
+      </h1>
+      <p class="text-secondary small mb-0">Select your delivery destination and confirm Cash on Delivery payment</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 small">
+        <i class="bi bi-shield-check me-1"></i> Verified Safe &amp; Encrypted
+      </span>
+      <a href="{% url 'core:cart_detail' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-bag me-1"></i> Edit Cart
+      </a>
+    </div>
+  </div>
+
+  <form id="fmCheckoutForm" action="{% url 'core:checkout' %}" method="post" novalidate>
+    {% csrf_token %}
+    <input type="hidden" name="idempotency_token" value="{{ idempotency_token }}">
+    <input type="hidden" id="fmAddressMode" name="address_mode" value="{{ address_mode }}">
+
+    <div class="row g-4">
+      <!-- Left Column: Address & Payment Selection -->
+      <div class="col-12 col-lg-8">
+
+        <!-- STEP 1: Delivery Address -->
+        <div class="card border shadow-sm rounded-3 bg-white mb-4">
+          <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-2">
+              <span class="badge rounded-pill" style="background: var(--fm-primary); font-size: 12px; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">1</span>
+              <h2 class="h5 fw-bold text-dark mb-0">Delivery Address</h2>
+            </div>
+            {% if user_addresses %}
+              <button type="button" class="btn btn-sm btn-outline-primary" id="fmToggleNewAddressBtn">
+                <i class="bi bi-plus-lg me-1"></i> Add New Address
+              </button>
+            {% endif %}
+          </div>
+          <div class="card-body p-4">
+
+            {% if user_addresses %}
+              <!-- Existing Saved Addresses List -->
+              <div id="fmSavedAddressesContainer" class="{% if address_mode == 'new' and not user_addresses %}d-none{% endif %}">
+                <div class="text-secondary small mb-3">Choose a saved delivery address:</div>
+                <div class="row g-3">
+                  {% for addr in user_addresses %}
+                    <div class="col-12 col-md-6">
+                      <label class="card h-100 border rounded-3 p-3 position-relative cursor-pointer fm-address-card {% if selected_address_id == addr.pk %}border-primary bg-primary-subtle bg-opacity-10{% endif %}" style="cursor: pointer;">
+                        <div class="d-flex align-items-start gap-2">
+                          <input type="radio"
+                                 name="address_id"
+                                 value="{{ addr.pk }}"
+                                 class="form-check-input mt-1 fm-address-radio"
+                                 {% if selected_address_id == addr.pk %}checked{% endif %}
+                                 required>
+                          <div class="flex-grow-1">
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                              <span class="fw-bold text-dark">{{ addr.full_name }}</span>
+                              <span class="badge bg-light text-secondary border text-uppercase" style="font-size: 10px;">
+                                {{ addr.get_address_type_display }}
+                              </span>
+                            </div>
+                            <div class="text-secondary small mb-1">
+                              <i class="bi bi-telephone me-1 text-muted"></i> {{ addr.phone_number }}
+                            </div>
+                            <div class="text-secondary small" style="line-height: 1.4;">
+                              <div>{{ addr.address_line1 }}</div>
+                              {% if addr.address_line2 %}<div>{{ addr.address_line2 }}</div>{% endif %}
+                              {% if addr.landmark %}<div class="text-muted">Landmark: {{ addr.landmark }}</div>{% endif %}
+                              <div class="fw-semibold text-dark mt-1">{{ addr.city }}, {{ addr.state }} - {{ addr.postal_code }}</div>
+                            </div>
+                            {% if addr.is_default %}
+                              <span class="badge bg-success-subtle text-success border border-success-subtle mt-2" style="font-size: 10px;">
+                                Default
+                              </span>
+                            {% endif %}
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+            {% endif %}
+
+            <!-- New Address Inline Form -->
+            <div id="fmNewAddressSection" class="{% if user_addresses and address_mode != 'new' %}d-none{% endif %} mt-3 pt-3 border-top">
+              <div class="d-flex align-items-center justify-content-between mb-3">
+                <h3 class="h6 fw-bold text-dark mb-0">
+                  <i class="bi bi-geo-alt-fill text-primary me-1"></i> Enter Delivery Address
+                </h3>
+                {% if user_addresses %}
+                  <button type="button" class="btn btn-sm btn-link text-decoration-none text-secondary" id="fmCancelNewAddressBtn">
+                    Cancel &amp; Select Saved Address
+                  </button>
+                {% endif %}
+              </div>
+
+              {% if address_form.errors %}
+                <div class="alert alert-danger py-2 small mb-3">
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i> Please check the required address fields below.
+                </div>
+              {% endif %}
+
+              <div class="row g-3">
+                <div class="col-12 col-md-6">
+                  <label for="{{ address_form.full_name.id_for_label }}" class="form-label small fw-semibold">
+                    Full Name <span class="text-danger">*</span>
+                  </label>
+                  {{ address_form.full_name }}
+                  {% if address_form.full_name.errors %}
+                    <div class="text-danger small mt-1">{{ address_form.full_name.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                <div class="col-12 col-md-6">
+                  <label for="{{ address_form.phone_number.id_for_label }}" class="form-label small fw-semibold">
+                    Contact Phone Number <span class="text-danger">*</span>
+                  </label>
+                  {{ address_form.phone_number }}
+                  {% if address_form.phone_number.errors %}
+                    <div class="text-danger small mt-1">{{ address_form.phone_number.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                <div class="col-12">
+                  <label for="{{ address_form.address_line1.id_for_label }}" class="form-label small fw-semibold">
+                    Flat / House No. / Building / Company <span class="text-danger">*</span>
+                  </label>
+                  {{ address_form.address_line1 }}
+                  {% if address_form.address_line1.errors %}
+                    <div class="text-danger small mt-1">{{ address_form.address_line1.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                <div class="col-12">
+                  <label for="{{ address_form.address_line2.id_for_label }}" class="form-label small fw-semibold">
+                    Area / Street / Sector / Village
+                  </label>
+                  {{ address_form.address_line2 }}
+                  {% if address_form.address_line2.errors %}
+                    <div class="text-danger small mt-1">{{ address_form.address_line2.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                <div class="col-12 col-md-4">
+                  <label for="{{ address_form.city.id_for_label }}" class="form-label small fw-semibold">
+                    City / Town <span class="text-danger">*</span>
+                  </label>
+                  {{ address_form.city }}
+                  {% if address_form.city.errors %}
+                    <div class="text-danger small mt-1">{{ address_form.city.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                <div class="col-12 col-md-4">
+                  <label for="{{ address_form.state.id_for_label }}" class="form-label small fw-semibold">
+                    State <span class="text-danger">*</span>
+                  </label>
+                  {{ address_form.state }}
+                  {% if address_form.state.errors %}
+                    <div class="text-danger small mt-1">{{ address_form.state.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                <div class="col-12 col-md-4">
+                  <label for="{{ address_form.postal_code.id_for_label }}" class="form-label small fw-semibold">
+                    PIN Code <span class="text-danger">*</span>
+                  </label>
+                  {{ address_form.postal_code }}
+                  {% if address_form.postal_code.errors %}
+                    <div class="text-danger small mt-1">{{ address_form.postal_code.errors.0 }}</div>
+                  {% endif %}
+                </div>
+                <div class="col-12 col-md-6">
+                  <label for="{{ address_form.landmark.id_for_label }}" class="form-label small fw-semibold">
+                    Landmark (Optional)
+                  </label>
+                  {{ address_form.landmark }}
+                </div>
+                <div class="col-12 col-md-6">
+                  <label for="{{ address_form.address_type.id_for_label }}" class="form-label small fw-semibold">
+                    Address Label
+                  </label>
+                  {{ address_form.address_type }}
+                </div>
+                <div class="col-12">
+                  <div class="form-check">
+                    {{ address_form.is_default }}
+                    <label class="form-check-label small" for="{{ address_form.is_default.id_for_label }}">
+                      Save this as my default delivery address
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Optional Customer Instructions -->
+            <div class="mt-4 pt-3 border-top">
+              <label for="fmCustomerNotes" class="form-label small fw-semibold text-secondary">
+                <i class="bi bi-chat-left-text me-1"></i> Delivery Instructions / Landmark Notes (Optional)
+              </label>
+              <textarea id="fmCustomerNotes"
+                        name="customer_notes"
+                        rows="2"
+                        class="form-control fm-input"
+                        placeholder="E.g. Call before delivery, leave with apartment security, or near metro pillar..."></textarea>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- STEP 2: Payment Method Selection -->
+        <div class="card border shadow-sm rounded-3 bg-white mb-4">
+          <div class="card-header bg-white border-bottom py-3 d-flex align-items-center gap-2">
+            <span class="badge rounded-pill" style="background: var(--fm-primary); font-size: 12px; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">2</span>
+            <h2 class="h5 fw-bold text-dark mb-0">Payment Method</h2>
+          </div>
+          <div class="card-body p-4">
+            <!-- Cash on Delivery Option -->
+            <div class="card border rounded-3 p-3 bg-light bg-opacity-50 mb-3 fm-payment-option-card border-primary" id="fmCardCOD">
+              <div class="d-flex align-items-start gap-3">
+                <input type="radio"
+                       name="payment_method"
+                       id="fmPaymentMethodCOD"
+                       value="cod"
+                       class="form-check-input mt-1 fm-payment-radio"
+                       checked>
+                <div class="flex-grow-1">
+                  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <label for="fmPaymentMethodCOD" class="fw-bold text-dark mb-0 fs-6 cursor-pointer" style="cursor: pointer;">
+                      <i class="bi bi-cash-stack text-success me-1 fs-5"></i> Cash on Delivery (COD)
+                    </label>
+                    <span class="badge bg-warning-subtle text-dark border border-warning-subtle small">
+                      <i class="bi bi-clock me-1"></i> Pay Upon Arrival
+                    </span>
+                  </div>
+                  <p class="text-secondary small mt-1 mb-2">
+                    Pay conveniently in cash or scan UPI QR code with your delivery associate when your package arrives at your doorstep.
+                  </p>
+                  <div class="d-flex align-items-center gap-3 text-muted small flex-wrap">
+                    <span><i class="bi bi-check-circle text-success me-1"></i>No advance payment</span>
+                    <span><i class="bi bi-shield-check text-success me-1"></i>100% Genuine product check</span>
+                    <span><i class="bi bi-qr-code-scan text-primary me-1"></i>Cash or UPI accepted</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Online Payment (Razorpay) Option -->
+            {% if razorpay_enabled %}
+              <div class="card border rounded-3 p-3 bg-white mb-3 fm-payment-option-card" id="fmCardRazorpay">
+                <div class="d-flex align-items-start gap-3">
+                  <input type="radio"
+                         name="payment_method"
+                         id="fmPaymentMethodRazorpay"
+                         value="razorpay"
+                         class="form-check-input mt-1 fm-payment-radio">
+                  <div class="flex-grow-1">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                      <label for="fmPaymentMethodRazorpay" class="fw-bold text-dark mb-0 fs-6 cursor-pointer" style="cursor: pointer;">
+                        <i class="bi bi-credit-card-2-front text-primary me-1 fs-5"></i> Online Payment (Razorpay)
+                      </label>
+                      <span class="badge bg-success-subtle text-success border border-success-subtle small">
+                        <i class="bi bi-shield-check me-1"></i> Secure &amp; Instant
+                      </span>
+                    </div>
+                    <p class="text-secondary small mt-1 mb-2">
+                      Pay instantly using UPI (Google Pay, PhonePe, Paytm), Credit / Debit Cards (Visa, Mastercard, RuPay), NetBanking, or Digital Wallets.
+                    </p>
+                    <div class="d-flex align-items-center gap-3 text-muted small flex-wrap">
+                      <span><i class="bi bi-lightning-charge text-warning me-1"></i>Instant Order Confirmation</span>
+                      <span><i class="bi bi-lock-fill text-success me-1"></i>256-bit SSL Bank Grade Encryption</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% else %}
+              <div class="card border rounded-3 p-3 bg-light text-muted mb-3 opacity-75">
+                <div class="d-flex align-items-start gap-3">
+                  <input type="radio"
+                         name="payment_method"
+                         id="fmPaymentMethodRazorpayDisabled"
+                         value="razorpay"
+                         class="form-check-input mt-1"
+                         disabled>
+                  <div class="flex-grow-1">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                      <label class="fw-bold text-secondary mb-0 fs-6">
+                        <i class="bi bi-credit-card-2-front me-1 fs-5"></i> Online Payment (Razorpay)
+                      </label>
+                      <span class="badge bg-secondary-subtle text-secondary small">
+                        <i class="bi bi-gear-wide-connected me-1"></i> Setup Required
+                      </span>
+                    </div>
+                    <p class="small text-muted mt-1 mb-0">
+                      Online payment gateway is in sandbox configuration mode. Cash on Delivery is active and fully supported.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Order Summary & Placement -->
+      <div class="col-12 col-lg-4">
+        <div class="card border shadow-sm rounded-3 bg-white sticky-top" style="top: 20px;">
+          <div class="card-header bg-white border-bottom py-3">
+            <h2 class="h5 fw-bold text-dark mb-0">Order Summary</h2>
+          </div>
+          <div class="card-body p-4">
+
+            <!-- Item Lines Preview -->
+            <div class="mb-3" style="max-height: 260px; overflow-y: auto;">
+              {% for line in cart_lines %}
+                <div class="d-flex gap-3 py-2 border-bottom">
+                  <div class="position-relative" style="width: 50px; height: 50px; flex-shrink: 0;">
+                    {% if line.product.image %}
+                      <img src="{{ line.product.image.url }}" alt="{{ line.product.name }}" class="w-100 h-100 rounded object-fit-cover border">
+                    {% else %}
+                      <div class="w-100 h-100 rounded bg-light border d-flex align-items-center justify-content-center text-muted">
+                        <i class="bi bi-image"></i>
+                      </div>
+                    {% endif %}
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-dark" style="font-size: 10px;">
+                      {{ line.quantity }}
+                    </span>
+                  </div>
+                  <div class="flex-grow-1 min-w-0">
+                    <div class="fw-semibold text-dark text-truncate small" title="{{ line.product.name }}">
+                      {{ line.product.name }}
+                    </div>
+                    {% if line.variant_label %}
+                      <div class="text-muted" style="font-size: 11px;">{{ line.variant_label }}</div>
+                    {% endif %}
+                    <div class="small fw-bold text-dark mt-1">
+                      {{ CURRENCY_SYMBOL }}{{ line.line_subtotal }}
+                    </div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+
+            <!-- Financials Breakdown -->
+            <div class="d-flex justify-content-between py-1 small">
+              <span class="text-secondary">Items Subtotal</span>
+              <span class="fw-semibold text-dark">{{ CURRENCY_SYMBOL }}{{ subtotal }}</span>
+            </div>
+
+            {% if total_discount and total_discount > 0 %}
+              <div class="d-flex justify-content-between py-1 small text-success">
+                <span>Savings / Discount</span>
+                <span class="fw-semibold">- {{ CURRENCY_SYMBOL }}{{ total_discount }}</span>
+              </div>
+            {% endif %}
+
+            <div class="d-flex justify-content-between py-1 small">
+              <span class="text-secondary">Shipping &amp; Delivery</span>
+              {% if shipping_fee == 0 %}
+                <span class="text-success fw-bold">FREE</span>
+              {% else %}
+                <span class="fw-semibold text-dark">{{ CURRENCY_SYMBOL }}{{ shipping_fee }}</span>
+              {% endif %}
+            </div>
+
+            {% if subtotal < free_shipping_threshold and shipping_fee > 0 %}
+              <div class="alert alert-info py-1 px-2 my-2 text-center" style="font-size: 11px;">
+                <i class="bi bi-truck me-1"></i> Add items worth <strong>{{ CURRENCY_SYMBOL }}{{ free_shipping_threshold }}</strong> for Free Delivery!
+              </div>
+            {% endif %}
+
+            <hr class="my-3">
+
+            <!-- Grand Total -->
+            <div class="d-flex justify-content-between align-items-baseline mb-3">
+              <div>
+                <span class="fw-bold text-dark fs-5">Total Payable</span>
+                <div class="text-muted" style="font-size: 11px;">Inclusive of all applicable taxes</div>
+              </div>
+              <span class="fw-extrabold fs-4" style="color: var(--fm-primary);">
+                {{ CURRENCY_SYMBOL }}{{ total_payable }}
+              </span>
+            </div>
+
+            <!-- Submit Place Order Button -->
+            <div class="d-grid gap-2 mb-3">
+              <button type="submit"
+                      class="fm-btn fm-btn-primary fm-btn-lg"
+                      id="fmPlaceOrderBtn">
+                <i class="bi bi-bag-check-fill me-2" id="fmPlaceOrderIcon"></i>
+                <span id="fmPlaceOrderText">Place Order (Cash on Delivery)</span>
+              </button>
+            </div>
+
+            <!-- Trust Signals -->
+            <div class="pt-3 border-top text-secondary" style="font-size: 11px;">
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="bi bi-shield-lock-fill text-success"></i>
+                <span>100% Payment Protection Guaranteed</span>
+              </div>
+              <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="bi bi-truck text-primary"></i>
+                <span>Doorstep Inspection on Delivery</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-arrow-repeat text-warning"></i>
+                <span>7-Day Replacement Guarantee</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const addressModeInput = document.getElementById('fmAddressMode');
+    const savedContainer = document.getElementById('fmSavedAddressesContainer');
+    const newSection = document.getElementById('fmNewAddressSection');
+    const toggleNewBtn = document.getElementById('fmToggleNewAddressBtn');
+    const cancelNewBtn = document.getElementById('fmCancelNewAddressBtn');
+    const form = document.getElementById('fmCheckoutForm');
+    const placeBtn = document.getElementById('fmPlaceOrderBtn');
+    const placeOrderText = document.getElementById('fmPlaceOrderText');
+    const placeOrderIcon = document.getElementById('fmPlaceOrderIcon');
+
+    // Payment method switcher
+    const codRadio = document.getElementById('fmPaymentMethodCOD');
+    const rzpRadio = document.getElementById('fmPaymentMethodRazorpay');
+    const cardCOD = document.getElementById('fmCardCOD');
+    const cardRzp = document.getElementById('fmCardRazorpay');
+
+    function updatePaymentUI() {
+      if (rzpRadio && rzpRadio.checked) {
+        if (cardRzp) cardRzp.classList.add('border-primary', 'bg-light', 'bg-opacity-50');
+        if (cardCOD) cardCOD.classList.remove('border-primary');
+        if (placeOrderText) placeOrderText.textContent = "Proceed to Online Payment (Razorpay)";
+        if (placeOrderIcon) placeOrderIcon.className = "bi bi-credit-card-2-front me-2";
+      } else {
+        if (cardCOD) cardCOD.classList.add('border-primary');
+        if (cardRzp) cardRzp.classList.remove('border-primary', 'bg-light', 'bg-opacity-50');
+        if (placeOrderText) placeOrderText.textContent = "Place Order (Cash on Delivery)";
+        if (placeOrderIcon) placeOrderIcon.className = "bi bi-bag-check-fill me-2";
+      }
+    }
+
+    if (codRadio) codRadio.addEventListener('change', updatePaymentUI);
+    if (rzpRadio) rzpRadio.addEventListener('change', updatePaymentUI);
+    updatePaymentUI();
+
+    // Synchronize address mode and enable/disable form inputs
+    const hasSavedAddresses = !!savedContainer;
+
+    function syncAddressMode() {
+      const isNew = !hasSavedAddresses || (addressModeInput && addressModeInput.value === 'new');
+      const newInputs = newSection ? newSection.querySelectorAll('input, select, textarea') : [];
+      const savedRadios = document.querySelectorAll('.fm-address-radio');
+
+      if (isNew) {
+        if (newSection) newSection.classList.remove('d-none');
+        if (addressModeInput) addressModeInput.value = 'new';
+        newInputs.forEach(el => {
+          el.disabled = false;
+        });
+        savedRadios.forEach(r => {
+          r.disabled = true;
+          r.required = false;
+          r.checked = false;
+        });
+      } else {
+        if (newSection) newSection.classList.add('d-none');
+        if (addressModeInput) addressModeInput.value = 'existing';
+        newInputs.forEach(el => {
+          el.disabled = true;
+        });
+        savedRadios.forEach(r => {
+          r.disabled = false;
+          r.required = true;
+        });
+        const anyChecked = Array.from(savedRadios).some(r => r.checked);
+        if (!anyChecked && savedRadios.length > 0) {
+          savedRadios[0].checked = true;
+          const parentCard = savedRadios[0].closest('.fm-address-card');
+          if (parentCard) {
+            parentCard.classList.add('border-primary', 'bg-primary-subtle', 'bg-opacity-10');
+          }
+        }
+      }
+    }
+
+    // Initialize address mode on load
+    syncAddressMode();
+
+    // Toggle between saved address and new address
+    if (toggleNewBtn) {
+      toggleNewBtn.addEventListener('click', function() {
+        if (addressModeInput) addressModeInput.value = 'new';
+        syncAddressMode();
+        const firstInput = newSection ? newSection.querySelector('input:not([type="hidden"])') : null;
+        if (firstInput) firstInput.focus();
+      });
+    }
+
+    if (cancelNewBtn) {
+      cancelNewBtn.addEventListener('click', function() {
+        if (addressModeInput) addressModeInput.value = 'existing';
+        syncAddressMode();
+      });
+    }
+
+    // Radio address cards visual selection
+    document.querySelectorAll('.fm-address-radio').forEach(radio => {
+      radio.addEventListener('change', function() {
+        if (this.checked) {
+          if (addressModeInput) addressModeInput.value = 'existing';
+          syncAddressMode();
+          document.querySelectorAll('.fm-address-card').forEach(card => {
+            card.classList.remove('border-primary', 'bg-primary-subtle', 'bg-opacity-10');
+          });
+          const parentCard = this.closest('.fm-address-card');
+          if (parentCard) {
+            parentCard.classList.add('border-primary', 'bg-primary-subtle', 'bg-opacity-10');
+          }
+        }
+      });
+    });
+
+    // Form submit validation and double-submission protection
+    if (form && placeBtn) {
+      form.addEventListener('submit', function(e) {
+        const currentMode = addressModeInput ? addressModeInput.value : 'existing';
+
+        if (currentMode === 'existing' && hasSavedAddresses) {
+          const selected = form.querySelector('input[name="address_id"]:checked');
+          if (!selected) {
+            e.preventDefault();
+            alert('Please select a delivery address to place your order.');
+            return false;
+          }
+        } else if (currentMode === 'new' || !hasSavedAddresses) {
+          const requiredFields = [
+            { id: 'id_full_name', name: 'Full Name' },
+            { id: 'id_phone_number', name: 'Phone Number' },
+            { id: 'id_address_line1', name: 'Address Line 1' },
+            { id: 'id_city', name: 'City' },
+            { id: 'id_state', name: 'State' },
+            { id: 'id_postal_code', name: 'PIN Code' }
+          ];
+
+          for (const f of requiredFields) {
+            const el = document.getElementById(f.id);
+            if (el && !el.value.trim()) {
+              e.preventDefault();
+              el.focus();
+              alert('Please enter your ' + f.name + ' to proceed with delivery.');
+              return false;
+            }
+          }
+        }
+
+        // Show spinner and disable button to prevent double submits
+        placeBtn.disabled = true;
+        const isRzp = rzpRadio && rzpRadio.checked;
+        placeBtn.innerHTML = isRzp
+          ? '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Preparing Payment...'
+          : '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Placing Order...';
+      });
+    }
+  });
+</script>
+{% endblock %}

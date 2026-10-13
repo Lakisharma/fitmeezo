@@ -1,0 +1,21 @@
+{% load static %}
+<aside id="fmAnnouncementBar" class="fm-announcement-bar" role="complementary" aria-label="Announcement">
+  <div class="fm-container fm-announcement-content">
+    <div class="fm-announcement-msg">
+      <span class="fm-announcement-badge">India Launch</span>
+      <span>Welcome to {{ BRAND_NAME }} — Shop Smart, Live Better • Free Shipping on Orders Over {{ CURRENCY_SYMBOL }}499</span>
+    </div>
+
+    <div class="fm-announcement-tools">
+      <a href="#" class="fm-announcement-link" data-placeholder="true" data-placeholder-label="Customer Support Helpdesk" aria-label="Help and Customer Support">
+        <i class="bi bi-headset" aria-hidden="true"></i> 24/7 Support
+      </a>
+      <span class="fm-market-pill" title="Target Market: India | Currency: INR">
+        <span aria-hidden="true">🇮🇳</span> India ({{ CURRENCY_SYMBOL }} {{ CURRENCY }})
+      </span>
+      <button type="button" id="fmDismissAnnouncement" class="fm-toast-close" style="color: #AAAAAA; font-size: 16px; margin-left: 8px;" aria-label="Dismiss Announcement">
+        &times;
+      </button>
+    </div>
+  </div>
+</aside>

@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Complete Online Payment - Order #{{ order.order_number }} | Fitmeezo{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 760px;">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb small">
+      <li class="breadcrumb-item"><a href="{% url 'core:home' %}" class="text-decoration-none text-muted">Home</a></li>
+      <li class="breadcrumb-item"><a href="{% url 'core:account_orders' %}" class="text-decoration-none text-muted">My Orders</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Pay Order #{{ order.order_number }}</li>
+    </ol>
+  </nav>
+
+  <div class="card border shadow-sm rounded-3 overflow-hidden bg-white mb-4">
+    <div class="card-header bg-dark text-white py-3 px-4 d-flex align-items-center justify-content-between flex-wrap gap-2">
+      <div>
+        <span class="badge bg-primary mb-1">Razorpay Secure Checkout</span>
+        <h1 class="h4 fw-bold mb-0 text-white">Complete Your Payment</h1>
+      </div>
+      <div class="text-end">
+        <span class="small text-white-50">Order Number</span>
+        <div class="fw-bold fs-6 text-white">#{{ order.order_number }}</div>
+      </div>
+    </div>
+
+    <div class="card-body p-4 p-md-5">
+      <!-- Order Amount Highlight -->
+      <div class="text-center py-3 mb-4 rounded-3 border bg-light bg-opacity-75">
+        <div class="text-muted small text-uppercase fw-semibold mb-1">Total Payable Amount</div>
+        <div class="fs-1 fw-extrabold" style="color: var(--fm-primary, #ff5722);">
+          {{ CURRENCY_SYMBOL }}{{ order.total_amount }}
+        </div>
+        <div class="small text-muted">Inclusive of all items and delivery charges</div>
+      </div>
+
+      <!-- Order Details Summary -->
+      <div class="row g-4 mb-4">
+        <div class="col-12 col-md-6">
+          <div class="p-3 rounded-2 border bg-white h-100">
+            <h2 class="h6 fw-bold text-dark mb-2">
+              <i class="bi bi-geo-alt-fill text-danger me-1"></i> Delivery Address
+            </h2>
+            <div class="small text-secondary lh-base">
+              <strong class="text-dark">{{ order.shipping_full_name }}</strong><br>
+              {{ order.shipping_phone_number }}<br>
+              {{ order.shipping_address_line1 }}<br>
+              {% if order.shipping_address_line2 %}{{ order.shipping_address_line2 }}<br>{% endif %}
+              {{ order.shipping_city }}, {{ order.shipping_state }} - {{ order.shipping_postal_code }}
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-6">
+          <div class="p-3 rounded-2 border bg-white h-100">
+            <h2 class="h6 fw-bold text-dark mb-2">
+              <i class="bi bi-box-seam-fill text-primary me-1"></i> Order Items ({{ order.total_items_count }})
+            </h2>
+            <div class="small text-secondary" style="max-height: 120px; overflow-y: auto;">
+              {% for item in items %}
+                <div class="d-flex justify-content-between py-1 border-bottom">
+                  <span class="text-truncate me-2">{{ item.product_name }} x{{ item.quantity }}</span>
+                  <span class="fw-semibold text-dark">₹{{ item.line_total }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Payment CTA Box -->
+      <div class="p-4 rounded-3 border-2 border-primary border bg-primary bg-opacity-10 text-center mb-4">
+        <div class="mb-3">
+          <i class="bi bi-shield-check text-success fs-1"></i>
+          <h3 class="h5 fw-bold text-dark mt-2 mb-1">100% Safe &amp; Encrypted Payment</h3>
+          <p class="text-muted small mb-0">UPI (GPay, PhonePe, Paytm), Credit/Debit Cards, NetBanking, and Wallets are supported.</p>
+        </div>
+
+        <div class="d-grid gap-2 col-12 col-md-8 mx-auto">
+          <button type="button"
+                  id="fmRazorpayPayBtn"
+                  class="fm-btn fm-btn-primary fm-btn-lg py-3 fs-5 fw-bold shadow-sm">
+            <i class="bi bi-lock-fill me-2"></i> Pay {{ CURRENCY_SYMBOL }}{{ order.total_amount }} Now
+          </button>
+
+          <form id="fmCancelForm" method="post" action="{% url 'core:razorpay_payment_failed' %}">
+            {% csrf_token %}
+            <input type="hidden" name="order_number" value="{{ order.order_number }}">
+            <input type="hidden" name="error_code" value="CUSTOMER_CANCELLED">
+            <input type="hidden" name="error_description" value="Customer cancelled online payment attempt.">
+            <button type="submit" class="btn btn-link text-muted btn-sm mt-2 text-decoration-none">
+              <i class="bi bi-x-circle me-1"></i> Cancel &amp; return to orders
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Trust signals -->
+      <div class="d-flex justify-content-around text-center text-muted small pt-2 flex-wrap gap-2">
+        <div><i class="bi bi-shield-lock text-success me-1"></i> 256-bit SSL Security</div>
+        <div><i class="bi bi-credit-card text-primary me-1"></i> Instant Confirmation</div>
+        <div><i class="bi bi-arrow-repeat text-warning me-1"></i> Easy Refunds</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Hidden POST form for signature verification submission -->
+<form id="fmRazorpayVerifyForm" method="post" action="{% url 'core:razorpay_payment_verify' %}" style="display: none;">
+  {% csrf_token %}
+  <input type="hidden" name="order_number" value="{{ order.order_number }}">
+  <input type="hidden" name="razorpay_payment_id" id="fmInputPaymentId">
+  <input type="hidden" name="razorpay_order_id" id="fmInputOrderId">
+  <input type="hidden" name="razorpay_signature" id="fmInputSignature">
+</form>
+
+<!-- Razorpay Checkout Standard SDK -->
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const payBtn = document.getElementById("fmRazorpayPayBtn");
+    if (!payBtn) return;
+
+    const options = {
+      key: "{{ razorpay_key_id }}",
+      amount: {{ amount_in_paise }},
+      currency: "{{ razorpay_currency }}",
+      name: "{{ brand_name|default:'Fitmeezo' }}",
+      description: "Order #{{ order.order_number }}",
+      order_id: "{{ order.razorpay_order_id }}",
+      prefill: {
+        name: "{{ order.shipping_full_name|escapejs }}",
+        email: "{{ user.email|default:''|escapejs }}",
+        contact: "{{ order.shipping_phone_number|escapejs }}"
+      },
+      theme: {
+        color: "#ff5722"
+      },
+      handler: function (response) {
+        // Successful client-side charge; submit to server for HMAC verification
+        payBtn.disabled = true;
+        payBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Verifying payment...';
+
+        document.getElementById("fmInputPaymentId").value = response.razorpay_payment_id;
+        document.getElementById("fmInputOrderId").value = response.razorpay_order_id;
+        document.getElementById("fmInputSignature").value = response.razorpay_signature;
+        document.getElementById("fmRazorpayVerifyForm").submit();
+      },
+      modal: {
+        ondismiss: function () {
+          payBtn.disabled = false;
+          payBtn.innerHTML = '<i class="bi bi-lock-fill me-2"></i> Pay {{ CURRENCY_SYMBOL }}{{ order.total_amount }} Now';
+        }
+      }
+    };
+
+    const rzp = new Razorpay(options);
+
+    rzp.on("payment.failed", function (response) {
+      alert("Payment failed: " + (response.error.description || "Transaction declined."));
+      const cancelForm = document.getElementById("fmCancelForm");
+      if (cancelForm) {
+        cancelForm.querySelector('input[name="error_code"]').value = response.error.code || "PAYMENT_FAILED";
+        cancelForm.querySelector('input[name="error_description"]').value = response.error.description || "Online payment failed.";
+        cancelForm.submit();
+      }
+    });
+
+    payBtn.addEventListener("click", function (e) {
+      e.preventDefault();
+      rzp.open();
+    });
+
+    // Automatically open modal once page renders for fluid UX
+    setTimeout(function() {
+      try {
+        rzp.open();
+      } catch (err) {
+        console.warn("Auto-opening Razorpay modal failed:", err);
+      }
+    }, 400);
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,289 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Order #{{ order.order_number }}{% endblock %}
+{% block page_title %}Order #{{ order.order_number }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+  <div class="d-flex align-items-center gap-2">
+    <a href="{% url 'custom_admin:order_list' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> All Orders
+    </a>
+    <span class="badge badge-status badge-status-{{ order.status }}">
+      {{ order.get_status_display }}
+    </span>
+    <span class="badge badge-status badge-pay-{{ order.payment_status }}">
+      {{ order.get_payment_status_display }}
+    </span>
+  </div>
+
+  <div>
+    <span class="text-muted small">Placed on <strong>{{ order.created_at|date:"d F Y, H:i:s" }}</strong></span>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <!-- Left Column: Items & Customer Details -->
+  <div class="col-12 col-lg-8">
+    <!-- Ordered Line Items Card -->
+    <div class="fm-card mb-4">
+      <div class="fm-card-header">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-basket3-fill text-primary"></i>
+          <span>Ordered Items Snapshot ({{ order.items.count }})</span>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table mb-0 align-middle">
+          <thead>
+            <tr>
+              <th>Item Snapshot</th>
+              <th>Unit Price</th>
+              <th class="text-center">Qty</th>
+              <th class="text-end">Line Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in order.items.all %}
+              <tr>
+                <td>
+                  <div class="fw-bold">{{ item.product_name }}</div>
+                  {% if item.variant_label %}
+                    <span class="badge bg-light text-dark border">{{ item.variant_label }}</span>
+                  {% endif %}
+                  {% if item.sku %}
+                    <small class="text-muted ms-1">SKU: <code>{{ item.sku }}</code></small>
+                  {% endif %}
+                </td>
+                <td>
+                  <div>₹{{ item.unit_price|floatformat:2 }}</div>
+                  {% if item.compare_at_price %}
+                    <small class="text-muted text-decoration-line-through">₹{{ item.compare_at_price|floatformat:2 }}</small>
+                  {% endif %}
+                </td>
+                <td class="text-center fw-semibold">
+                  {{ item.quantity }}
+                </td>
+                <td class="text-end fw-bold">
+                  ₹{{ item.line_total|floatformat:2 }}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="text-center py-3 text-muted">No line items in this order record.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="border-top bg-light">
+            <tr>
+              <td colspan="3" class="text-end text-muted">Subtotal:</td>
+              <td class="text-end fw-semibold">₹{{ order.subtotal|floatformat:2 }}</td>
+            </tr>
+            <tr>
+              <td colspan="3" class="text-end text-muted">Shipping Fee:</td>
+              <td class="text-end">
+                {% if order.shipping_fee > 0 %}
+                  ₹{{ order.shipping_fee|floatformat:2 }}
+                {% else %}
+                  <span class="text-success fw-semibold">FREE</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% if order.discount_amount > 0 %}
+              <tr>
+                <td colspan="3" class="text-end text-muted">Discount Applied:</td>
+                <td class="text-end text-success fw-semibold">-₹{{ order.discount_amount|floatformat:2 }}</td>
+              </tr>
+            {% endif %}
+            <tr class="fs-6">
+              <td colspan="3" class="text-end fw-bold">Final Order Total:</td>
+              <td class="text-end fw-bold text-dark">₹{{ order.total_amount|floatformat:2 }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Customer & Delivery Snapshot Card -->
+    <div class="fm-card">
+      <div class="fm-card-header">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-geo-alt-fill text-danger"></i>
+          <span>Delivery Address Snapshot</span>
+        </div>
+      </div>
+      <div class="fm-card-body">
+        <div class="row g-3">
+          <div class="col-12 col-sm-6">
+            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Recipient Name</label>
+            <div class="fw-bold">{{ order.shipping_full_name }}</div>
+          </div>
+          <div class="col-12 col-sm-6">
+            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Contact Phone</label>
+            <div><i class="bi bi-telephone me-1 text-muted"></i> {{ order.shipping_phone_number }}</div>
+          </div>
+          <div class="col-12">
+            <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Destination Address</label>
+            <div class="p-3 bg-light rounded border">
+              <div>{{ order.shipping_address_line1 }}</div>
+              {% if order.shipping_address_line2 %}<div>{{ order.shipping_address_line2 }}</div>{% endif %}
+              {% if order.shipping_landmark %}<div class="text-muted small">Landmark: {{ order.shipping_landmark }}</div>{% endif %}
+              <div class="fw-semibold mt-1">{{ order.shipping_city }}, {{ order.shipping_state }} — {{ order.shipping_postal_code }}</div>
+              <span class="badge bg-secondary-subtle text-dark text-capitalize mt-2">{{ order.shipping_address_type }}</span>
+            </div>
+          </div>
+          {% if order.customer_notes %}
+            <div class="col-12">
+              <label class="text-muted small fw-semibold text-uppercase d-block mb-1">Customer Delivery Instructions</label>
+              <div class="p-2 border rounded small bg-warning-subtle text-dark">
+                <i class="bi bi-chat-left-quote me-1"></i> {{ order.customer_notes }}
+              </div>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Status & Payment Workflow Controls -->
+  <div class="col-12 col-lg-4 d-flex flex-column gap-3">
+    <!-- Fulfillment Status Workflow Control -->
+    <div class="fm-card">
+      <div class="fm-card-header">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-truck text-primary"></i>
+          <span>Fulfillment Stage</span>
+        </div>
+      </div>
+      <div class="fm-card-body">
+        <div class="mb-3">
+          <span class="text-muted small d-block mb-1">Current State:</span>
+          <span class="badge badge-status badge-status-{{ order.status }} fs-6">
+            {{ order.get_status_display }}
+          </span>
+        </div>
+
+        {% if order.status == 'delivered' %}
+          <div class="alert alert-success py-2 px-3 small">
+            <i class="bi bi-check-circle-fill me-1"></i> This order has been successfully delivered (Terminal State).
+          </div>
+        {% elif order.status == 'cancelled' %}
+          <div class="alert alert-danger py-2 px-3 small mb-2">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              <span class="fw-bold"><i class="bi bi-x-circle-fill me-1"></i> Order Cancelled</span>
+              {% if order.inventory_restored %}
+                <span class="badge bg-success"><i class="bi bi-arrow-repeat me-1"></i> Stock Restored</span>
+              {% endif %}
+            </div>
+            {% if order.cancellation_reason %}
+              <div class="small"><strong>Reason:</strong> {{ order.cancellation_reason }}</div>
+            {% endif %}
+            {% if order.cancelled_at %}
+              <div class="text-muted" style="font-size: 11px;">Cancelled on: {{ order.cancelled_at|date:"M d, Y H:i" }} ({{ order.cancelled_by|title }})</div>
+            {% endif %}
+          </div>
+          {% if order.refund_status == 'pending' %}
+            <div class="alert alert-warning py-2 px-3 small">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Refund Required:</strong> Customer paid online. Process gateway refund and update payment status.
+            </div>
+          {% endif %}
+        {% else %}
+          <form method="post" action="{% url 'custom_admin:order_update_status' pk=order.pk %}">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label fw-semibold small">Advance to Next Status:</label>
+              {{ status_form.status }}
+              <div class="form-text small">
+                Permitted transitions from {{ order.get_status_display }}:
+                {% if allowed_next_statuses %}
+                  <strong>{{ allowed_next_statuses|join:", "|title }}</strong>
+                {% else %}
+                  <em>None (terminal)</em>
+                {% endif %}
+              </div>
+            </div>
+            <button type="submit" class="btn btn-sm btn-fm-primary w-100">
+              <i class="bi bi-arrow-repeat me-1"></i> Update Fulfillment Status
+            </button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Payment Management Control -->
+    <div class="fm-card">
+      <div class="fm-card-header">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-credit-card text-success"></i>
+          <span>Payment Tracking</span>
+        </div>
+      </div>
+      <div class="fm-card-body">
+        <div class="mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="text-muted small">Method:</span>
+            <span class="fw-semibold">{{ order.get_payment_method_display }}</span>
+          </div>
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="text-muted small">Status:</span>
+            <span class="badge badge-status badge-pay-{{ order.payment_status }} fs-6">
+              {{ order.get_payment_status_display }}
+            </span>
+          </div>
+          {% if order.paid_at %}
+            <div class="d-flex justify-content-between align-items-center">
+              <span class="text-muted small">Confirmed At:</span>
+              <small class="text-muted">{{ order.paid_at|date:"d M Y, H:i" }}</small>
+            </div>
+          {% endif %}
+        </div>
+
+        {% if order.payment_method == 'razorpay' %}
+          <div class="p-2 border rounded bg-light mb-3 small">
+            <div class="text-muted">Gateway Order ID:</div>
+            <code>{{ order.razorpay_order_id|default:"None" }}</code>
+            {% if order.razorpay_payment_id %}
+              <div class="text-muted mt-1">Payment ID:</div>
+              <code class="text-success">{{ order.razorpay_payment_id }}</code>
+            {% endif %}
+          </div>
+          <div class="alert alert-info py-2 px-3 small">
+            <i class="bi bi-info-circle me-1"></i> Online orders are automatically verified via Razorpay webhook/verification endpoints.
+          </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'custom_admin:order_update_payment' pk=order.pk %}">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label fw-semibold small">Update Payment State:</label>
+            {{ payment_form.payment_status }}
+            {% if order.payment_method == 'razorpay' and not order.razorpay_payment_id %}
+              <div class="form-text small text-warning">
+                <i class="bi bi-exclamation-triangle"></i> Online payments cannot be marked Paid without a verified Payment ID.
+              </div>
+            {% endif %}
+          </div>
+          <button type="submit" class="btn btn-sm btn-outline-dark w-100">
+            <i class="bi bi-check2-circle me-1"></i> Update Payment State
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Account Details Card -->
+    <div class="fm-card">
+      <div class="fm-card-header">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-person-circle text-secondary"></i>
+          <span>Customer Account</span>
+        </div>
+      </div>
+      <div class="fm-card-body small">
+        <div class="mb-1"><strong>Username:</strong> {{ order.user.username }}</div>
+        <div class="mb-1"><strong>Email:</strong> {{ order.user.email }}</div>
+        <div><strong>Member Since:</strong> {{ order.user.date_joined|date:"d M Y" }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

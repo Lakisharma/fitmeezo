@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Create Account — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Register for a free Fitmeezo customer account. Enjoy fast checkout, order tracking, and exclusive Indian shopping offers.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-5">
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6 col-xl-5">
+      <!-- Breadcrumbs -->
+      <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+        <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+          <i class="bi bi-house-door" aria-hidden="true"></i>
+          <span>Home</span>
+        </a>
+        <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+        <span class="fm-breadcrumb-item is-current" aria-current="page">Register</span>
+      </nav>
+
+      <div class="card border shadow-sm rounded-3 overflow-hidden bg-white">
+        <div class="card-header bg-white border-bottom p-4 text-center">
+          <div class="d-inline-flex align-items-center justify-content-center mb-2" style="width: 52px; height: 52px; border-radius: 50%; background: var(--fm-primary-subtle);">
+            <i class="bi bi-person-plus-fill fs-3" style="color: var(--fm-primary);"></i>
+          </div>
+          <h1 class="h4 fw-bold text-dark mb-1">Create Your Account</h1>
+          <p class="text-secondary small mb-0">Join {{ BRAND_NAME }} for smart shopping and faster checkout</p>
+        </div>
+
+        <div class="card-body p-4">
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger d-flex align-items-center gap-2 small mb-4" role="alert">
+              <i class="bi bi-exclamation-triangle-fill flex-shrink-0"></i>
+              <div>
+                {% for err in form.non_field_errors %}
+                  <div>{{ err }}</div>
+                {% endfor %}
+              </div>
+            </div>
+          {% endif %}
+
+          <form action="{% url 'core:account_register' %}" method="post" id="fmRegisterForm" novalidate>
+            {% csrf_token %}
+            {% if next %}
+              <input type="hidden" name="next" value="{{ next }}">
+            {% endif %}
+
+            <!-- Full Name -->
+            <div class="mb-3">
+              <label for="{{ form.full_name.id_for_label }}" class="form-label fw-semibold text-dark small">
+                Full Name <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text bg-light text-muted border-end-0">
+                  <i class="bi bi-person"></i>
+                </span>
+                {{ form.full_name }}
+              </div>
+              {% if form.full_name.errors %}
+                <div class="text-danger small mt-1">
+                  {{ form.full_name.errors.0 }}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Email Address -->
+            <div class="mb-3">
+              <label for="{{ form.email.id_for_label }}" class="form-label fw-semibold text-dark small">
+                Email Address <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text bg-light text-muted border-end-0">
+                  <i class="bi bi-envelope"></i>
+                </span>
+                {{ form.email }}
+              </div>
+              {% if form.email.errors %}
+                <div class="text-danger small mt-1">
+                  {{ form.email.errors.0 }}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Password -->
+            <div class="mb-3">
+              <label for="{{ form.password.id_for_label }}" class="form-label fw-semibold text-dark small">
+                Password <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text bg-light text-muted border-end-0">
+                  <i class="bi bi-lock"></i>
+                </span>
+                {{ form.password }}
+                <button type="button" class="btn btn-outline-secondary fm-toggle-password" data-target="{{ form.password.id_for_label }}" aria-label="Show password" title="Toggle password visibility">
+                  <i class="bi bi-eye"></i>
+                </button>
+              </div>
+              {% if form.password.errors %}
+                <div class="text-danger small mt-1">
+                  {% for error in form.password.errors %}
+                    <div>{{ error }}</div>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="form-text text-muted" style="font-size: 11px;">Must be at least 8 characters. Avoid common words.</div>
+              {% endif %}
+            </div>
+
+            <!-- Confirm Password -->
+            <div class="mb-3">
+              <label for="{{ form.confirm_password.id_for_label }}" class="form-label fw-semibold text-dark small">
+                Confirm Password <span class="text-danger">*</span>
+              </label>
+              <div class="input-group">
+                <span class="input-group-text bg-light text-muted border-end-0">
+                  <i class="bi bi-shield-check"></i>
+                </span>
+                {{ form.confirm_password }}
+                <button type="button" class="btn btn-outline-secondary fm-toggle-password" data-target="{{ form.confirm_password.id_for_label }}" aria-label="Show password" title="Toggle password visibility">
+                  <i class="bi bi-eye"></i>
+                </button>
+              </div>
+              {% if form.confirm_password.errors %}
+                <div class="text-danger small mt-1">
+                  {{ form.confirm_password.errors.0 }}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Terms & Conditions Checkbox -->
+            <div class="mb-4">
+              <div class="form-check">
+                {{ form.terms }}
+                <label class="form-check-label small text-secondary" for="{{ form.terms.id_for_label }}">
+                  I agree to Fitmeezo's <a href="{% url 'core:terms' %}" target="_blank" class="text-decoration-none fw-semibold" style="color: var(--fm-primary);">Terms of Service</a> &amp; <a href="{% url 'core:terms' %}" target="_blank" class="text-decoration-none fw-semibold" style="color: var(--fm-primary);">Privacy Policy</a>.
+                </label>
+              </div>
+              {% if form.terms.errors %}
+                <div class="text-danger small mt-1">
+                  {{ form.terms.errors.0 }}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Submit Button -->
+            <div class="d-grid mb-3">
+              <button type="submit" class="fm-btn fm-btn-primary fm-btn-lg fw-bold" id="fmRegisterSubmitBtn">
+                <i class="bi bi-check2-circle me-1"></i> Create Account
+              </button>
+            </div>
+          </form>
+
+          <!-- Social Authentication Buttons (Prompt 11) -->
+          <div class="my-3 text-center position-relative">
+            <hr class="text-muted opacity-25">
+            <span class="position-absolute top-50 start-50 translate-middle bg-white px-3 text-secondary small fw-semibold">
+              Or sign up with
+            </span>
+          </div>
+
+          <div class="d-flex flex-column flex-sm-row gap-2 mb-3">
+            <!-- Google Register Button -->
+            <a href="{% url 'core:oauth_google' %}{% if next %}?next={{ next|urlencode }}{% endif %}"
+               class="btn btn-outline-dark d-flex align-items-center justify-content-center gap-2 flex-fill py-2 text-decoration-none shadow-sm"
+               id="fmGoogleRegisterBtn"
+               aria-label="Continue with Google">
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span class="small fw-semibold">Google</span>
+              {% if not google_oauth_enabled %}
+                <span class="badge bg-secondary-subtle text-secondary border ms-auto" style="font-size: 9px;" title="OAuth credentials not configured yet">Setup</span>
+              {% endif %}
+            </a>
+
+            <!-- Facebook Register Button -->
+            <a href="{% url 'core:oauth_facebook' %}{% if next %}?next={{ next|urlencode }}{% endif %}"
+               class="btn btn-outline-dark d-flex align-items-center justify-content-center gap-2 flex-fill py-2 text-decoration-none shadow-sm"
+               id="fmFacebookRegisterBtn"
+               aria-label="Continue with Facebook">
+              <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="#1877F2">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+              <span class="small fw-semibold">Facebook</span>
+              {% if not facebook_oauth_enabled %}
+                <span class="badge bg-secondary-subtle text-secondary border ms-auto" style="font-size: 9px;" title="OAuth credentials not configured yet">Setup</span>
+              {% endif %}
+            </a>
+          </div>
+
+          <div class="text-center pt-3 border-top small text-secondary">
+            Already have an account?
+            <a href="{% url 'core:account_login' %}{% if next %}?next={{ next|urlencode }}{% endif %}" class="fw-bold text-decoration-none ms-1" style="color: var(--fm-primary);">
+              Sign in here
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.fm-toggle-password').forEach(button => {
+      button.addEventListener('click', function() {
+        const targetId = this.getAttribute('data-target');
+        const input = document.getElementById(targetId);
+        const icon = this.querySelector('i');
+        if (!input) return;
+
+        if (input.type === 'password') {
+          input.type = 'text';
+          this.setAttribute('aria-label', 'Hide password');
+          if (icon) {
+            icon.className = 'bi bi-eye-slash';
+          }
+        } else {
+          input.type = 'password';
+          this.setAttribute('aria-label', 'Show password');
+          if (icon) {
+            icon.className = 'bi bi-eye';
+          }
+        }
+      });
+    });
+  });
+</script>
+{% endblock %}

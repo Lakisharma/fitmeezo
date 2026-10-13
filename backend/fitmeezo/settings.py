@@ -7,15 +7,18 @@ Phase 1: Project Foundation.
 """
 
 import os
+import urllib.parse
 from pathlib import Path
+from decimal import Decimal
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load environment variables from backend/.env or root .env
-load_dotenv(BASE_DIR / ".env")
-load_dotenv(BASE_DIR.parent / ".env")
+# Load environment variables: process env takes precedence, followed by root .env, then backend/.env
+load_dotenv(BASE_DIR.parent / ".env", override=False)
+load_dotenv(BASE_DIR / ".env", override=False)
 
 # ==============================================================================
 # CORE BRAND & LOCALIZATION METADATA
@@ -28,17 +31,71 @@ CURRENCY_SYMBOL = os.getenv("CURRENCY_SYMBOL", "₹")
 # ==============================================================================
 # SECURITY SETTINGS
 # ==============================================================================
-SECRET_KEY = os.getenv(
-    "SECRET_KEY",
-    "django-insecure-fitmeezo-phase1-dev-key-change-in-production-739281!@#"
-)
-
 DEBUG = os.getenv("DEBUG", "True").strip().lower() in ("true", "1", "yes")
 
-_allowed_hosts_raw = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost,testserver")
+DEV_SECRET_KEY = "django-insecure-fitmeezo-phase1-dev-key-change-in-production-739281!@#"
+SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
+
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = DEV_SECRET_KEY
+    else:
+        raise ImproperlyConfigured(
+            "SECRET_KEY environment variable is required when DEBUG=False in production. "
+            "Please configure a cryptographically secure SECRET_KEY in your production environment."
+        )
+elif not DEBUG and SECRET_KEY == DEV_SECRET_KEY:
+    raise ImproperlyConfigured(
+        "Insecure development SECRET_KEY detected in production (DEBUG=False). "
+        "Please generate a unique, cryptographically secure SECRET_KEY."
+    )
+
+_allowed_hosts_raw = os.getenv("ALLOWED_HOSTS", "127.0.0.1,localhost,testserver" if DEBUG else "")
 ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_raw.split(",") if host.strip()]
 if DEBUG and "testserver" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append("testserver")
+
+if not DEBUG and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured(
+        "ALLOWED_HOSTS environment variable must be set when DEBUG=False in production. "
+        "Please specify your domain(s) in ALLOWED_HOSTS."
+    )
+
+_csrf_trusted_raw = os.getenv("CSRF_TRUSTED_ORIGINS", "")
+CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in _csrf_trusted_raw.split(",") if origin.strip()]
+
+# ==============================================================================
+# HTTPS & PRODUCTION SECURITY HEADERS
+# ==============================================================================
+# In production (DEBUG=False), secure cookies and SSL redirection are enabled by default,
+# but can be tuned or toggled via environment variables.
+# In local development (DEBUG=True), all SSL redirects and secure cookies remain disabled.
+SECURE_SSL_REDIRECT = os.getenv(
+    "SECURE_SSL_REDIRECT",
+    "True" if not DEBUG else "False"
+).strip().lower() in ("true", "1", "yes")
+
+SESSION_COOKIE_SECURE = os.getenv(
+    "SESSION_COOKIE_SECURE",
+    "True" if not DEBUG else "False"
+).strip().lower() in ("true", "1", "yes")
+
+CSRF_COOKIE_SECURE = os.getenv(
+    "CSRF_COOKIE_SECURE",
+    "True" if not DEBUG else "False"
+).strip().lower() in ("true", "1", "yes")
+
+# HTTP Strict Transport Security (HSTS)
+# Recommended standard for production HTTPS: 31536000 seconds (1 year).
+# Kept 0 during local development (DEBUG=True) to avoid forcing HTTPS on localhost.
+SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000" if not DEBUG else "0"))
+
+# Explicitly kept False per instructions (do not enable preload or subdomains without explicit confirmation)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+SECURE_HSTS_PRELOAD = False
+
+# Reverse proxy SSL header support (when deployed behind Nginx, AWS ALB, Cloudflare, etc.)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # ==============================================================================
 # APPLICATION DEFINITION
@@ -51,13 +108,22 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
 
     # Third-party apps
     "rest_framework",
+    "rest_framework.authtoken",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.facebook",
 
     # Fitmeezo local apps
     "core.apps.CoreConfig",
 ]
+
+SITE_ID = 1
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -67,6 +133,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
 ]
 
 ROOT_URLCONF = "fitmeezo.urls"
@@ -82,6 +149,9 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "core.context_processors.brand_context",
+                "core.context_processors.cart_context",
+                "core.context_processors.wishlist_context",
+                "core.context_processors.oauth_context",
             ],
         },
     },
@@ -91,14 +161,49 @@ WSGI_APPLICATION = "fitmeezo.wsgi.application"
 ASGI_APPLICATION = "fitmeezo.asgi.application"
 
 # ==============================================================================
-# DATABASE CONFIGURATION
+# DATABASE CONFIGURATION (PostgreSQL Production Ready with SQLite Fallback)
 # ==============================================================================
-# Target: PostgreSQL.
-# Temporary fallback: SQLite3 is used locally when PostgreSQL is not configured.
+# Supported configuration methods:
+#   1. DATABASE_URL: e.g. postgresql://user:password@host:port/dbname?sslmode=require
+#   2. Individual DB_* variables: DB_ENGINE, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT
+#   3. Zero-config fallback: local SQLite database (db.sqlite3)
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 DB_ENGINE = os.getenv("DB_ENGINE", "sqlite").strip().lower()
 DB_NAME = os.getenv("DB_NAME", "").strip()
 
-if DB_ENGINE in ("postgresql", "postgres", "django.db.backends.postgresql") and DB_NAME:
+if DATABASE_URL:
+    parsed_db = urllib.parse.urlparse(DATABASE_URL)
+    is_postgres = parsed_db.scheme in ("postgres", "postgresql", "pgsql")
+    pg_options = {}
+    query_params = urllib.parse.parse_qs(parsed_db.query)
+    if "sslmode" in query_params:
+        pg_options["sslmode"] = query_params["sslmode"][0]
+    sslmode_env = os.getenv("DB_SSLMODE", "").strip()
+    if sslmode_env:
+        pg_options["sslmode"] = sslmode_env
+
+    conn_max_age = int(os.getenv("DB_CONN_MAX_AGE", "60" if is_postgres else "0"))
+
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql" if is_postgres else "django.db.backends.sqlite3",
+            "NAME": parsed_db.path.lstrip("/"),
+            "USER": urllib.parse.unquote(parsed_db.username or ""),
+            "PASSWORD": urllib.parse.unquote(parsed_db.password or ""),
+            "HOST": parsed_db.hostname or "127.0.0.1",
+            "PORT": str(parsed_db.port or "5432"),
+            "CONN_MAX_AGE": conn_max_age,
+            "CONN_HEALTH_CHECKS": is_postgres and conn_max_age > 0,
+            "OPTIONS": pg_options,
+        }
+    }
+elif DB_ENGINE in ("postgresql", "postgres", "django.db.backends.postgresql") and DB_NAME:
+    pg_options = {}
+    sslmode_env = os.getenv("DB_SSLMODE", "").strip()
+    if sslmode_env:
+        pg_options["sslmode"] = sslmode_env
+    conn_max_age = int(os.getenv("DB_CONN_MAX_AGE", "60"))
+
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
@@ -107,6 +212,9 @@ if DB_ENGINE in ("postgresql", "postgres", "django.db.backends.postgresql") and 
             "PASSWORD": os.getenv("DB_PASSWORD", ""),
             "HOST": os.getenv("DB_HOST", "127.0.0.1"),
             "PORT": os.getenv("DB_PORT", "5432"),
+            "CONN_MAX_AGE": conn_max_age,
+            "CONN_HEALTH_CHECKS": conn_max_age > 0,
+            "OPTIONS": pg_options,
         }
     }
 else:
@@ -114,6 +222,7 @@ else:
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
             "NAME": BASE_DIR / "db.sqlite3",
+            "CONN_MAX_AGE": 0,
         }
     }
 
@@ -161,6 +270,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # DJANGO REST FRAMEWORK CONFIGURATION
 # ==============================================================================
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+    ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.AllowAny",
     ],
@@ -169,3 +282,239 @@ REST_FRAMEWORK = {
         "rest_framework.renderers.BrowsableAPIRenderer",
     ],
 }
+
+# ==============================================================================
+# CUSTOMER AUTHENTICATION & LOGIN CONFIGURATION
+# ==============================================================================
+AUTHENTICATION_BACKENDS = [
+    "core.backends.EmailOrUsernameModelBackend",
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+LOGIN_URL = "core:account_login"
+LOGIN_REDIRECT_URL = "core:account_dashboard"
+LOGOUT_REDIRECT_URL = "core:home"
+
+# ==============================================================================
+# ALLAUTH & SOCIAL AUTHENTICATION CONFIGURATION (PROMPT 11)
+# ==============================================================================
+ACCOUNT_LOGIN_METHODS = {"email", "username"}
+ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
+ACCOUNT_EMAIL_VERIFICATION = "optional"
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https" if not DEBUG else "http"
+ACCOUNT_PRESERVE_USERNAME_CASING = False
+
+SOCIALACCOUNT_ADAPTER = "core.adapters.FitmeezoSocialAccountAdapter"
+SOCIALACCOUNT_LOGIN_ON_GET = True
+SOCIALACCOUNT_STORE_TOKENS = False
+SOCIALACCOUNT_AUTO_SIGNUP = True
+
+# Read OAuth client IDs and secrets strictly from environment variables
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+FACEBOOK_CLIENT_ID = os.getenv("FACEBOOK_CLIENT_ID", "").strip()
+FACEBOOK_CLIENT_SECRET = os.getenv("FACEBOOK_CLIENT_SECRET", "").strip()
+
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "APP": {
+            "client_id": GOOGLE_CLIENT_ID,
+            "secret": GOOGLE_CLIENT_SECRET,
+            "key": "",
+        },
+        "SCOPE": [
+            "profile",
+            "email",
+        ],
+        "AUTH_PARAMS": {
+            "access_type": "online",
+        },
+        "VERIFIED_EMAIL": True,
+    },
+    "facebook": {
+        "APP": {
+            "client_id": FACEBOOK_CLIENT_ID,
+            "secret": FACEBOOK_CLIENT_SECRET,
+            "key": "",
+        },
+        "METHOD": "oauth2",
+        "SCOPE": [
+            "email",
+            "public_profile",
+        ],
+        "FIELDS": [
+            "id",
+            "name",
+            "first_name",
+            "last_name",
+            "email",
+            "picture",
+        ],
+        "EXCHANGE_TOKEN": True,
+        "VERIFIED_EMAIL": False,
+    },
+}
+
+# ==============================================================================
+# EMAIL CONFIGURATION (PASSWORD RESET, ORDER CONFIRMATIONS & NOTIFICATIONS)
+# ==============================================================================
+# Default to console backend during local development (DEBUG=True), and smtp in production (DEBUG=False).
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend" if DEBUG else "django.core.mail.backends.smtp.EmailBackend",
+)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "").strip()
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "").strip()
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in ("true", "1", "t", "yes")
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False").lower() in ("true", "1", "t", "yes")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Fitmeezo <support@fitmeezo.com>")
+SERVER_EMAIL = os.getenv("SERVER_EMAIL", "Fitmeezo Alerts <support@fitmeezo.com>")
+SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "support@fitmeezo.com")
+
+# ==============================================================================
+# RAZORPAY PAYMENT GATEWAY CONFIGURATION
+# ==============================================================================
+RAZORPAY_KEY_ID = os.getenv("RAZORPAY_KEY_ID", "").strip()
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "").strip()
+RAZORPAY_WEBHOOK_SECRET = os.getenv("RAZORPAY_WEBHOOK_SECRET", "").strip()
+RAZORPAY_CURRENCY = os.getenv("RAZORPAY_CURRENCY", "INR").strip()
+
+# Razorpay is enabled strictly when valid, non-placeholder credentials are provided.
+# If credentials are missing or placeholders, payment safely falls back to COD.
+RAZORPAY_ENABLED = bool(
+    RAZORPAY_KEY_ID
+    and RAZORPAY_KEY_SECRET
+    and not RAZORPAY_KEY_ID.lower().startswith(("replace_", "your_", "todo"))
+    and not RAZORPAY_KEY_SECRET.lower().startswith(("replace_", "your_", "todo"))
+)
+
+# Cache Configuration (Used for Shiprocket token caching and rate-estimate caching)
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "fitmeezo-default-cache",
+    }
+}
+
+# ==============================================================================
+# SHIPPING LOGISTICS & SHIPROCKET CONFIGURATION (PHASE 5)
+# ==============================================================================
+# Shiprocket API Base URL
+SHIPROCKET_API_BASE_URL = os.getenv("SHIPROCKET_API_BASE_URL", "https://apiv2.shiprocket.in/v2/console").rstrip("/")
+
+# Provider credentials (empty by default; loaded strictly from environment)
+SHIPROCKET_API_EMAIL = os.getenv("SHIPROCKET_API_EMAIL", "").strip()
+SHIPROCKET_API_PASSWORD = os.getenv("SHIPROCKET_API_PASSWORD", "").strip()
+
+# HTTP Client Timeouts & Transient Retries
+SHIPROCKET_CONNECT_TIMEOUT = float(os.getenv("SHIPROCKET_CONNECT_TIMEOUT", "5.0"))
+SHIPROCKET_READ_TIMEOUT = float(os.getenv("SHIPROCKET_READ_TIMEOUT", "15.0"))
+SHIPROCKET_MAX_RETRIES = int(os.getenv("SHIPROCKET_MAX_RETRIES", "3"))
+SHIPROCKET_BACKOFF_FACTOR = float(os.getenv("SHIPROCKET_BACKOFF_FACTOR", "0.5"))
+SHIPROCKET_RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
+
+# Mock Mode (allows offline / simulated testing without live network calls)
+SHIPROCKET_MOCK_MODE = os.getenv("SHIPROCKET_MOCK_MODE", "False").lower() in ("true", "1", "t", "yes")
+
+# Token Cache Timeout (Shiprocket tokens expire after 10 days = 864,000s; cache for 7 days = 604,800s)
+SHIPROCKET_TOKEN_CACHE_TIMEOUT = int(os.getenv("SHIPROCKET_TOKEN_CACHE_TIMEOUT", str(86400 * 7)))
+
+# Shiprocket is enabled only when non-placeholder credentials are provided
+SHIPROCKET_ENABLED = bool(
+    SHIPROCKET_API_EMAIL
+    and SHIPROCKET_API_PASSWORD
+    and not SHIPROCKET_API_EMAIL.lower().startswith(("replace_", "your_", "todo"))
+    and not SHIPROCKET_API_PASSWORD.lower().startswith(("replace_", "your_", "todo"))
+)
+
+# Volumetric divisor assumption (default: 5000 for standard Indian surface logistics)
+SHIPROCKET_VOLUMETRIC_DIVISOR = Decimal(os.getenv("SHIPROCKET_VOLUMETRIC_DIVISOR", "5000.00"))
+
+# Safe platform central warehouse configuration (for platform-owned inventory fulfillment)
+# Values are loaded safely from environment variables with non-secret defaults.
+FITMEEZO_PLATFORM_WAREHOUSE = {
+    "facility_name": os.getenv("PLATFORM_WAREHOUSE_NAME", "Fitmeezo Central Fulfillment Center"),
+    "contact_name": os.getenv("PLATFORM_WAREHOUSE_CONTACT", "Fitmeezo Operations"),
+    "contact_phone": os.getenv("PLATFORM_WAREHOUSE_PHONE", "9876543210"),
+    "contact_email": os.getenv("PLATFORM_WAREHOUSE_EMAIL", "support@fitmeezo.com"),
+    "address_line1": os.getenv("PLATFORM_WAREHOUSE_ADDRESS1", "Plot 42, Industrial Area Phase II"),
+    "address_line2": os.getenv("PLATFORM_WAREHOUSE_ADDRESS2", ""),
+    "city": os.getenv("PLATFORM_WAREHOUSE_CITY", "Bengaluru"),
+    "state": os.getenv("PLATFORM_WAREHOUSE_STATE", "Karnataka"),
+    "postal_code": os.getenv("PLATFORM_WAREHOUSE_PIN", "560100"),
+    "country": "India",
+    "is_verified": os.getenv("PLATFORM_WAREHOUSE_VERIFIED", "False").lower() in ("true", "1", "t", "yes"),
+}
+
+# ==============================================================================
+# RETURNS, EXCHANGES & REFUND MANAGEMENT CONFIGURATION (PHASE 6)
+# ==============================================================================
+# Standard return window in days after delivery (configurable default: 7 days)
+FITMEEZO_RETURN_WINDOW_DAYS = int(os.getenv("FITMEEZO_RETURN_WINDOW_DAYS", "7"))
+# Enables exchange / replacement variant selection
+FITMEEZO_EXCHANGE_ENABLED = os.getenv("FITMEEZO_EXCHANGE_ENABLED", "True").lower() in ("true", "1", "t", "yes")
+# Safe mock refund mode: strictly prevents contacting Razorpay/banking APIs
+FITMEEZO_MOCK_REFUNDS = os.getenv("FITMEEZO_MOCK_REFUNDS", "True").lower() in ("true", "1", "t", "yes")
+
+# ==============================================================================
+# SELLER LEDGER, COMMISSION & PAYOUT CONFIGURATION (PHASE 7)
+# ==============================================================================
+# Safe mock payout mode: strictly prevents real bank transfers or Razorpay Route calls
+FITMEEZO_MOCK_PAYOUTS = os.getenv("FITMEEZO_MOCK_PAYOUTS", "True").lower() in ("true", "1", "t", "yes")
+# Cooling/holding window in days post-delivery before order funds qualify for payout eligibility
+FITMEEZO_PAYOUT_HOLD_DAYS_AFTER_DELIVERY = int(os.getenv("FITMEEZO_PAYOUT_HOLD_DAYS_AFTER_DELIVERY", "7"))
+# Minimum positive balance required to generate a payout batch (in INR)
+FITMEEZO_MIN_PAYOUT_THRESHOLD = Decimal(os.getenv("FITMEEZO_MIN_PAYOUT_THRESHOLD", "1.00"))
+# Policy rules for gateway fee, return shipping, and discount funding
+FITMEEZO_GATEWAY_FEE_ALLOCATION = os.getenv("FITMEEZO_GATEWAY_FEE_ALLOCATION", "platform")  # 'platform' | 'seller'
+FITMEEZO_RETURN_SHIPPING_BEARER = os.getenv("FITMEEZO_RETURN_SHIPPING_BEARER", "platform")  # 'platform' | 'seller'
+FITMEEZO_DISCOUNT_BEARER = os.getenv("FITMEEZO_DISCOUNT_BEARER", "platform")  # 'platform' | 'seller'
+# Tax withholding rates (Section 194-O TDS & GST TCS); set to 0.00 until accountant confirmation
+FITMEEZO_TDS_RATE_PERCENT = Decimal(os.getenv("FITMEEZO_TDS_RATE_PERCENT", "0.00"))
+FITMEEZO_TCS_GST_RATE_PERCENT = Decimal(os.getenv("FITMEEZO_TCS_GST_RATE_PERCENT", "0.00"))
+
+# ==============================================================================
+# INVOICE PDF, PACKING SLIP & TAX RECORDS CONFIGURATION (PHASE 8)
+# ==============================================================================
+# Invoice number prefix configuration (customizable without altering previously issued numbers)
+FITMEEZO_INVOICE_PREFIX = os.getenv("FITMEEZO_INVOICE_PREFIX", "FM-INV")
+FITMEEZO_SELLER_INVOICE_PREFIX = os.getenv("FITMEEZO_SELLER_INVOICE_PREFIX", "FM-SINV")
+
+# Issuance rule: controls when customer can download an issued tax/commercial invoice
+# Options: 'on_payment_or_cod' (default), 'on_dispatch', 'on_delivery', 'always_on_placement'
+FITMEEZO_INVOICE_ISSUANCE_RULE = os.getenv("FITMEEZO_INVOICE_ISSUANCE_RULE", "on_payment_or_cod")
+
+# Commercial/Tax invoicing issuer model (pending final Owner & Chartered Accountant confirmation):
+# 'platform_marketplace' - Fitmeezo issues unified customer commercial invoice on behalf of platform
+# 'seller_direct' - Each seller issues independent commercial invoices to customer
+# 'composite' - Parent invoice for customer; seller-specific package invoice for logistics & seller records
+FITMEEZO_INVOICE_ISSUER_MODEL = os.getenv("FITMEEZO_INVOICE_ISSUER_MODEL", "composite")
+
+# Platform Legal Issuer metadata (Empty strings if unconfigured; never fabricated)
+FITMEEZO_LEGAL_ENTITY_NAME = os.getenv("FITMEEZO_LEGAL_ENTITY_NAME", "Fitmeezo India Retail")
+FITMEEZO_PLATFORM_GSTIN = os.getenv("FITMEEZO_PLATFORM_GSTIN", "").strip()
+FITMEEZO_PLATFORM_PAN = os.getenv("FITMEEZO_PLATFORM_PAN", "").strip()
+FITMEEZO_PLATFORM_CIN = os.getenv("FITMEEZO_PLATFORM_CIN", "").strip()
+FITMEEZO_REGISTERED_OFFICE_ADDRESS = os.getenv(
+    "FITMEEZO_REGISTERED_OFFICE_ADDRESS",
+    "Plot 42, Industrial Area Phase II, Bengaluru, Karnataka 560100, India"
+)
+
+# Customer support and grievance details for invoice documents
+FITMEEZO_SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "support@fitmeezo.com")
+FITMEEZO_SUPPORT_PHONE = os.getenv("SUPPORT_PHONE", "+91 98765 43210")
+FITMEEZO_SUPPORT_HOURS = os.getenv("SUPPORT_HOURS", "Mon - Sat, 10:00 AM - 7:00 PM IST")
+
+# ==============================================================================
+# SELLER OTP & SMS GATEWAY CONFIGURATION
+# ==============================================================================
+# Supported options: 'console' (local dev), 'mock' (tests), 'fast2sms', 'twilio', 'msg91'
+SMS_PROVIDER = os.getenv("SMS_PROVIDER", "console" if DEBUG else "").strip().lower()
+SELLER_OTP_DEV_MODE = os.getenv("SELLER_OTP_DEV_MODE", "True" if DEBUG else "False").strip().lower() in ("true", "1", "yes")
+
+
+
+

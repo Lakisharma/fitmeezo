@@ -1,0 +1,501 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Return #{{ return_request.request_number }} — Custom Admin{% endblock %}
+{% block page_title %}Return #{{ return_request.request_number }}{% endblock %}
+
+{% block content %}
+<!-- Breadcrumbs & Header -->
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+  <div>
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1 small">
+        <li class="breadcrumb-item"><a href="{% url 'custom_admin:dashboard' %}" class="text-decoration-none">Dashboard</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'custom_admin:return_list' %}" class="text-decoration-none">Returns</a></li>
+        <li class="breadcrumb-item active font-monospace" aria-current="page">#{{ return_request.request_number }}</li>
+      </ol>
+    </nav>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <h4 class="fw-bold mb-0 font-monospace text-dark">Return #{{ return_request.request_number }}</h4>
+      <span class="badge {% if return_request.status == 'completed' %}bg-success-subtle text-success border border-success-subtle{% elif return_request.status == 'rejected' or return_request.status == 'cancelled' %}bg-danger-subtle text-danger border border-danger-subtle{% elif return_request.status == 'requested' %}bg-warning-subtle text-warning-emphasis border border-warning-subtle{% elif return_request.status == 'approved' %}bg-primary-subtle text-primary border border-primary-subtle{% else %}bg-info-subtle text-info border border-info-subtle{% endif %} fs-6">
+        {{ return_request.get_status_display }}
+      </span>
+      {% if return_request.inventory_restored %}
+        <span class="badge bg-success-subtle text-success border border-success-subtle">
+          <i class="bi bi-check-circle me-1"></i>Stock Restored
+        </span>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <a href="{% url 'custom_admin:return_list' %}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i> Back to Returns
+    </a>
+    <a href="{% url 'custom_admin:order_detail' pk=return_request.order.pk %}" class="btn btn-outline-dark btn-sm">
+      <i class="bi bi-box-seam me-1"></i> View Order #{{ return_request.order.order_number }}
+    </a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Left Main Column -->
+  <div class="col-lg-8">
+    
+    <!-- Items & Quality Inspection Card -->
+    <div class="card border shadow-sm rounded-3 bg-white mb-4">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold text-dark mb-0">
+          <i class="bi bi-box-seam me-2 text-primary"></i>Items &amp; Quality Inspection
+        </h6>
+        <span class="small text-muted">{{ items.count }} item{{ items.count|pluralize }} in this request</span>
+      </div>
+      <div class="card-body p-0">
+        <form method="post" action="{% url 'custom_admin:return_transition' request_number=return_request.request_number %}">
+          {% csrf_token %}
+          <input type="hidden" name="target_status" value="{{ return_request.status }}">
+          
+          <div class="table-responsive">
+            <table class="table align-middle mb-0">
+              <thead class="table-light small">
+                <tr>
+                  <th class="ps-3">Item Details</th>
+                  <th class="text-center">Return Qty</th>
+                  <th class="text-center">Refund Value</th>
+                  <th>Inspection Status</th>
+                  <th class="text-center">Restock?</th>
+                  <th class="pe-3">Inspector Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in items %}
+                  <tr>
+                    <td class="ps-3 py-3">
+                      <div class="fw-bold text-dark">{{ item.order_item.product_name }}</div>
+                      {% if item.order_item.variant_label %}
+                        <div class="small text-muted">{{ item.order_item.variant_label }}</div>
+                      {% endif %}
+                      <div class="small text-muted font-monospace">SKU: {{ item.order_item.sku }}</div>
+                      {% if item.exchange_variant %}
+                        <div class="small text-primary mt-1">
+                          <i class="bi bi-arrow-left-right me-1"></i> Requested Variant: <strong>{{ item.exchange_variant.option_value }}</strong>
+                        </div>
+                      {% endif %}
+                    </td>
+                    <td class="text-center fw-bold">{{ item.quantity }}</td>
+                    <td class="text-center fw-bold text-success">₹{{ item.refund_eligible_amount|floatformat:2 }}</td>
+                    <td style="min-width: 140px;">
+                      {% if return_request.status in 'item_received,inspection,approved,requested' and return_request.status != 'completed' and return_request.status != 'rejected' and return_request.status != 'cancelled' %}
+                        <select name="item_{{ item.id }}_status" class="form-select form-select-sm">
+                          {% for s_val, s_label in inspection_choices %}
+                            <option value="{{ s_val }}" {% if item.inspection_status == s_val %}selected{% endif %}>{{ s_label }}</option>
+                          {% endfor %}
+                        </select>
+                      {% else %}
+                        <span class="badge {% if item.inspection_status == 'passed' %}bg-success-subtle text-success{% elif item.inspection_status == 'failed' %}bg-danger-subtle text-danger{% else %}bg-secondary-subtle text-dark{% endif %}">
+                          {{ item.get_inspection_status_display }}
+                        </span>
+                      {% endif %}
+                    </td>
+                    <td class="text-center">
+                      {% if return_request.status in 'item_received,inspection,approved,requested' and not return_request.inventory_restored and return_request.status != 'completed' and return_request.status != 'rejected' and return_request.status != 'cancelled' %}
+                        <input type="checkbox" name="item_{{ item.id }}_restock" value="1" class="form-check-input" {% if item.restock_inventory %}checked{% endif %} title="Restore to stock upon pass">
+                      {% else %}
+                        {% if item.restock_inventory %}
+                          <i class="bi bi-check-circle-fill text-success" title="Marked for Restock"></i>
+                        {% else %}
+                          <i class="bi bi-dash-circle text-muted" title="Do not Restock"></i>
+                        {% endif %}
+                      {% endif %}
+                    </td>
+                    <td class="pe-3" style="min-width: 150px;">
+                      {% if return_request.status in 'item_received,inspection,approved,requested' and return_request.status != 'completed' and return_request.status != 'rejected' and return_request.status != 'cancelled' %}
+                        <input type="text" name="item_{{ item.id }}_notes" value="{{ item.inspection_notes }}" class="form-control form-control-sm" placeholder="Notes...">
+                      {% else %}
+                        <small class="text-muted">{{ item.inspection_notes|default:"—" }}</small>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          {% if return_request.status in 'item_received,inspection,approved' and return_request.status != 'completed' and return_request.status != 'rejected' and return_request.status != 'cancelled' %}
+            <div class="card-footer bg-light border-top p-3 d-flex justify-content-between align-items-center">
+              <small class="text-muted">Save updated inspection results or restock flags.</small>
+              <button type="submit" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-save me-1"></i> Save Inspection Decisions
+              </button>
+            </div>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+
+    <!-- Customer Photos Card -->
+    <div class="card border shadow-sm rounded-3 bg-white mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="fw-bold text-dark mb-0">
+          <i class="bi bi-camera me-2 text-primary"></i>Customer Submitted Condition Evidence
+        </h6>
+      </div>
+      <div class="card-body p-3">
+        {% if return_request.photo_1 or return_request.photo_2 or return_request.photo_3 %}
+          <div class="row g-3">
+            {% if return_request.photo_1 %}
+              <div class="col-sm-4 text-center">
+                <a href="{{ return_request.photo_1.url }}" target="_blank" class="d-block border rounded p-1 bg-light text-decoration-none">
+                  <img src="{{ return_request.photo_1.url }}" alt="Photo Evidence 1" class="img-fluid rounded" style="max-height: 180px; object-fit: cover;">
+                </a>
+                <div class="small text-muted mt-1">Photo 1 <a href="{{ return_request.photo_1.url }}" target="_blank" class="ms-1"><i class="bi bi-box-arrow-up-right"></i></a></div>
+              </div>
+            {% endif %}
+            {% if return_request.photo_2 %}
+              <div class="col-sm-4 text-center">
+                <a href="{{ return_request.photo_2.url }}" target="_blank" class="d-block border rounded p-1 bg-light text-decoration-none">
+                  <img src="{{ return_request.photo_2.url }}" alt="Photo Evidence 2" class="img-fluid rounded" style="max-height: 180px; object-fit: cover;">
+                </a>
+                <div class="small text-muted mt-1">Photo 2 <a href="{{ return_request.photo_2.url }}" target="_blank" class="ms-1"><i class="bi bi-box-arrow-up-right"></i></a></div>
+              </div>
+            {% endif %}
+            {% if return_request.photo_3 %}
+              <div class="col-sm-4 text-center">
+                <a href="{{ return_request.photo_3.url }}" target="_blank" class="d-block border rounded p-1 bg-light text-decoration-none">
+                  <img src="{{ return_request.photo_3.url }}" alt="Photo Evidence 3" class="img-fluid rounded" style="max-height: 180px; object-fit: cover;">
+                </a>
+                <div class="small text-muted mt-1">Photo 3 <a href="{{ return_request.photo_3.url }}" target="_blank" class="ms-1"><i class="bi bi-box-arrow-up-right"></i></a></div>
+              </div>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="p-3 text-center text-muted small bg-light rounded">
+            <i class="bi bi-image text-secondary fs-4 d-block mb-1"></i>
+            No condition photos were submitted by the customer for this request.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Refund Processing & Vouchers Card -->
+    <div class="card border shadow-sm rounded-3 bg-white mb-4">
+      <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold text-dark mb-0">
+          <i class="bi bi-receipt-cutoff me-2 text-success"></i>Refund Vouchers &amp; Financial Settlement
+        </h6>
+        <span class="badge bg-light text-dark border">Eligible: ₹{{ return_request.total_refund_amount|floatformat:2 }}</span>
+      </div>
+      <div class="card-body p-3">
+        {% if refunds %}
+          <div class="table-responsive mb-3">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light small">
+                <tr>
+                  <th>Voucher #</th>
+                  <th>Gateway Ref</th>
+                  <th>Method</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Processed By</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ref in refunds %}
+                  <tr>
+                    <td class="font-monospace fw-bold">{{ ref.refund_reference }}</td>
+                    <td class="font-monospace small text-muted">{{ ref.external_reference }}</td>
+                    <td><span class="badge bg-secondary-subtle text-dark">{{ ref.payment_method|upper }}</span></td>
+                    <td class="fw-bold text-success">₹{{ ref.approved_amount|floatformat:2 }}</td>
+                    <td><span class="badge bg-success-subtle text-success">{{ ref.get_status_display }}</span></td>
+                    <td class="small">{{ ref.processed_by.username|default:"System" }}</td>
+                    <td class="small text-muted">{{ ref.processed_at|date:"d M Y, H:i" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="p-3 text-muted small bg-light rounded mb-3">
+            <i class="bi bi-info-circle me-1 text-primary"></i> No refund voucher has been executed yet for this return request.
+          </div>
+        {% endif %}
+
+        <!-- Trigger Refund Form if eligible state and not yet refunded -->
+        {% if return_request.status in 'inspection,processing,approved' and not refunds %}
+          <div class="border rounded p-3 bg-light-subtle">
+            <h6 class="fw-bold text-dark mb-2">Execute Safe Settlement Refund</h6>
+            <p class="text-muted small mb-3">
+              Generates a certified refund voucher, automatically debits seller payable in financial ledger, restores inventory (if restock enabled), and closes the return lifecycle.
+              <strong class="text-dark">Safe simulated mock mode is active (zero live gateway debit).</strong>
+            </p>
+            <form method="post" action="{% url 'custom_admin:return_refund' request_number=return_request.request_number %}" onsubmit="return confirm('Confirm generating refund voucher for ₹{{ return_request.total_refund_amount }}? This will finalize the return lifecycle.');">
+              {% csrf_token %}
+              <div class="row g-2 align-items-center">
+                <div class="col-md-4">
+                  <label class="form-label small text-muted mb-1">Approved Amount (₹)</label>
+                  <input type="number" step="0.01" name="approved_amount" value="{{ return_request.total_refund_amount }}" max="{{ return_request.total_refund_amount }}" min="0" class="form-control form-control-sm fw-bold text-success">
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small text-muted mb-1">Refund Method</label>
+                  <select name="payment_method" class="form-select form-select-sm">
+                    <option value="{{ return_request.order.payment_method }}" selected>{{ return_request.order.payment_method|upper }} (Original Method)</option>
+                    <option value="bank_transfer">Bank Transfer (NEFT/IMPS)</option>
+                    <option value="store_credit">Store Credit Voucher</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label small text-muted mb-1">Reason / Note</label>
+                  <input type="text" name="reason" value="Approved Return #{{ return_request.request_number }}" class="form-control form-control-sm">
+                </div>
+                <div class="col-12 mt-2">
+                  <button type="submit" class="btn btn-success btn-sm w-100">
+                    <i class="bi bi-check-circle me-1"></i> Issue Refund Voucher &amp; Complete Return
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Timeline & Audit Trail -->
+    <div class="card border shadow-sm rounded-3 bg-white mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="fw-bold text-dark mb-0">
+          <i class="bi bi-clock-history me-2 text-primary"></i>Audit Timeline &amp; State Transitions
+        </h6>
+      </div>
+      <div class="card-body p-4">
+        <ul class="list-group list-group-flush">
+          {% for log in audit_logs %}
+            <li class="list-group-item px-0 py-2 d-flex justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold text-dark">
+                  {{ log.action|title }}
+                  <span class="badge bg-light text-dark border ms-1 small">{{ log.actor_role }}</span>
+                  {% if log.actor %}
+                    <span class="small text-muted">({{ log.actor.username }})</span>
+                  {% endif %}
+                </div>
+                <div class="small text-muted">{{ log.notes }}</div>
+                {% if log.from_status and log.to_status %}
+                  <div class="small text-secondary font-monospace mt-1">
+                    {{ log.from_status }} <i class="bi bi-arrow-right"></i> {{ log.to_status }}
+                  </div>
+                {% endif %}
+              </div>
+              <div class="small text-muted text-end">
+                {{ log.created_at|date:"d M Y, H:i" }}
+              </div>
+            </li>
+          {% empty %}
+            <li class="list-group-item px-0 text-muted small">No audit log entries recorded yet.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right Sidebar Column -->
+  <div class="col-lg-4">
+
+    <!-- Lifecycle Transition Actions Card -->
+    <div class="card border shadow-sm rounded-3 bg-white mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="fw-bold text-dark mb-0">
+          <i class="bi bi-sliders me-2 text-primary"></i>Lifecycle Actions
+        </h6>
+      </div>
+      <div class="card-body p-3">
+        <div class="mb-3">
+          <label class="form-label text-muted small fw-semibold">Current State:</label>
+          <div class="fw-bold fs-6 text-dark">{{ return_request.get_status_display }}</div>
+        </div>
+
+        {% if allowed_next_states %}
+          <label class="form-label text-muted small fw-semibold mb-2">Available Stage Transitions:</label>
+          <div class="d-flex flex-column gap-2 mb-3">
+            
+            {% if 'approved' in allowed_next_states %}
+              <form method="post" action="{% url 'custom_admin:return_transition' request_number=return_request.request_number %}">
+                {% csrf_token %}
+                <input type="hidden" name="target_status" value="approved">
+                <button type="submit" class="btn btn-outline-primary w-100 btn-sm text-start d-flex justify-content-between align-items-center">
+                  <span><i class="bi bi-check-lg me-1"></i> Approve Return Request</span>
+                  <i class="bi bi-chevron-right"></i>
+                </button>
+              </form>
+            {% endif %}
+
+            {% if 'pickup_pending' in allowed_next_states %}
+              <form method="post" action="{% url 'custom_admin:return_transition' request_number=return_request.request_number %}">
+                {% csrf_token %}
+                <input type="hidden" name="target_status" value="pickup_pending">
+                <button type="submit" class="btn btn-outline-info w-100 btn-sm text-start d-flex justify-content-between align-items-center">
+                  <span><i class="bi bi-truck me-1"></i> Schedule Pickup</span>
+                  <i class="bi bi-chevron-right"></i>
+                </button>
+              </form>
+            {% endif %}
+
+            {% if 'item_received' in allowed_next_states %}
+              <form method="post" action="{% url 'custom_admin:return_transition' request_number=return_request.request_number %}">
+                {% csrf_token %}
+                <input type="hidden" name="target_status" value="item_received">
+                <button type="submit" class="btn btn-outline-secondary w-100 btn-sm text-start d-flex justify-content-between align-items-center">
+                  <span><i class="bi bi-box-arrow-in-down me-1"></i> Mark Item Received at Hub</span>
+                  <i class="bi bi-chevron-right"></i>
+                </button>
+              </form>
+            {% endif %}
+
+            {% if 'inspection' in allowed_next_states %}
+              <form method="post" action="{% url 'custom_admin:return_transition' request_number=return_request.request_number %}">
+                {% csrf_token %}
+                <input type="hidden" name="target_status" value="inspection">
+                <button type="submit" class="btn btn-outline-warning w-100 btn-sm text-start d-flex justify-content-between align-items-center">
+                  <span><i class="bi bi-search me-1"></i> Move to Under Inspection</span>
+                  <i class="bi bi-chevron-right"></i>
+                </button>
+              </form>
+            {% endif %}
+
+            {% if 'processing' in allowed_next_states %}
+              <form method="post" action="{% url 'custom_admin:return_transition' request_number=return_request.request_number %}">
+                {% csrf_token %}
+                <input type="hidden" name="target_status" value="processing">
+                <button type="submit" class="btn btn-outline-success w-100 btn-sm text-start d-flex justify-content-between align-items-center">
+                  <span><i class="bi bi-cash-coin me-1"></i> Advance to Refund Processing</span>
+                  <i class="bi bi-chevron-right"></i>
+                </button>
+              </form>
+            {% endif %}
+
+            <!-- Reject Return Modal Trigger -->
+            {% if 'rejected' in allowed_next_states %}
+              <button type="button" class="btn btn-outline-danger w-100 btn-sm text-start d-flex justify-content-between align-items-center" data-bs-toggle="modal" data-bs-target="#rejectModal">
+                <span><i class="bi bi-x-circle me-1"></i> Reject Return Request</span>
+                <i class="bi bi-chevron-right"></i>
+              </button>
+            {% endif %}
+
+          </div>
+        {% else %}
+          <div class="p-2 rounded bg-light text-muted small text-center">
+            This return request has reached its terminal lifecycle state (<strong>{{ return_request.get_status_display }}</strong>).
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Request Details Card -->
+    <div class="card border shadow-sm rounded-3 bg-white mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h6 class="fw-bold text-dark mb-0">Return Metadata</h6>
+      </div>
+      <div class="card-body p-3">
+        <div class="d-flex justify-content-between py-2 border-bottom small">
+          <span class="text-muted">Request Type:</span>
+          <span class="fw-bold text-dark">{{ return_request.get_request_type_display }}</span>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom small">
+          <span class="text-muted">Reason Category:</span>
+          <span class="fw-bold text-dark">{{ return_request.get_reason_display }}</span>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom small">
+          <span class="text-muted">Parent Order:</span>
+          <a href="{% url 'custom_admin:order_detail' pk=return_request.order.pk %}" class="fw-bold text-decoration-none">
+            #{{ return_request.order.order_number }}
+          </a>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom small">
+          <span class="text-muted">Package:</span>
+          <span class="font-monospace fw-semibold">{{ return_request.seller_order.sub_order_number }}</span>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom small">
+          <span class="text-muted">Fulfillment:</span>
+          <span>
+            {% if return_request.is_platform_fulfilled %}
+              <strong class="text-primary">Fitmeezo Direct</strong>
+            {% elif return_request.seller %}
+              <strong>{{ return_request.seller.store_name }}</strong>
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </span>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom small">
+          <span class="text-muted">Customer:</span>
+          <span class="fw-semibold">{{ return_request.customer.get_full_name|default:return_request.customer.username }}</span>
+        </div>
+        <div class="d-flex justify-content-between py-2 border-bottom small">
+          <span class="text-muted">Phone:</span>
+          <span>{{ return_request.customer.phone_number|default:"—" }}</span>
+        </div>
+        <div class="d-flex justify-content-between py-2 small">
+          <span class="text-muted">Email:</span>
+          <span>{{ return_request.customer.email|default:"—" }}</span>
+        </div>
+
+        {% if return_request.customer_notes %}
+          <div class="mt-3 pt-3 border-top">
+            <label class="form-label text-muted small fw-semibold">Customer's Statement:</label>
+            <div class="p-2 rounded bg-light small text-dark fst-italic">"{{ return_request.customer_notes }}"</div>
+          </div>
+        {% endif %}
+
+        {% if return_request.rejection_reason %}
+          <div class="mt-3 pt-3 border-top">
+            <label class="form-label text-danger small fw-semibold">Rejection Reason Provided:</label>
+            <div class="p-2 rounded bg-danger-subtle text-danger small">"{{ return_request.rejection_reason }}"</div>
+          </div>
+        {% endif %}
+
+        {% if return_request.seller_notes %}
+          <div class="mt-3 pt-3 border-top">
+            <label class="form-label text-muted small fw-semibold">Internal Notes History:</label>
+            <pre class="p-2 rounded bg-light small text-dark mb-0 font-monospace" style="white-space: pre-wrap;">{{ return_request.seller_notes }}</pre>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Rejection Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'custom_admin:return_reject' request_number=return_request.request_number %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title fw-bold text-danger" id="rejectModalLabel">
+            <i class="bi bi-x-circle me-1"></i> Reject Return Request
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="small text-muted mb-3">
+            Under Consumer Protection (E-Commerce) Rules, 2020, a specific, valid reason must be recorded and shared with the consumer when declining a return or exchange request.
+          </p>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-dark">Mandatory Rejection Reason <span class="text-danger">*</span></label>
+            <textarea name="rejection_reason" rows="3" class="form-control" placeholder="e.g. Returned item does not match delivery serial number / policy exclusion..." required></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold small text-dark">Internal Staff Remarks (Optional)</label>
+            <input type="text" name="notes" class="form-control" placeholder="Internal audit note...">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger btn-sm">Confirm Rejection</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

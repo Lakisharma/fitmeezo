@@ -1,0 +1,20 @@
+FITMEEZO - PAYMENT CONFIRMATION
+======================================================
+Dear {{ order.shipping_full_name }},
+
+Your online payment for Order #{{ order.order_number }} has been confirmed and verified successfully!
+
+PAYMENT DETAILS:
+------------------------------------------------------
+Order Number: #{{ order.order_number }}
+Amount Paid: ₹{{ order.total_amount }}
+Payment ID: {{ order.razorpay_payment_id }}
+Date: {{ order.paid_at|date:"d M Y, h:i A"|default:"Just now" }}
+Status: Paid / Processing
+
+We are now preparing your order for shipment.
+If you have any questions, reach our customer care at support@fitmeezo.com.
+
+Thank you for shopping with Fitmeezo!
+Team Fitmeezo
+https://fitmeezo.com

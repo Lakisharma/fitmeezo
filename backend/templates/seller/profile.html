@@ -1,0 +1,140 @@
+{% extends "seller/base.html" %}
+{% load static %}
+
+{% block title %}Store Profile — {{ seller.store_name }} | {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Manage operational contact and facility details for your Fitmeezo seller store.{% endblock %}
+
+{% block page_header_title %}Store Profile &amp; Settings{% endblock %}
+
+{% block content %}
+<div class="seller-profile-wrapper">
+  <!-- Breadcrumbs -->
+  <nav class="d-flex align-items-center gap-2 small text-muted mb-3" aria-label="Breadcrumbs">
+    <a href="{% url 'core:home' %}" class="text-decoration-none text-muted d-flex align-items-center gap-1">
+      <i class="bi bi-house"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <a href="{% url 'core:seller_dashboard' %}" class="text-decoration-none text-muted">Dashboard</a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <span class="text-dark fw-semibold" aria-current="page">Store Profile</span>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-9">
+      <div class="card seller-card p-4 p-md-5 mb-4">
+        <div class="d-flex align-items-center justify-content-between pb-3 mb-4 border-bottom flex-wrap gap-2">
+          <div>
+            <h1 class="h4 fw-bold text-dark mb-1">Store Details &amp; Operational Contacts</h1>
+            <p class="small text-secondary mb-0">Update customer support channels and warehouse courier pickup address.</p>
+          </div>
+          <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1">
+            <i class="bi bi-patch-check-fill me-1"></i> Approved Merchant
+          </span>
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger mb-4" role="alert">
+              {% for error in form.non_field_errors %}
+                <div><i class="bi bi-exclamation-triangle-fill me-1"></i> {{ error }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <div class="mb-4">
+            <h2 class="h6 fw-bold text-dark mb-3"><i class="bi bi-shop me-1 text-primary"></i> Store Identity</h2>
+            <div class="mb-3">
+              <label for="{{ form.store_name.id_for_label }}" class="form-label small fw-semibold">Store Display Name <span class="text-danger">*</span></label>
+              {{ form.store_name }}
+              {% if form.store_name.errors %}
+                <div class="text-danger small mt-1">{{ form.store_name.errors.0 }}</div>
+              {% endif %}
+            </div>
+            <div class="mb-3">
+              <label for="{{ form.store_description.id_for_label }}" class="form-label small fw-semibold">Store Bio &amp; Description</label>
+              {{ form.store_description }}
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <h2 class="h6 fw-bold text-dark mb-3"><i class="bi bi-headset me-1 text-primary"></i> Customer Support Channels</h2>
+            <div class="row g-3">
+              <div class="col-12 col-md-6">
+                <label for="{{ form.support_email.id_for_label }}" class="form-label small fw-semibold">Support Email</label>
+                {{ form.support_email }}
+                {% if form.support_email.errors %}
+                  <div class="text-danger small mt-1">{{ form.support_email.errors.0 }}</div>
+                {% endif %}
+              </div>
+              <div class="col-12 col-md-6">
+                <label for="{{ form.support_phone.id_for_label }}" class="form-label small fw-semibold">Support Phone</label>
+                {{ form.support_phone }}
+                {% if form.support_phone.errors %}
+                  <div class="text-danger small mt-1">{{ form.support_phone.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <h2 class="h6 fw-bold text-dark mb-3"><i class="bi bi-building me-1 text-primary"></i> Registered Business Office Address</h2>
+            <div class="mb-3">
+              <label for="{{ form.registered_address.id_for_label }}" class="form-label small fw-semibold">Street Address</label>
+              {{ form.registered_address }}
+            </div>
+            <div class="row g-3">
+              <div class="col-12 col-md-4">
+                <label for="{{ form.city.id_for_label }}" class="form-label small fw-semibold">City</label>
+                {{ form.city }}
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="{{ form.state.id_for_label }}" class="form-label small fw-semibold">State</label>
+                {{ form.state }}
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="{{ form.postal_code.id_for_label }}" class="form-label small fw-semibold">PIN Code</label>
+                {{ form.postal_code }}
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <h2 class="h6 fw-bold text-dark mb-3"><i class="bi bi-truck me-1 text-primary"></i> Warehouse / Courier Pickup Facility</h2>
+            <div class="mb-3">
+              <label for="{{ form.pickup_address.id_for_label }}" class="form-label small fw-semibold">Facility Street Address</label>
+              {{ form.pickup_address }}
+            </div>
+            <div class="row g-3">
+              <div class="col-12 col-md-4">
+                <label for="{{ form.pickup_city.id_for_label }}" class="form-label small fw-semibold">Pickup City</label>
+                {{ form.pickup_city }}
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="{{ form.pickup_state.id_for_label }}" class="form-label small fw-semibold">Pickup State</label>
+                {{ form.pickup_state }}
+              </div>
+              <div class="col-12 col-md-4">
+                <label for="{{ form.pickup_postal_code.id_for_label }}" class="form-label small fw-semibold">Pickup PIN</label>
+                {{ form.pickup_postal_code }}
+              </div>
+            </div>
+          </div>
+
+          <div class="pt-3 border-top d-flex align-items-center justify-content-between">
+            <a href="{% url 'core:seller_dashboard' %}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+            </a>
+            <button type="submit" class="btn seller-btn-navy btn-sm px-4">
+              <i class="bi bi-check2-circle me-1"></i> Save Store Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

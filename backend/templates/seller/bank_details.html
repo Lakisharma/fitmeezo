@@ -1,0 +1,525 @@
+{% extends "seller/base.html" %}
+{% load static %}
+
+{% block title %}Bank Details &amp; Payout Account — {{ seller.store_name }} | {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Manage bank beneficiary information, IFSC code, and settlement verification for your Fitmeezo seller store.{% endblock %}
+
+{% block page_header_title %}Bank Account &amp; Settlement{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'core:seller_payout_list' %}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+  <i class="bi bi-cash-stack"></i> Payout History
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="seller-bank-wrapper">
+  <!-- Breadcrumbs -->
+  <nav class="d-flex align-items-center gap-2 small text-muted mb-3" aria-label="Breadcrumbs">
+    <a href="{% url 'core:home' %}" class="text-decoration-none text-muted d-flex align-items-center gap-1">
+      <i class="bi bi-house"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <a href="{% url 'core:seller_dashboard' %}" class="text-decoration-none text-muted">Dashboard</a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <a href="{% url 'core:seller_payout_list' %}" class="text-decoration-none text-muted">Payouts</a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <span class="text-dark fw-semibold" aria-current="page">Bank Details</span>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-xl-10">
+
+      <!-- Security Directive Banner -->
+      <div class="alert alert-primary border-primary-subtle d-flex align-items-start gap-3 shadow-sm mb-4" role="alert">
+        <i class="bi bi-shield-lock-fill fs-3 text-primary flex-shrink-0 mt-1"></i>
+        <div>
+          <h6 class="alert-heading fw-bold mb-1">Financial Security &amp; PII Protection</h6>
+          <p class="small mb-1">
+            Bank account details are stored securely, masked in displays (<code class="text-dark">••••1234</code>), and accessed strictly for verified merchant payout disbursements. Account details are never exposed to customers or other marketplace merchants.
+          </p>
+          <div class="small fw-semibold text-primary">
+            <i class="bi bi-exclamation-circle me-1"></i>Fitmeezo will NEVER request your UPI PIN, ATM PIN, netbanking password, or SMS OTP.
+          </div>
+        </div>
+      </div>
+
+      <!-- Current Verification Status Card -->
+      <div class="card seller-card mb-4 overflow-hidden">
+        <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-bank2 text-primary fs-5"></i>
+            <h6 class="mb-0 fw-bold">Settlement Account Status</h6>
+          </div>
+          <div>
+            {% if bank_status == 'verified' %}
+              <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2.5 py-1.5 fs-7">
+                <i class="bi bi-patch-check-fill me-1"></i> Verified &amp; Approved for Payouts
+              </span>
+            {% elif bank_status == 'pending' %}
+              <span class="badge bg-warning bg-opacity-15 text-dark border border-warning px-2.5 py-1.5 fs-7">
+                <i class="bi bi-hourglass-split me-1"></i> Verification Pending Review
+              </span>
+            {% elif bank_status == 'rejected' %}
+              <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2.5 py-1.5 fs-7">
+                <i class="bi bi-x-circle-fill me-1"></i> Verification Rejected
+              </span>
+            {% else %}
+              <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-2.5 py-1.5 fs-7">
+                <i class="bi bi-exclamation-circle me-1"></i> Not Submitted / Unverified
+              </span>
+            {% endif %}
+          </div>
+        </div>
+
+        <div class="card-body p-4">
+          <!-- Status Banner & Next Step Instructions -->
+          {% if bank_status == 'verified' %}
+            <div class="alert alert-success d-flex align-items-start gap-3 mb-4" role="alert">
+              <i class="bi bi-check-circle-fill text-success fs-4 flex-shrink-0 mt-0.5"></i>
+              <div>
+                <strong class="d-block text-success fw-bold mb-1">Status: Approved for Marketplace Payouts</strong>
+                <p class="small mb-1 text-dark">
+                  Your settlement bank account has been manually verified and approved by the platform finance compliance team. Payout disbursements will be credited to this account according to the marketplace settlement schedule.
+                </p>
+                <div class="small text-muted">
+                  <strong>Next Step:</strong> No further action is required. Note: If you edit your bank details below, verification status will automatically reset to <span class="badge bg-warning text-dark">Pending Review</span> and payouts will be paused until re-verified.
+                </div>
+              </div>
+            </div>
+          {% elif bank_status == 'pending' %}
+            <div class="alert alert-warning d-flex align-items-start gap-3 mb-4" role="alert">
+              <i class="bi bi-hourglass-split text-warning fs-4 flex-shrink-0 mt-0.5"></i>
+              <div>
+                <strong class="d-block text-dark fw-bold mb-1">Status: Verification Pending Review</strong>
+                <p class="small mb-1 text-dark">
+                  Your bank settlement credentials have been submitted and are under platform finance manual review. Payout disbursements remain locked until an authorized administrator approves your details.
+                </p>
+                <div class="small text-muted">
+                  <strong>Next Step:</strong> Administrative review is typically completed within 24–48 business hours. If any information was entered incorrectly, update the form below to re-submit.
+                </div>
+              </div>
+            </div>
+          {% elif bank_status == 'rejected' %}
+            <div class="alert alert-danger d-flex align-items-start gap-3 mb-4" role="alert">
+              <i class="bi bi-x-octagon-fill text-danger fs-4 flex-shrink-0 mt-0.5"></i>
+              <div>
+                <strong class="d-block text-danger fw-bold mb-1">Status: Bank Verification Rejected</strong>
+                <p class="small mb-1 text-dark">
+                  <strong>Rejection Reason from Compliance Team:</strong> <span class="text-danger fw-semibold">{{ rejection_reason|default:"Account credentials could not be verified against registered business documents." }}</span>
+                </p>
+                <div class="small text-muted">
+                  <strong>Next Step:</strong> Please review the rejection reason above, correct your account holder name, account number, or IFSC code in the form below, and re-submit for review.
+                </div>
+              </div>
+            </div>
+          {% else %}
+            <div class="alert alert-secondary d-flex align-items-start gap-3 mb-4" role="alert">
+              <i class="bi bi-info-circle-fill text-secondary fs-4 flex-shrink-0 mt-0.5"></i>
+              <div>
+                <strong class="d-block text-dark fw-bold mb-1">Status: Bank Account Not Registered</strong>
+                <p class="small mb-1 text-dark">
+                  No bank credentials are registered for your seller store. Payout disbursements cannot be created or processed without a verified settlement account.
+                </p>
+                <div class="small text-muted">
+                  <strong>Next Step:</strong> Fill out your bank credentials in the form below and click "Submit Bank Details".
+                </div>
+              </div>
+            </div>
+          {% endif %}
+
+          {% if has_bank_details %}
+            <div class="row g-3">
+              <div class="col-12 col-md-6 col-lg-3">
+                <div class="p-3 bg-light rounded-3 border">
+                  <div class="text-muted small mb-1">Account Holder Name</div>
+                  <div class="fw-bold text-dark text-truncate">{{ seller.bank_account_holder_name|default:"—" }}</div>
+                </div>
+              </div>
+              <div class="col-12 col-md-6 col-lg-3">
+                <div class="p-3 bg-light rounded-3 border">
+                  <div class="text-muted small mb-1">Masked Account Number</div>
+                  <div class="fw-bold text-dark font-monospace">{{ masked_account }}</div>
+                </div>
+              </div>
+              <div class="col-12 col-md-6 col-lg-3">
+                <div class="p-3 bg-light rounded-3 border">
+                  <div class="text-muted small mb-1">IFSC Code</div>
+                  <div class="fw-bold text-dark font-monospace text-uppercase">{{ seller.bank_ifsc_code|default:"—" }}</div>
+                </div>
+              </div>
+              <div class="col-12 col-md-6 col-lg-3">
+                <div class="p-3 bg-light rounded-3 border">
+                  <div class="text-muted small mb-1">Bank &amp; Account Type</div>
+                  <div class="fw-bold text-dark text-truncate">{{ seller.bank_name|default:"—" }} ({{ seller.get_bank_account_type_display }})</div>
+                </div>
+              </div>
+            </div>
+
+            {% if seller.bank_verified_at and bank_status == 'verified' %}
+              <div class="mt-3 text-muted small d-flex align-items-center gap-1">
+                <i class="bi bi-clock-history"></i>
+                Verified on {{ seller.bank_verified_at|date:"d M Y, H:i" }} by Platform Compliance Team
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="text-center py-3">
+              <i class="bi bi-credit-card text-muted fs-1 mb-2 d-block"></i>
+              <h6 class="fw-bold text-dark mb-1">No Bank Account Registered</h6>
+              <p class="text-muted small mb-0">Submit your company or proprietor bank account below to enable automated settlement disbursements.</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Bank Details Registration / Update Form Card -->
+      <div class="card seller-card p-4 p-md-5 mb-4">
+        <div class="border-bottom pb-3 mb-4">
+          <h2 class="h5 fw-bold text-dark mb-1">{% if has_bank_details %}Update Bank Details{% else %}Register Settlement Bank Account{% endif %}</h2>
+          <p class="small text-secondary mb-0">
+            Provide the bank details where you wish to receive scheduled marketplace payout transfers. Updating details automatically resets status to <span class="badge bg-warning text-dark">Pending Review</span> for platform audit.
+          </p>
+        </div>
+
+        <form method="post" novalidate autocomplete="off" id="sellerBankForm">
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger mb-4" role="alert">
+              {% for error in form.non_field_errors %}
+                <div><i class="bi bi-exclamation-triangle-fill me-1"></i> {{ error }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <div class="row g-3 mb-4">
+            <!-- 1. Account Holder Name -->
+            <div class="col-12 col-md-6">
+              <label for="{{ form.bank_account_holder_name.id_for_label }}" class="form-label small fw-semibold">
+                Beneficiary / Account Holder Name <span class="text-danger">*</span>
+              </label>
+              {{ form.bank_account_holder_name }}
+              {% if form.bank_account_holder_name.help_text %}
+                <div class="form-text small text-muted">{{ form.bank_account_holder_name.help_text }}</div>
+              {% endif %}
+              {% if form.bank_account_holder_name.errors %}
+                <div class="text-danger small mt-1">{{ form.bank_account_holder_name.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <!-- 2. Searchable Bank Selector with Autocomplete -->
+            <div class="col-12 col-md-6">
+              <label for="bankSearchInput" class="form-label small fw-semibold">
+                Bank Name <span class="text-danger">*</span>
+              </label>
+              
+              <!-- Searchable dropdown input widget -->
+              <div class="position-relative">
+                <div class="input-group">
+                  <span class="input-group-text bg-white"><i class="bi bi-search text-muted"></i></span>
+                  <input 
+                    type="text" 
+                    id="bankSearchInput" 
+                    class="form-control fm-input" 
+                    placeholder="Type to search bank (e.g. SBI, HDFC, ICICI, Axis)..." 
+                    autocomplete="off"
+                  >
+                  <button class="btn btn-outline-secondary" type="button" id="bankDropdownToggleBtn" title="Show bank options">
+                    <i class="bi bi-chevron-down"></i>
+                  </button>
+                </div>
+
+                <!-- Autocomplete suggestions dropdown -->
+                <div id="bankDropdownMenu" class="dropdown-menu w-100 shadow border p-0 mt-1" style="max-height: 240px; overflow-y: auto; display: none; position: absolute; z-index: 1050;">
+                  <div class="p-2 border-bottom bg-light small text-muted fw-semibold d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-bank me-1"></i> Common Indian Banks</span>
+                    <span class="badge bg-secondary" id="bankMatchCount" style="font-size: 10px;"></span>
+                  </div>
+                  <div id="bankOptionsList" class="py-1">
+                    <!-- Populated dynamically via JS -->
+                  </div>
+                  <div class="border-top p-1 bg-light">
+                    <button type="button" class="dropdown-item py-2 text-primary fw-semibold d-flex align-items-center gap-2" id="btnSelectOtherBank">
+                      <i class="bi bi-plus-circle-fill"></i>
+                      <span>Other (Bank not listed — enter manually)</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Standard Select fallback / synced element -->
+              <div class="mt-2" id="bankSelectDropdownWrapper">
+                <label for="{{ form.bank_name_select.id_for_label }}" class="form-label visually-hidden">Bank Name Select</label>
+                {{ form.bank_name_select }}
+              </div>
+
+              {{ form.bank_name }}
+
+              <div class="form-text small text-muted">
+                <i class="bi bi-info-circle me-1"></i> Selecting a bank facilitates settlement routing only and does not verify account ownership.
+              </div>
+              {% if form.bank_name_select.errors %}
+                <div class="text-danger small mt-1">{{ form.bank_name_select.errors.0 }}</div>
+              {% endif %}
+              {% if form.bank_name.errors %}
+                <div class="text-danger small mt-1">{{ form.bank_name.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <!-- 2b. Manual Bank Name Field (Visible when "Other" is selected) -->
+            <div class="col-12 col-md-6" id="otherBankNameContainer" style="display: none;">
+              <div class="p-3 bg-light rounded-3 border">
+                <label for="{{ form.other_bank_name.id_for_label }}" class="form-label small fw-semibold text-dark">
+                  Specify Bank Name (Manual Entry) <span class="text-danger">*</span>
+                </label>
+                {{ form.other_bank_name }}
+                <div class="form-text small text-muted">Enter the complete legal bank name as printed on your passbook or cheque.</div>
+                {% if form.other_bank_name.errors %}
+                  <div class="text-danger small mt-1">{{ form.other_bank_name.errors.0 }}</div>
+                {% endif %}
+              </div>
+            </div>
+
+            <!-- 3. Branch Name / Locality -->
+            <div class="col-12 col-md-6">
+              <label for="{{ form.bank_branch.id_for_label }}" class="form-label small fw-semibold">
+                Branch Name / Locality <span class="text-danger">*</span>
+              </label>
+              {{ form.bank_branch }}
+              {% if form.bank_branch.errors %}
+                <div class="text-danger small mt-1">{{ form.bank_branch.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <!-- 4. Account Type -->
+            <div class="col-12 col-md-6">
+              <label for="{{ form.bank_account_type.id_for_label }}" class="form-label small fw-semibold">
+                Account Type <span class="text-danger">*</span>
+              </label>
+              {{ form.bank_account_type }}
+              {% if form.bank_account_type.errors %}
+                <div class="text-danger small mt-1">{{ form.bank_account_type.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <!-- 5. IFSC Code -->
+            <div class="col-12 col-md-6">
+              <label for="{{ form.bank_ifsc_code.id_for_label }}" class="form-label small fw-semibold">
+                IFSC Code (11 Characters) <span class="text-danger">*</span>
+              </label>
+              {{ form.bank_ifsc_code }}
+              {% if form.bank_ifsc_code.help_text %}
+                <div class="form-text small text-muted">{{ form.bank_ifsc_code.help_text }}</div>
+              {% endif %}
+              {% if form.bank_ifsc_code.errors %}
+                <div class="text-danger small mt-1">{{ form.bank_ifsc_code.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <!-- 6. Account Number -->
+            <div class="col-12 col-md-6">
+              <label for="{{ form.bank_account_number.id_for_label }}" class="form-label small fw-semibold">
+                Bank Account Number <span class="text-danger">*</span>
+              </label>
+              {{ form.bank_account_number }}
+              <div class="form-text small text-muted">Enter full account number (9-18 digits). Masked upon save.</div>
+              {% if form.bank_account_number.errors %}
+                <div class="text-danger small mt-1">{{ form.bank_account_number.errors.0 }}</div>
+              {% endif %}
+            </div>
+
+            <!-- 7. Confirm Account Number -->
+            <div class="col-12 col-md-6">
+              <label for="{{ form.confirm_account_number.id_for_label }}" class="form-label small fw-semibold">
+                Confirm Bank Account Number <span class="text-danger">*</span>
+              </label>
+              {{ form.confirm_account_number }}
+              <div class="form-text small text-muted">Re-enter exactly to prevent transfer errors.</div>
+              {% if form.confirm_account_number.errors %}
+                <div class="text-danger small mt-1">{{ form.confirm_account_number.errors.0 }}</div>
+              {% endif %}
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between align-items-center pt-3 border-top flex-wrap gap-2">
+            <span class="small text-muted">
+              <i class="bi bi-shield-check me-1"></i> Bank details undergo manual platform administrative review before payouts are unlocked.
+            </span>
+            <button type="submit" class="btn seller-btn-gold px-4 py-2">
+              <i class="bi bi-check2-circle me-1"></i> Submit Bank Details
+            </button>
+          </div>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const selectElem = document.getElementById("id_bank_name_select");
+  const searchInput = document.getElementById("bankSearchInput");
+  const dropdownToggleBtn = document.getElementById("bankDropdownToggleBtn");
+  const dropdownMenu = document.getElementById("bankDropdownMenu");
+  const optionsList = document.getElementById("bankOptionsList");
+  const otherContainer = document.getElementById("otherBankNameContainer");
+  const otherInput = document.getElementById("id_other_bank_name");
+  const otherBtn = document.getElementById("btnSelectOtherBank");
+  const matchCount = document.getElementById("bankMatchCount");
+  const hiddenBankName = document.getElementById("id_bank_name");
+
+  if (!selectElem || !searchInput) return;
+
+  // Extract bank choices from select element
+  const bankOptions = [];
+  for (let i = 0; i < selectElem.options.length; i++) {
+    const opt = selectElem.options[i];
+    if (opt.value && opt.value !== "OTHER") {
+      bankOptions.push({ value: opt.value, label: opt.text });
+    }
+  }
+
+  function renderOptions(filterText) {
+    optionsList.innerHTML = "";
+    const query = (filterText || "").trim().toLowerCase();
+    const matched = bankOptions.filter(b => b.label.toLowerCase().includes(query) || b.value.toLowerCase().includes(query));
+
+    if (matchCount) {
+      matchCount.textContent = matched.length + " banks";
+    }
+
+    if (matched.length === 0) {
+      const emptyDiv = document.createElement("div");
+      emptyDiv.className = "px-3 py-2 text-muted small text-center";
+      emptyDiv.textContent = "No matching bank found. Choose 'Other' below to type manually.";
+      optionsList.appendChild(emptyDiv);
+      return;
+    }
+
+    matched.forEach(item => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "dropdown-item py-1.5 px-3 small d-flex align-items-center justify-content-between";
+      if (selectElem.value === item.value) {
+        btn.classList.add("active");
+      }
+      btn.innerHTML = `<span>${item.label}</span>`;
+      btn.addEventListener("click", function () {
+        selectBank(item.value, item.label);
+      });
+      optionsList.appendChild(btn);
+    });
+  }
+
+  function selectBank(val, label) {
+    selectElem.value = val;
+    searchInput.value = label;
+    if (hiddenBankName) hiddenBankName.value = val;
+    closeDropdown();
+    toggleOtherField(val === "OTHER");
+  }
+
+  function toggleOtherField(isOther) {
+    if (!otherContainer) return;
+    if (isOther) {
+      otherContainer.style.display = "block";
+      if (otherInput) {
+        otherInput.focus();
+      }
+    } else {
+      otherContainer.style.display = "none";
+    }
+  }
+
+  function openDropdown() {
+    renderOptions(searchInput.value);
+    dropdownMenu.style.display = "block";
+  }
+
+  function closeDropdown() {
+    dropdownMenu.style.display = "none";
+  }
+
+  // Toggle dropdown on search input focus or click
+  searchInput.addEventListener("focus", function () {
+    openDropdown();
+  });
+
+  searchInput.addEventListener("input", function () {
+    renderOptions(this.value);
+    dropdownMenu.style.display = "block";
+    // Check if input exactly matches one option
+    const exact = bankOptions.find(b => b.label.toLowerCase() === searchInput.value.trim().toLowerCase());
+    if (exact) {
+      selectElem.value = exact.value;
+      if (hiddenBankName) hiddenBankName.value = exact.value;
+      toggleOtherField(false);
+    }
+  });
+
+  if (dropdownToggleBtn) {
+    dropdownToggleBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (dropdownMenu.style.display === "block") {
+        closeDropdown();
+      } else {
+        openDropdown();
+      }
+    });
+  }
+
+  if (otherBtn) {
+    otherBtn.addEventListener("click", function () {
+      selectElem.value = "OTHER";
+      searchInput.value = "Other (Bank not listed above)";
+      if (hiddenBankName) hiddenBankName.value = "";
+      closeDropdown();
+      toggleOtherField(true);
+    });
+  }
+
+  // Close dropdown on outside click
+  document.addEventListener("click", function (e) {
+    if (!searchInput.contains(e.target) && !dropdownMenu.contains(e.target) && (!dropdownToggleBtn || !dropdownToggleBtn.contains(e.target))) {
+      closeDropdown();
+    }
+  });
+
+  // Listen for changes on native select element
+  selectElem.addEventListener("change", function () {
+    if (this.value === "OTHER") {
+      searchInput.value = "Other (Bank not listed above)";
+      if (hiddenBankName) hiddenBankName.value = "";
+      toggleOtherField(true);
+    } else if (this.value) {
+      const opt = selectElem.options[selectElem.selectedIndex];
+      searchInput.value = opt ? opt.text : this.value;
+      if (hiddenBankName) hiddenBankName.value = this.value;
+      toggleOtherField(false);
+    } else {
+      searchInput.value = "";
+      if (hiddenBankName) hiddenBankName.value = "";
+      toggleOtherField(false);
+    }
+  });
+
+  // Initialize state based on initial form values
+  if (selectElem.value === "OTHER" || (otherInput && otherInput.value.trim() !== "")) {
+    selectElem.value = "OTHER";
+    searchInput.value = "Other (Bank not listed above)";
+    toggleOtherField(true);
+  } else if (selectElem.value) {
+    const opt = selectElem.options[selectElem.selectedIndex];
+    searchInput.value = opt ? opt.text : selectElem.value;
+    toggleOtherField(false);
+  } else {
+    toggleOtherField(false);
+  }
+});
+</script>
+{% endblock %}

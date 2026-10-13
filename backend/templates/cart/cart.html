@@ -1,0 +1,379 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Shopping Cart ({{ cart.total_units|default:0 }}) — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Review your shopping cart items at {{ BRAND_NAME }}. Best prices in INR, verified genuine quality, fast delivery across India.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4">
+  <!-- Breadcrumbs -->
+  <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Shopping Cart</span>
+  </nav>
+
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+    <div>
+      <h1 class="h2 fw-bold text-dark mb-1">
+        <i class="bi bi-bag-check me-2" style="color: var(--fm-primary);"></i>Shopping Cart
+      </h1>
+      <p class="text-secondary small mb-0">
+        {% if cart_lines %}
+          You have <strong>{{ cart.total_units }}</strong> item{{ cart.total_units|pluralize }} in your cart.
+        {% else %}
+          Your shopping cart is currently empty.
+        {% endif %}
+      </p>
+    </div>
+
+    {% if cart_lines %}
+      <!-- Clear Cart Action with Confirmation Modal -->
+      <div>
+        <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#clearCartModal" aria-label="Clear shopping cart">
+          <i class="bi bi-trash3 me-1"></i> Clear Cart
+        </button>
+      </div>
+    {% endif %}
+  </div>
+
+  {% if cart.has_warnings %}
+    <div class="alert alert-warning d-flex align-items-start gap-3 shadow-sm mb-4" role="alert">
+      <i class="bi bi-exclamation-triangle-fill fs-4 flex-shrink-0 text-warning"></i>
+      <div>
+        <h2 class="h6 fw-bold mb-1">Attention Required for Items in Your Cart</h2>
+        <div class="small text-secondary">
+          Some products or selected options have changed status or available inventory.
+          Please review the highlighted items below and adjust quantities to proceed to checkout.
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  {% if not cart_lines %}
+    <!-- Empty Cart State -->
+    <div class="fm-cart-empty-box text-center py-5 px-3 bg-white rounded-3 border shadow-sm">
+      <div class="fm-empty-icon-wrap mb-3" style="width: 80px; height: 80px; border-radius: 50%; background: var(--fm-primary-subtle); display: inline-flex; align-items: center; justify-content: center;">
+        <i class="bi bi-bag-x" style="font-size: 2.5rem; color: var(--fm-primary);"></i>
+      </div>
+      <h2 class="h4 fw-bold text-dark mb-2">Your Shopping Cart is Empty</h2>
+      <p class="text-secondary mb-4 mx-auto" style="max-width: 480px;">
+        Looks like you haven't added anything to your cart yet. Discover trending deals, latest electronics, and fashion essentials!
+      </p>
+      <div class="d-flex justify-content-center gap-3 flex-wrap">
+        <a href="{% url 'core:home' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-house me-1"></i> Continue Shopping
+        </a>
+        <a href="{% url 'core:category_list' %}" class="fm-btn fm-btn-outline">
+          <i class="bi bi-grid me-1"></i> Browse Categories
+        </a>
+      </div>
+    </div>
+  {% else %}
+    <!-- Cart Content Layout: Two Columns -->
+    <div class="row g-4 align-items-start">
+      <!-- Left Column: Cart Items -->
+      <div class="col-12 col-lg-8">
+        <div class="bg-white rounded-3 border shadow-sm overflow-hidden">
+          <div class="p-3 border-bottom bg-light d-none d-md-flex text-secondary fw-semibold small">
+            <div style="flex: 3;">Item Details</div>
+            <div style="flex: 1.2;" class="text-center">Unit Price</div>
+            <div style="flex: 1.5;" class="text-center">Quantity</div>
+            <div style="flex: 1.3;" class="text-end">Subtotal</div>
+          </div>
+
+          <div class="fm-cart-items-list">
+            {% for line in cart_lines %}
+              <div class="fm-cart-item-row p-3 border-bottom {% if not line.is_available %}bg-light opacity-75{% elif line.has_stock_warning %}border-warning-subtle bg-warning-subtle bg-opacity-10{% endif %}" id="cart-item-{{ line.key }}">
+                <div class="row g-3 align-items-center">
+                  <!-- Item Image & Info -->
+                  <div class="col-12 col-md-6 d-flex gap-3 align-items-center">
+                    <div class="fm-cart-img-wrap flex-shrink-0">
+                      <a href="{{ line.product.get_absolute_url }}">
+                        {% if line.product.image %}
+                          <img src="{{ line.product.image.url }}"
+                               alt="{{ line.product.name }}"
+                               class="rounded border fm-cart-item-img"
+                               style="width: 76px; height: 76px; object-fit: cover;"
+                               onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+                        {% else %}
+                          <img src="{% static 'images/brand/product-fallback.svg' %}"
+                               alt="{{ line.product.name }}"
+                               class="rounded border fm-cart-item-img"
+                               style="width: 76px; height: 76px; object-fit: cover;">
+                        {% endif %}
+                      </a>
+                    </div>
+                    <div class="flex-grow-1 min-w-0">
+                      <a href="{{ line.product.get_absolute_url }}" class="text-decoration-none text-dark fw-bold fm-cart-title text-truncate d-block mb-1">
+                        {{ line.product.name }}
+                      </a>
+
+                      {% if line.variant %}
+                        <div class="small text-secondary mb-1">
+                          <span class="badge bg-light text-dark border me-1">
+                            {{ line.variant.option_type }}: <strong>{{ line.variant.option_value }}</strong>
+                          </span>
+                        </div>
+                      {% endif %}
+
+                      <div class="d-flex align-items-center gap-2 flex-wrap small text-muted">
+                        {% if line.sku %}
+                          <span>SKU: <code>{{ line.sku }}</code></span>
+                        {% endif %}
+                        {% if line.product.category %}
+                          <span>• {{ line.product.category.name }}</span>
+                        {% endif %}
+                      </div>
+
+                      {% if line.warning_message %}
+                        <div class="mt-2 small text-danger fw-semibold d-flex align-items-center gap-1">
+                          <i class="bi bi-exclamation-circle-fill"></i>
+                          <span>{{ line.warning_message }}</span>
+                        </div>
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  <!-- Unit Price -->
+                  <div class="col-6 col-md-2 text-md-center">
+                    <div class="d-md-none small text-muted">Unit Price:</div>
+                    <div class="fw-bold text-dark">{{ CURRENCY_SYMBOL }}{{ line.unit_price }}</div>
+                    {% if line.compare_at_price and line.compare_at_price > line.unit_price %}
+                      <div class="small text-muted text-decoration-line-through">{{ CURRENCY_SYMBOL }}{{ line.compare_at_price }}</div>
+                      {% if line.discount_percent > 0 %}
+                        <div class="badge bg-success-subtle text-success border border-success-subtle" style="font-size: 10px;">{{ line.discount_percent }}% OFF</div>
+                      {% endif %}
+                    {% endif %}
+                  </div>
+
+                  <!-- Quantity Controls -->
+                  <div class="col-6 col-md-2 text-center">
+                    <form action="{% url 'core:cart_update' %}" method="post" class="fm-cart-update-form d-inline-block">
+                      {% csrf_token %}
+                      <input type="hidden" name="item_key" value="{{ line.key }}">
+                      <div class="input-group input-group-sm" style="max-width: 110px; margin: 0 auto;">
+                        <button type="button"
+                                class="btn btn-outline-secondary fm-cart-qty-btn"
+                                data-delta="-1"
+                                data-key="{{ line.key }}"
+                                aria-label="Decrease quantity">
+                          <i class="bi bi-dash"></i>
+                        </button>
+                        <input type="number"
+                               name="quantity"
+                               value="{{ line.quantity }}"
+                               min="1"
+                               max="{{ line.available_stock }}"
+                               class="form-control text-center fw-bold fm-cart-qty-val px-1"
+                               aria-label="Quantity for {{ line.product.name }}"
+                               data-key="{{ line.key }}"
+                               required>
+                        <button type="button"
+                                class="btn btn-outline-secondary fm-cart-qty-btn"
+                                data-delta="1"
+                                data-key="{{ line.key }}"
+                                aria-label="Increase quantity"
+                                {% if line.quantity >= line.available_stock %}disabled{% endif %}>
+                          <i class="bi bi-plus"></i>
+                        </button>
+                      </div>
+                    </form>
+                    <div class="small text-muted mt-1" style="font-size: 11px;">
+                      {% if line.available_stock > 0 %}
+                        {{ line.available_stock }} available
+                      {% else %}
+                        <span class="text-danger">Out of stock</span>
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  <!-- Line Subtotal & Remove Button -->
+                  <div class="col-12 col-md-2 text-md-end d-flex d-md-block justify-content-between align-items-center mt-2 mt-md-0">
+                    <div>
+                      <div class="d-md-none small text-muted">Subtotal:</div>
+                      <div class="fw-bold fs-6 text-dark">
+                        {{ CURRENCY_SYMBOL }}{{ line.line_subtotal }}
+                      </div>
+                    </div>
+                    <div class="mt-md-2">
+                      <form action="{% url 'core:cart_remove' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <input type="hidden" name="item_key" value="{{ line.key }}">
+                        <button type="submit"
+                                class="btn btn-link text-danger p-0 text-decoration-none small d-inline-flex align-items-center gap-1"
+                                aria-label="Remove {{ line.product.name }} from cart"
+                                title="Remove item">
+                          <i class="bi bi-trash3"></i>
+                          <span>Remove</span>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+
+          <div class="p-3 bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <a href="{% url 'core:home' %}" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-arrow-left me-1"></i> Continue Shopping
+            </a>
+            <span class="text-muted small">
+              <i class="bi bi-shield-check text-success me-1"></i>
+              Prices verified in Real-Time
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Order Summary Card -->
+      <div class="col-12 col-lg-4">
+        <div class="bg-white rounded-3 border shadow-sm p-4 sticky-top" style="top: 20px;">
+          <h2 class="h5 fw-bold text-dark border-bottom pb-3 mb-3">Order Summary</h2>
+
+          <div class="d-flex justify-content-between py-2 small">
+            <span class="text-secondary">Total Units</span>
+            <span class="fw-semibold text-dark">{{ cart.total_units }}</span>
+          </div>
+
+          <div class="d-flex justify-content-between py-2 small">
+            <span class="text-secondary">Cart Subtotal</span>
+            <span class="fw-semibold text-dark">{{ CURRENCY_SYMBOL }}{{ cart.subtotal }}</span>
+          </div>
+
+          {% if cart.total_discount and cart.total_discount > 0 %}
+            <div class="d-flex justify-content-between py-2 small text-success">
+              <span>Savings / Discount</span>
+              <span class="fw-semibold">- {{ CURRENCY_SYMBOL }}{{ cart.total_discount }}</span>
+            </div>
+          {% endif %}
+
+          <div class="d-flex justify-content-between py-2 small text-muted border-bottom pb-3">
+            <span>Shipping &amp; Taxes</span>
+            <span class="fst-italic">Calculated at checkout</span>
+          </div>
+
+          <!-- Total Payable -->
+          <div class="d-flex justify-content-between align-items-baseline pt-3 mb-3">
+            <div>
+              <span class="fw-bold text-dark fs-5">Total Payable</span>
+              <div class="text-muted" style="font-size: 11px;">Before shipping &amp; taxes</div>
+            </div>
+            <span class="fw-extrabold fs-4" style="color: var(--fm-primary);">
+              {{ CURRENCY_SYMBOL }}{{ cart.total_payable }}
+            </span>
+          </div>
+
+          <!-- Checkout Button (Placeholder as specified) -->
+          <div class="d-grid gap-2 mb-3">
+            {% if cart.has_warnings %}
+              <button type="button"
+                      class="fm-btn fm-btn-primary fm-btn-lg disabled opacity-75"
+                      disabled
+                      aria-disabled="true"
+                      title="Please resolve stock warnings before checkout">
+                <i class="bi bi-lock-fill me-1"></i> Proceed to Checkout
+              </button>
+              <div class="small text-danger text-center">
+                <i class="bi bi-info-circle me-1"></i> Adjust unavailable items to proceed
+              </div>
+            {% else %}
+              <a href="{% url 'core:checkout' %}"
+                 class="fm-btn fm-btn-primary fm-btn-lg text-center text-decoration-none"
+                 id="fmProceedCheckoutBtn"
+                 aria-label="Proceed to Checkout">
+                <i class="bi bi-shield-lock-fill me-1"></i> Proceed to Checkout
+              </a>
+            {% endif %}
+
+            <a href="{% url 'core:home' %}" class="fm-btn fm-btn-outline text-center">
+              Continue Shopping
+            </a>
+          </div>
+
+          <!-- Trust Signals -->
+          <div class="pt-3 border-top text-secondary" style="font-size: 12px;">
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <i class="bi bi-shield-lock-fill text-success"></i>
+              <span>100% Safe &amp; Secure Checkout</span>
+            </div>
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <i class="bi bi-truck text-primary"></i>
+              <span>Pan-India Doorstep Delivery</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-arrow-repeat text-warning"></i>
+              <span>7-Day Easy Replacement Guarantee</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Clear Cart Confirmation Modal -->
+<div class="modal fade" id="clearCartModal" tabindex="-1" aria-labelledby="clearCartModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold" id="clearCartModalLabel">Clear Shopping Cart?</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-secondary">
+        Are you sure you want to remove all items from your shopping cart? This action cannot be undone.
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <form action="{% url 'core:cart_clear' %}" method="post" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">Yes, Clear Cart</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Quantity stepper buttons on cart page
+    document.querySelectorAll('.fm-cart-qty-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const delta = parseInt(this.getAttribute('data-delta'), 10);
+        const form = this.closest('form');
+        const input = form.querySelector('.fm-cart-qty-val');
+        if (!input) return;
+
+        let val = parseInt(input.value, 10) || 1;
+        let min = parseInt(input.min, 10) || 1;
+        let max = parseInt(input.max, 10) || 999;
+
+        let newVal = val + delta;
+        if (newVal >= min && newVal <= max) {
+          input.value = newVal;
+          form.submit();
+        }
+      });
+    });
+
+    // Auto-submit on quantity manual entry change
+    document.querySelectorAll('.fm-cart-qty-val').forEach(input => {
+      input.addEventListener('change', function() {
+        const form = this.closest('form');
+        let val = parseInt(this.value, 10) || 1;
+        let min = parseInt(this.min, 10) || 1;
+        let max = parseInt(this.max, 10) || 999;
+        if (val < min) this.value = min;
+        if (val > max) this.value = max;
+        form.submit();
+      });
+    });
+  });
+</script>
+{% endblock %}

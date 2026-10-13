@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Terms of Service &amp; Privacy Policy — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Review Fitmeezo's terms of service, customer privacy commitment, and e-commerce policies.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-5">
+  <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Terms &amp; Policies</span>
+  </nav>
+
+  <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5">
+    <div class="border-bottom pb-4 mb-4">
+      <span class="badge mb-2" style="background: var(--fm-primary);">Fitmeezo Policies</span>
+      <h1 class="h3 fw-bold text-dark mb-1">Terms of Service &amp; Privacy Commitment</h1>
+      <p class="text-secondary small mb-0">Effective Date: October 2026 • Region: India (INR)</p>
+    </div>
+
+    <div class="text-secondary" style="line-height: 1.8;">
+      <h2 class="h5 fw-bold text-dark mt-3 mb-2">1. Introduction &amp; Account Usage</h2>
+      <p>
+        Welcome to Fitmeezo (<strong>"Fitmeezo"</strong>, <strong>"we"</strong>, <strong>"us"</strong>). By creating a customer account, browsing our merchandise, or utilizing our services, you agree to comply with and be bound by these Terms of Service. Customer accounts must be created with authentic personal details. You are responsible for safeguarding your login credentials.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">2. Product Catalog, Pricing &amp; Inventory</h2>
+      <p>
+        All prices are displayed in Indian Rupees (INR ₹) inclusive of applicable taxes unless specified otherwise. We make reasonable efforts to reflect accurate variant stock and pricing. In the rare event of inventory exhaustion or pricing discrepancy, we reserve the right to decline or cancel order fulfillment with prior notice.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">3. Privacy &amp; Data Protection</h2>
+      <p>
+        We value your privacy. We collect only necessary customer information—such as your full name, email address, delivery addresses, and contact number—strictly for processing shopping cart items, authenticating your account, and fulfilling doorstep shipments. We do not sell your personal information to third parties.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">4. Saved Delivery Addresses &amp; Security</h2>
+      <p>
+        Addresses saved in your account are accessible solely by your authenticated profile. Password hashing utilizes industry-standard PBKDF2/SHA-256 algorithms. We do not store plaintext passwords.
+      </p>
+
+      <div class="mt-5 pt-3 border-top d-flex gap-3 flex-wrap">
+        <a href="{% url 'core:account_register' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-person-plus me-1"></i> Create Customer Account
+        </a>
+        <a href="{% url 'core:home' %}" class="fm-btn fm-btn-outline">
+          <i class="bi bi-house me-1"></i> Return to Homepage
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

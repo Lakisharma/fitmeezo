@@ -1,0 +1,138 @@
+{% extends "seller/base.html" %}
+{% load static %}
+
+{% block title %}Batch {{ batch.batch_reference }} — Payout Details | Fitmeezo Seller Hub{% endblock %}
+
+{% block page_title %}Payout Batch Details{% endblock %}
+
+{% block topbar_actions %}
+<a href="{% url 'core:seller_payout_list' %}" class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1">
+  <i class="bi bi-arrow-left"></i> Back to Payouts
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+  <!-- Batch Overview Card -->
+  <div class="card border-0 shadow-sm rounded-3 mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 border-bottom pb-3 mb-3">
+        <div>
+          <span class="badge bg-secondary mb-1">Simulated Batch</span>
+          <h4 class="fw-bold mb-0 text-dark">{{ batch.batch_reference }}</h4>
+          <span class="text-muted small">Generated on {{ batch.created_at|date:"d M Y, H:i" }}</span>
+        </div>
+
+        <div class="text-end">
+          <div class="display-6 fw-bold text-dark">₹{{ batch.amount }}</div>
+          <div>
+            {% if batch.status == 'completed' %}
+              <span class="badge bg-success fs-6">Disbursed (Mock)</span>
+            {% elif batch.status == 'processing' %}
+              <span class="badge bg-primary fs-6">Processing</span>
+            {% elif batch.status == 'draft' %}
+              <span class="badge bg-secondary fs-6">Prepared Draft</span>
+            {% elif batch.status == 'failed' %}
+              <span class="badge bg-danger fs-6">Failed</span>
+            {% elif batch.status == 'reversed' %}
+              <span class="badge bg-purple text-white fs-6" style="background:#7c3aed;">Reversed</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 text-secondary small">
+        <div class="col-6 col-md-3">
+          <div class="text-muted">Settlement Rail</div>
+          <div class="fw-semibold text-dark">{{ batch.payout_method }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted">External Transaction Reference</div>
+          <div class="fw-semibold text-dark">{{ batch.external_reference|default:"Not yet settled" }}</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted">Covered Window</div>
+          <div class="fw-semibold text-dark">
+            {% if batch.period_start and batch.period_end %}
+              {{ batch.period_start|date:"d M" }} - {{ batch.period_end|date:"d M Y" }}
+            {% else %}
+              —
+            {% endif %}
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted">Bundled Entries Count</div>
+          <div class="fw-semibold text-dark">{{ batch.eligible_entries_count }} ledger items</div>
+        </div>
+      </div>
+
+      {% if batch.notes %}
+        <div class="mt-3 p-3 bg-light rounded small border">
+          <span class="fw-bold text-dark">Audit Notes:</span> {{ batch.notes }}
+        </div>
+      {% endif %}
+
+      {% if batch.failure_reason %}
+        <div class="mt-3 p-3 bg-danger bg-opacity-10 text-danger rounded small border border-danger">
+          <span class="fw-bold">Failure Notice:</span> {{ batch.failure_reason }}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Covered Ledger Entries Table -->
+  <div class="card border-0 shadow-sm rounded-3 overflow-hidden">
+    <div class="card-header bg-white border-bottom py-3">
+      <h6 class="mb-0 fw-bold"><i class="bi bi-list-check me-2 text-primary"></i>Covered Financial Items ({{ covered_entries.count }})</h6>
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 seller-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Category</th>
+            <th>Description / Source</th>
+            <th>Reference Key</th>
+            <th class="text-end">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in covered_entries %}
+            <tr>
+              <td class="small text-muted text-nowrap">{{ entry.created_at|date:"d M Y, H:i" }}</td>
+              <td>
+                {% if entry.entry_type == 'credit' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle fw-bold">+ CREDIT</span>
+                {% else %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold">- DEBIT</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge bg-light text-dark border small">{{ entry.get_category_display }}</span>
+              </td>
+              <td>
+                <div class="small fw-semibold text-dark">{{ entry.description }}</div>
+                {% if entry.seller_order %}
+                  <span class="small text-muted">Pkg #{{ entry.seller_order.sub_order_number }}</span>
+                {% endif %}
+              </td>
+              <td>
+                <code class="small text-muted">{{ entry.idempotency_key }}</code>
+              </td>
+              <td class="text-end fw-bold {% if entry.entry_type == 'credit' %}text-success{% else %}text-danger{% endif %}">
+                {% if entry.entry_type == 'credit' %}+{% else %}-{% endif %}₹{{ entry.amount }}
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="text-center py-4 text-muted">No covered items found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

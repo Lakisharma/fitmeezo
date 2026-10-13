@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ category.name }} — Shop Online at {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}{% if category.description %}{{ category.description }}{% else %}Explore verified {{ category.name }} products with best prices, genuine quality, and fast delivery at {{ BRAND_NAME }}.{% endif %}{% endblock %}
+
+{% block content %}
+<div class="fm-container py-3">
+  <!-- Breadcrumbs -->
+  <nav class="fm-breadcrumbs" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <a href="{% url 'core:category_list' %}" class="fm-breadcrumb-item">
+      <span>Categories</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">{{ category.name }}</span>
+  </nav>
+
+  <!-- Category Department Hero Header -->
+  <header class="fm-category-hero" aria-labelledby="category-detail-heading">
+    <div class="fm-category-hero-inner">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="fm-category-pretitle mb-0">
+          <i class="bi {{ category.icon_class|default:'bi-tag' }}" aria-hidden="true"></i>
+          <span>Department Store</span>
+        </span>
+        {% if category.badge %}
+          <span class="fm-badge fm-badge-primary">{{ category.badge }}</span>
+        {% endif %}
+      </div>
+
+      <h1 id="category-detail-heading" class="fm-category-hero-title">{{ category.name }}</h1>
+
+      {% if category.description %}
+        <p class="fm-category-hero-desc">{{ category.description }}</p>
+      {% else %}
+        <p class="fm-category-hero-desc">
+          Browse verified authentic selections in {{ category.name }}. Quality-checked, best value deals, and assured delivery across India.
+        </p>
+      {% endif %}
+
+      <div class="fm-category-hero-meta">
+        <div class="fm-category-meta-pill">
+          <i class="bi bi-box-seam text-warning" aria-hidden="true"></i>
+          <span>{{ total_products_count }} Product{{ total_products_count|pluralize }}</span>
+        </div>
+        <div class="fm-category-meta-pill">
+          <i class="bi bi-shield-check text-success" aria-hidden="true"></i>
+          <span>Authentic Warranty</span>
+        </div>
+        <div class="fm-category-meta-pill">
+          <i class="bi bi-arrow-repeat text-info" aria-hidden="true"></i>
+          <span>7-Day Replacement</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Product Listing Area (Pagination-Ready) -->
+  <section id="category-products-section" aria-labelledby="listing-heading">
+    <h2 id="listing-heading" class="visually-hidden">{{ category.name }} Products</h2>
+
+    <!-- Listing Toolbar & Filter Strip -->
+    <div class="fm-listing-toolbar">
+      <div class="fm-toolbar-count">
+        {% if total_products_count > 0 %}
+          Showing <strong>{{ products|length }}</strong> of <strong>{{ total_products_count }}</strong> items
+        {% else %}
+          Catalogue status: <strong>Updating inventory</strong>
+        {% endif %}
+      </div>
+
+      <div class="fm-toolbar-controls">
+        <label for="fmSortSelect" class="text-muted d-none d-sm-inline">Sort by:</label>
+        <select id="fmSortSelect" class="fm-sort-select" aria-label="Sort products">
+          <option value="featured" selected>Featured</option>
+          <option value="price-asc">Price: Low to High</option>
+          <option value="price-desc">Price: High to Low</option>
+          <option value="rating">Customer Rating</option>
+          <option value="newest">Newest Arrivals</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Products Grid OR Empty State -->
+    {% if products and products|length > 0 %}
+      <div class="fm-products-grid">
+        {% for product in products %}
+          {% include "includes/product_card.html" with product=product %}
+        {% endfor %}
+      </div>
+
+      <!-- Pagination Readiness Block -->
+      {% if page_obj and page_obj.has_other_pages %}
+        <nav class="fm-pagination" aria-label="Product page navigation">
+          {% if page_obj.has_previous %}
+            <a href="?page={{ page_obj.previous_page_number }}" class="fm-page-item" aria-label="Previous page">
+              <i class="bi bi-chevron-left" aria-hidden="true"></i>
+            </a>
+          {% endif %}
+
+          {% for num in page_obj.paginator.page_range %}
+            {% if page_obj.number == num %}
+              <span class="fm-page-item is-active" aria-current="page">{{ num }}</span>
+            {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+              <a href="?page={{ num }}" class="fm-page-item">{{ num }}</a>
+            {% endif %}
+          {% endfor %}
+
+          {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}" class="fm-page-item" aria-label="Next page">
+              <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </a>
+          {% endif %}
+        </nav>
+      {% endif %}
+
+    {% else %}
+      <!-- Professional Empty State when Category has no products yet -->
+      <div class="fm-category-empty-state">
+        <div class="fm-empty-icon-bubble" aria-hidden="true">
+          <i class="bi bi-box-seam"></i>
+        </div>
+        <h3 class="fm-empty-title">No Products in This Category Yet</h3>
+        <p class="fm-empty-desc">
+          We are actively curating and quality-testing authentic inventory for <strong>{{ category.name }}</strong>.
+          Check back shortly or explore our other department stores.
+        </p>
+        <div class="fm-empty-actions">
+          <a href="{% url 'core:category_list' %}" class="fm-btn fm-btn-outline">
+            <i class="bi bi-grid me-1" aria-hidden="true"></i> Browse All Categories
+          </a>
+          <a href="{% url 'core:home' %}" class="fm-btn fm-btn-primary">
+            <i class="bi bi-house-door me-1" aria-hidden="true"></i> Back to Homepage
+          </a>
+        </div>
+      </div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

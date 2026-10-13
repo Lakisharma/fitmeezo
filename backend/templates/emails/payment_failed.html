@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Payment Notification - Order #{{ order.order_number }}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+    .header { background: #0f172a; padding: 28px 24px; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; font-weight: 800; color: #ffffff; letter-spacing: 1px; }
+    .header p { margin: 6px 0 0; font-size: 11px; color: #94a3b8; letter-spacing: 2px; }
+    .body { padding: 32px 24px; }
+    .badge-failed { display: inline-block; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; background: #fee2e2; color: #b91c1c; }
+    .alert-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 18px; margin: 20px 0; font-size: 14px; color: #991b1b; }
+    .footer { background: #f8fafc; padding: 20px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>FITMEEZO</h1>
+      <p>SHOP SMART • LIVE BETTER</p>
+    </div>
+    <div class="body">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span class="badge-failed">Payment Unsuccessful</span>
+        <h2 style="margin: 12px 0 6px; font-size: 20px; color: #0f172a;">Online Payment Could Not Be Completed</h2>
+        <p style="margin: 0; font-size: 14px; color: #64748b;">Order Number: <strong style="color: #0f172a;">#{{ order.order_number }}</strong></p>
+      </div>
+
+      <div class="alert-box">
+        <p style="margin: 0 0 8px; font-weight: 600;">We were unable to complete your online payment of ₹{{ order.total_amount }}.</p>
+        {% if reason %}
+          <p style="margin: 0; font-size: 13px;">Reason: {{ reason }}</p>
+        {% else %}
+          <p style="margin: 0; font-size: 13px;">The payment was declined or cancelled by the bank/payment gateway.</p>
+        {% endif %}
+      </div>
+
+      <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+        Dear {{ order.shipping_full_name }}, no charges were deducted from your account. If amount was debited by your bank, it will be automatically refunded within 3-5 business days.
+      </p>
+
+      <p style="font-size: 14px; line-height: 1.6; color: #334155;">
+        You can place a new order using <strong>Cash on Delivery (COD)</strong> or try another payment method.
+      </p>
+    </div>
+    <div class="footer">
+      <p style="margin: 0 0 6px;">Questions? Contact customer care at <a href="mailto:support@fitmeezo.com" style="color: #0d6efd; text-decoration: none;">support@fitmeezo.com</a></p>
+      <p style="margin: 0;">&copy; Fitmeezo. All Rights Reserved. Developed by Lakshman Sharma</p>
+    </div>
+  </div>
+</body>
+</html>
