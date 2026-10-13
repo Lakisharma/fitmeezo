@@ -95,6 +95,15 @@ class SharedLayoutAndDesignSystemTest(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_home_view_resilient_to_missing_database_tables(self):
+        """Verify that home view falls back gracefully to sample data without 500 when tables are absent."""
+        from django.db import OperationalError
+        with patch("core.views.Category.objects.filter", side_effect=OperationalError("no such table: core_category")):
+            response = self.client.get("/")
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertIn("categories", response.context)
+            self.assertTrue(len(response.context["categories"]) > 0)
+
     def test_brand_constants_rendered_in_layout(self):
         """Verify that brand name, tagline, and currency symbol render into template."""
         response = self.client.get("/")

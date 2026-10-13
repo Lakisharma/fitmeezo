@@ -348,17 +348,24 @@ def home(request):
     Supplies database-driven categories and active featured/trending products
     (falling back to sample layout data if catalogue is unseeded).
     """
-    db_categories = list(
-        Category.objects.filter(is_active=True).order_by("display_order", "name")
-    )
-    categories = db_categories if db_categories else SAMPLE_CATEGORIES_FALLBACK
+    try:
+        db_categories = list(
+            Category.objects.filter(is_active=True).order_by("display_order", "name")
+        )
+        categories = db_categories if db_categories else SAMPLE_CATEGORIES_FALLBACK
+    except Exception:
+        categories = SAMPLE_CATEGORIES_FALLBACK
 
     # Active featured products from database
-    db_featured = list(
-        Product.objects.filter(is_active=True, is_approved=True, is_featured=True)
-        .select_related("category")
-        .order_by("-created_at")[:8]
-    )
+    try:
+        db_featured = list(
+            Product.objects.filter(is_active=True, is_approved=True, is_featured=True)
+            .select_related("category")
+            .order_by("-created_at")[:8]
+        )
+    except Exception:
+        db_featured = []
+
     if db_featured:
         featured_products = db_featured
         is_demo_featured = False
@@ -368,11 +375,15 @@ def home(request):
 
     # Active trending products from database
     # Ordering rule: Newest active products until popularity metric exists
-    db_trending = list(
-        Product.objects.filter(is_active=True, is_approved=True)
-        .select_related("category")
-        .order_by("-created_at")[:8]
-    )
+    try:
+        db_trending = list(
+            Product.objects.filter(is_active=True, is_approved=True)
+            .select_related("category")
+            .order_by("-created_at")[:8]
+        )
+    except Exception:
+        db_trending = []
+
     if db_trending:
         trending_products = db_trending
         is_demo_trending = False
