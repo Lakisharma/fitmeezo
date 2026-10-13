@@ -1,0 +1,100 @@
+[
+{
+  "model": "core.category",
+  "pk": 1,
+  "fields": {
+    "name": "Electronics",
+    "slug": "electronics",
+    "description": "Smartphones, Audio, Computing, Wearables & Tech Accessories",
+    "image": "",
+    "is_active": true,
+    "display_order": 1,
+    "created_at": "2026-10-09T17:45:09.786Z",
+    "updated_at": "2026-10-09T17:45:09.786Z"
+  }
+},
+{
+  "model": "core.category",
+  "pk": 2,
+  "fields": {
+    "name": "Fashion",
+    "slug": "fashion",
+    "description": "Curated Men's & Women's Apparel, Footwear & Accessories",
+    "image": "",
+    "is_active": true,
+    "display_order": 2,
+    "created_at": "2026-10-09T17:45:09.792Z",
+    "updated_at": "2026-10-09T17:45:09.792Z"
+  }
+},
+{
+  "model": "core.category",
+  "pk": 3,
+  "fields": {
+    "name": "Home & Living",
+    "slug": "home-living",
+    "description": "Kitchen Essentials, Home Decor, Cookware & Premium Bedding",
+    "image": "",
+    "is_active": true,
+    "display_order": 3,
+    "created_at": "2026-10-09T17:45:09.797Z",
+    "updated_at": "2026-10-09T17:45:09.798Z"
+  }
+},
+{
+  "model": "core.category",
+  "pk": 4,
+  "fields": {
+    "name": "Beauty",
+    "slug": "beauty",
+    "description": "Skincare Serums, Haircare, Organic Fragrances & Personal Grooming",
+    "image": "",
+    "is_active": true,
+    "display_order": 4,
+    "created_at": "2026-10-09T17:45:09.803Z",
+    "updated_at": "2026-10-09T17:45:09.803Z"
+  }
+},
+{
+  "model": "core.category",
+  "pk": 5,
+  "fields": {
+    "name": "Sports",
+    "slug": "sports",
+    "description": "Fitness Equipment, Gym Wear, Outdoor Sports & Active Gear",
+    "image": "",
+    "is_active": true,
+    "display_order": 5,
+    "created_at": "2026-10-09T17:45:09.808Z",
+    "updated_at": "2026-10-09T17:45:09.808Z"
+  }
+},
+{
+  "model": "core.category",
+  "pk": 6,
+  "fields": {
+    "name": "Baby & Kids",
+    "slug": "baby-kids",
+    "description": "Interactive Toys, Baby Gear, Feeding Essentials & Nursery Care",
+    "image": "",
+    "is_active": true,
+    "display_order": 6,
+    "created_at": "2026-10-09T17:45:09.814Z",
+    "updated_at": "2026-10-09T17:45:09.814Z"
+  }
+},
+{
+  "model": "core.category",
+  "pk": 7,
+  "fields": {
+    "name": "new project",
+    "slug": "sdfgf",
+    "description": "fdg",
+    "image": "categories/WhatsApp_Image_2026-10-09_at_11.40.38_PM.jpeg",
+    "is_active": true,
+    "display_order": 2,
+    "created_at": "2026-10-10T14:47:18.153Z",
+    "updated_at": "2026-10-10T14:47:18.153Z"
+  }
+}
+]

@@ -144,6 +144,8 @@ SITE_ID = 1
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # WhiteNoise: serves static files efficiently in production (must be second, immediately after SecurityMiddleware)
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -280,6 +282,19 @@ STATICFILES_DIRS = [
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+# ==============================================================================
+# WHITENOISE STATIC FILE SERVING CONFIGURATION
+# ==============================================================================
+# WhiteNoise serves compressed, cached static files from STATIC_ROOT in production.
+# CompressedManifestStaticFilesStorage adds cache-busting hashes to filenames.
+STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# WhiteNoise also serves the media directory at /media/ in production.
+# This works for files committed to Git (product images, category images).
+# For user-uploaded files in a real production environment, use cloud storage (S3/Cloudinary).
+WHITENOISE_ROOT = BASE_DIR / "media"
+WHITENOISE_AUTOREFRESH = DEBUG  # Autorefresh in dev, cached manifest in production
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

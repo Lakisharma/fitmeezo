@@ -44,7 +44,9 @@ secrets.json
 *.db
 
 # Django media & collected static files
-backend/media/
+# backend/media/ is intentionally tracked in Git so that product/category images
+# committed to the repository are available on Render's ephemeral filesystem.
+# For production user-uploaded files, migrate to cloud storage (S3/Cloudinary).
 backend/staticfiles/
 
 # Logs

@@ -14,3 +14,4 @@ pyjwt[crypto]>=2.8.0
 razorpay>=2.0.0
 reportlab>=5.0.0
 gunicorn>=22.0.0
+whitenoise>=6.7.0
