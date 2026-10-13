@@ -7,12 +7,13 @@ Safety rules:
 - Idempotent: skips loading if categories already exist (non-zero count).
 - Never deletes existing records.
 - Never imports user accounts, passwords, sessions, or OAuth tokens.
+- Seller references in product fixtures must be null (seller rows are not included in demo data).
 - Prints clear status output for build logs.
 """
 import os
 from django.core.management.base import BaseCommand
 from django.core.management import call_command
-from django.db import OperationalError, ProgrammingError
+from django.db import IntegrityError, OperationalError, ProgrammingError
 
 
 class Command(BaseCommand):
@@ -43,7 +44,8 @@ class Command(BaseCommand):
                 )
             )
 
-            # Load fixtures in dependency order: categories first, then products
+            # Load fixtures in dependency order: categories first, then products.
+            # Products must not reference seller rows — demo fixtures use seller=null.
             fixtures_dir = os.path.join(
                 os.path.dirname(__file__), "..", "..", "fixtures"
             )
@@ -79,6 +81,17 @@ class Command(BaseCommand):
                         f"[load_demo_data] products.json not found at {products_fixture}, skipping."
                     )
                 )
+
+        except IntegrityError as exc:
+            # A fixture FK violation (e.g. product references a missing seller/category).
+            # Fail loudly so the issue is visible in Render build logs.
+            self.stderr.write(
+                self.style.ERROR(
+                    f"[load_demo_data] FIXTURE INTEGRITY ERROR — check that all foreign-key "
+                    f"references in fixtures point to rows that also exist in the fixtures: {exc}"
+                )
+            )
+            raise SystemExit(1)
 
         except (OperationalError, ProgrammingError) as exc:
             # Tables may not exist yet (migration not yet applied); safe to skip.

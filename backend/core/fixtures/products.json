@@ -162,7 +162,7 @@
     "slug": "new-project-2",
     "sku": "SKU9919",
     "category": 2,
-    "seller": 7,
+    "seller": null,
     "short_description": "",
     "description": "best project fitmeezo",
     "price": "650.00",

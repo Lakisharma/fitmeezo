@@ -82,19 +82,5 @@
     "created_at": "2026-10-09T17:45:09.814Z",
     "updated_at": "2026-10-09T17:45:09.814Z"
   }
-},
-{
-  "model": "core.category",
-  "pk": 7,
-  "fields": {
-    "name": "new project",
-    "slug": "sdfgf",
-    "description": "fdg",
-    "image": "categories/WhatsApp_Image_2026-10-09_at_11.40.38_PM.jpeg",
-    "is_active": true,
-    "display_order": 2,
-    "created_at": "2026-10-10T14:47:18.153Z",
-    "updated_at": "2026-10-10T14:47:18.153Z"
-  }
 }
 ]
