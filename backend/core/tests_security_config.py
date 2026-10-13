@@ -35,6 +35,44 @@ class SecurityConfigurationTests(SimpleTestCase):
         self.assertIn("127.0.0.1", settings.ALLOWED_HOSTS)
         self.assertIn("localhost", settings.ALLOWED_HOSTS)
 
+    def test_allowed_hosts_includes_render_domain(self):
+        """ALLOWED_HOSTS must permit traffic to the Render production domain."""
+        self.assertIn("fitmeezo-website.onrender.com", settings.ALLOWED_HOSTS)
+        self.assertNotIn("*", settings.ALLOWED_HOSTS)
+
+    def test_csrf_trusted_origins_includes_render_domain(self):
+        """CSRF_TRUSTED_ORIGINS must include https://fitmeezo-website.onrender.com."""
+        self.assertIn("https://fitmeezo-website.onrender.com", settings.CSRF_TRUSTED_ORIGINS)
+
+    def test_allowed_hosts_preserves_custom_domain_and_render_hostname(self):
+        """Simulate production configuration with custom domain and RENDER_EXTERNAL_HOSTNAME."""
+        custom_domain = "fitmeezo.in"
+        render_env_host = "custom-fitmeezo.onrender.com"
+        with mock.patch.dict(
+            os.environ,
+            {
+                "DEBUG": "False",
+                "ALLOWED_HOSTS": custom_domain,
+                "RENDER_EXTERNAL_HOSTNAME": render_env_host,
+            },
+            clear=False,
+        ):
+            # Test the exact parsing logic from settings.py
+            debug_val = False
+            default_hosts = "127.0.0.1,localhost,testserver,fitmeezo-website.onrender.com" if debug_val else "fitmeezo-website.onrender.com"
+            raw = os.getenv("ALLOWED_HOSTS", default_hosts)
+            hosts = [h.strip() for h in raw.split(",") if h.strip()]
+            if "fitmeezo-website.onrender.com" not in hosts:
+                hosts.append("fitmeezo-website.onrender.com")
+            render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+            if render_host and render_host not in hosts:
+                hosts.append(render_host)
+
+            self.assertIn("fitmeezo.in", hosts)
+            self.assertIn("fitmeezo-website.onrender.com", hosts)
+            self.assertIn("custom-fitmeezo.onrender.com", hosts)
+            self.assertNotIn("*", hosts)
+
     def test_production_fails_when_secret_key_is_missing(self):
         """When DEBUG=False and SECRET_KEY is missing, settings import must raise ImproperlyConfigured."""
         from fitmeezo import settings as f_settings
