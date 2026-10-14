@@ -1,0 +1,144 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Search Results for "{{ query }}" — Fitmeezo Admin{% endblock %}
+{% block page_title %}Omni-Search Results{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h4 class="fw-bold mb-1">Search Results for "{{ query }}"</h4>
+  <p class="text-muted small mb-0">Found {{ total_results }} matching record{{ total_results|pluralize }} across Orders, Products, Sellers, and Customers.</p>
+</div>
+
+<!-- Matching Orders -->
+<div class="fm-card mb-4">
+  <div class="fm-card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-cart-check text-primary me-2"></i>Matching Orders ({{ orders|length }})</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Order Number</th>
+          <th>Customer</th>
+          <th>Amount</th>
+          <th>Status</th>
+          <th class="text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td class="fw-bold"><a href="{% url 'custom_admin:order_detail' pk=o.pk %}" class="text-decoration-none text-dark">{{ o.order_number }}</a></td>
+          <td>{{ o.shipping_full_name|default:o.user.username }}</td>
+          <td class="fw-bold text-success">₹{{ o.total_amount|floatformat:2 }}</td>
+          <td><span class="badge badge-status badge-status-{{ o.status }}">{{ o.get_status_display }}</span></td>
+          <td class="text-end"><a href="{% url 'custom_admin:order_detail' pk=o.pk %}" class="btn btn-sm btn-outline-dark">Inspect</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center py-3 text-muted small">No orders match "{{ query }}".</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Matching Products -->
+<div class="fm-card mb-4">
+  <div class="fm-card-header d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-box-seam text-warning me-2"></i>Matching Products ({{ products|length }})</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Product</th>
+          <th>SKU</th>
+          <th>Category</th>
+          <th>Price</th>
+          <th>Stock</th>
+          <th class="text-end">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in products %}
+        <tr>
+          <td class="fw-bold"><a href="{% url 'custom_admin:product_detail' pk=p.pk %}" class="text-decoration-none text-dark">{{ p.name }}</a></td>
+          <td class="font-monospace small text-muted">{{ p.sku }}</td>
+          <td>{{ p.category.name|default:"-" }}</td>
+          <td class="fw-bold">₹{{ p.price|floatformat:2 }}</td>
+          <td>{{ p.stock_quantity }}</td>
+          <td class="text-end"><a href="{% url 'custom_admin:product_detail' pk=p.pk %}" class="btn btn-sm btn-outline-dark">Inspect</a></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-center py-3 text-muted small">No products match "{{ query }}".</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Matching Sellers & Customers Grid -->
+<div class="row g-4">
+  <!-- Sellers -->
+  <div class="col-12 col-lg-6">
+    <div class="fm-card h-100">
+      <div class="fm-card-header">
+        <i class="bi bi-shop text-success me-2"></i>Matching Sellers ({{ sellers|length }})
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Store Name</th>
+              <th>Status</th>
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in sellers %}
+            <tr>
+              <td class="fw-bold"><a href="{% url 'custom_admin:seller_detail' seller_id=s.pk %}" class="text-decoration-none text-dark">{{ s.store_name }}</a></td>
+              <td><span class="badge {% if s.status == 'approved' %}bg-success{% elif s.status == 'pending' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ s.status }}</span></td>
+              <td class="text-end"><a href="{% url 'custom_admin:seller_detail' seller_id=s.pk %}" class="btn btn-sm btn-outline-dark">Profile</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center py-3 text-muted small">No sellers match "{{ query }}".</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Customers -->
+  <div class="col-12 col-lg-6">
+    <div class="fm-card h-100">
+      <div class="fm-card-header">
+        <i class="bi bi-people text-info me-2"></i>Matching Customers ({{ customers|length }})
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Customer</th>
+              <th>Email</th>
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in customers %}
+            <tr>
+              <td class="fw-bold"><a href="{% url 'custom_admin:customer_detail' user_id=c.pk %}" class="text-decoration-none text-dark">{{ c.username }}</a></td>
+              <td class="small">{{ c.email|default:"-" }}</td>
+              <td class="text-end"><a href="{% url 'custom_admin:customer_detail' user_id=c.pk %}" class="btn btn-sm btn-outline-dark">Profile</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center py-3 text-muted small">No customers match "{{ query }}".</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

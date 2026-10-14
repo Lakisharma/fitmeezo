@@ -17,14 +17,53 @@ def brand_context(request):
 
     admin_pending_bank_verifications_count = 0
     admin_pending_returns_count = 0
+    admin_user_role = None
+    can_manage_products = False
+    can_manage_sellers = False
+    can_manage_finance = False
+    can_manage_support = False
+    can_manage_users = False
+    can_manage_audit = False
+    can_manage_settings = False
+    admin_pending_sellers_count = 0
+    admin_pending_products_count = 0
+    admin_pending_payouts_count = 0
+    admin_low_stock_count = 0
     user = getattr(request, "user", None)
     if user and user.is_authenticated and (user.is_staff or user.is_superuser):
         try:
-            from core.models import Seller, ReturnRequest
+            from core.admin_permissions import (
+                get_user_role,
+                ROLE_PERMISSIONS,
+                ROLE_SUPER_ADMIN,
+            )
+            from core.models import Seller, ReturnRequest, Product, PayoutBatch
+            admin_user_role = get_user_role(user)
+            perms = ROLE_PERMISSIONS.get(admin_user_role, {}) if not user.is_superuser else ROLE_PERMISSIONS[ROLE_SUPER_ADMIN]
+            can_manage_products = perms.get("can_manage_products", False) or user.is_superuser
+            can_manage_sellers = perms.get("can_manage_sellers", False) or user.is_superuser
+            can_manage_finance = perms.get("can_manage_finance", False) or user.is_superuser
+            can_manage_support = perms.get("can_manage_support", False) or user.is_superuser
+            can_manage_users = perms.get("can_manage_users", False) or user.is_superuser
+            can_manage_audit = perms.get("can_manage_audit", False) or user.is_superuser
+            can_manage_settings = perms.get("can_manage_settings", False) or user.is_superuser
+
             admin_pending_bank_verifications_count = Seller.objects.filter(bank_verification_status="pending").count()
             admin_pending_returns_count = ReturnRequest.objects.filter(status=ReturnRequest.STATUS_REQUESTED).count()
+            admin_pending_sellers_count = Seller.objects.filter(status="pending").count()
+            admin_pending_products_count = Product.objects.filter(approval_status="pending").count()
+            admin_pending_payouts_count = PayoutBatch.objects.filter(status="pending").count()
+            admin_low_stock_count = Product.objects.filter(is_active=True, stock_quantity__lt=10).count()
         except Exception:
             pass
+
+    admin_total_notifications_count = (
+        admin_pending_bank_verifications_count
+        + admin_pending_returns_count
+        + admin_pending_sellers_count
+        + admin_pending_products_count
+        + admin_pending_payouts_count
+    )
 
     return {
         "BRAND_NAME": getattr(settings, "BRAND_NAME", "Fitmeezo"),
@@ -33,8 +72,21 @@ def brand_context(request):
         "CURRENCY": getattr(settings, "CURRENCY", "INR"),
         "CURRENCY_SYMBOL": getattr(settings, "CURRENCY_SYMBOL", "₹"),
         "nav_categories": nav_categories,
+        "admin_user_role": admin_user_role,
+        "can_manage_products": can_manage_products,
+        "can_manage_sellers": can_manage_sellers,
+        "can_manage_finance": can_manage_finance,
+        "can_manage_support": can_manage_support,
+        "can_manage_users": can_manage_users,
+        "can_manage_audit": can_manage_audit,
+        "can_manage_settings": can_manage_settings,
         "admin_pending_bank_verifications_count": admin_pending_bank_verifications_count,
         "admin_pending_returns_count": admin_pending_returns_count,
+        "admin_pending_sellers_count": admin_pending_sellers_count,
+        "admin_pending_products_count": admin_pending_products_count,
+        "admin_pending_payouts_count": admin_pending_payouts_count,
+        "admin_low_stock_count": admin_low_stock_count,
+        "admin_total_notifications_count": admin_total_notifications_count,
     }
 
 

@@ -54,7 +54,7 @@
     }
 
     .admin-sidebar {
-      width: 260px;
+      width: 270px;
       background-color: var(--fm-dark);
       color: #FFFFFF;
       display: flex;
@@ -99,37 +99,38 @@
     }
 
     .admin-nav {
-      padding: 1rem 0.75rem;
+      padding: 0.75rem 0.75rem;
       display: flex;
       flex-direction: column;
-      gap: 0.25rem;
+      gap: 0.2rem;
       flex: 1;
     }
 
     .admin-nav-heading {
-      font-size: 0.7rem;
+      font-size: 0.65rem;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.75px;
       color: #9CA3AF;
-      padding: 0.75rem 0.75rem 0.25rem 0.75rem;
+      padding: 0.6rem 0.75rem 0.2rem 0.75rem;
+      margin-top: 0.25rem;
     }
 
     .admin-nav-link {
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      padding: 0.65rem 0.85rem;
+      padding: 0.55rem 0.85rem;
       color: #D1D5DB;
       text-decoration: none;
-      font-size: 0.9rem;
+      font-size: 0.875rem;
       font-weight: 500;
       border-radius: 8px;
       transition: all 0.2s ease;
     }
 
     .admin-nav-link i {
-      font-size: 1.15rem;
+      font-size: 1.1rem;
       color: #9CA3AF;
       transition: color 0.2s ease;
     }
@@ -178,6 +179,11 @@
       position: sticky;
       top: 0;
       z-index: 1010;
+    }
+
+    .admin-topbar-search {
+      width: 320px;
+      max-width: 100%;
     }
 
     .admin-content {
@@ -318,7 +324,7 @@
     <div class="admin-sidebar-brand">
       <a href="{% url 'custom_admin:dashboard' %}">
         <span style="color: var(--fm-primary);">FITMEEZO</span>
-        <span class="brand-badge">ADMIN</span>
+        <span class="brand-badge">SUPER ADMIN</span>
       </a>
       <button class="btn btn-sm btn-dark text-white d-lg-none" id="sidebarCloseBtn" type="button" aria-label="Close menu">
         <i class="bi bi-x-lg"></i>
@@ -326,88 +332,148 @@
     </div>
 
     <nav class="admin-nav">
-      <span class="admin-nav-heading">Overview</span>
+      <!-- 1. Dashboard -->
       <a href="{% url 'custom_admin:dashboard' %}" class="admin-nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
         <i class="bi bi-speedometer2"></i>
         <span>Dashboard</span>
       </a>
 
-      <span class="admin-nav-heading">Catalogue</span>
-      <a href="{% url 'custom_admin:product_list' %}" class="admin-nav-link {% if 'product' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="bi bi-box-seam"></i>
-        <span>Products</span>
-      </a>
-      <a href="{% url 'custom_admin:category_list' %}" class="admin-nav-link {% if 'category' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="bi bi-grid-fill"></i>
-        <span>Categories</span>
-      </a>
+      <!-- 2. Sellers & 3. Seller Approvals -->
+      {% if can_manage_sellers %}
+        <span class="admin-nav-heading">Partnership</span>
+        <a href="{% url 'custom_admin:seller_list' %}" class="admin-nav-link {% if request.resolver_match.url_name == 'seller_list' or request.resolver_match.url_name == 'seller_detail' %}active{% endif %}">
+          <i class="bi bi-shop"></i>
+          <span>Sellers</span>
+        </a>
+        <a href="{% url 'custom_admin:seller_approvals' %}" class="admin-nav-link {% if request.resolver_match.url_name == 'seller_approvals' %}active{% endif %}">
+          <i class="bi bi-person-check-fill"></i>
+          <span>Seller Approvals</span>
+          {% if admin_pending_sellers_count %}
+            <span class="badge bg-danger ms-auto px-1.5 py-0.5" style="font-size: 11px;">{{ admin_pending_sellers_count }}</span>
+          {% endif %}
+        </a>
+      {% endif %}
 
-      <span class="admin-nav-heading">Fulfillment</span>
-      <a href="{% url 'custom_admin:order_list' %}" class="admin-nav-link {% if 'order' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="bi bi-cart-check-fill"></i>
-        <span>Customer Orders</span>
-      </a>
-      <a href="{% url 'custom_admin:return_list' %}" class="admin-nav-link {% if 'return' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="bi bi-arrow-return-left"></i>
-        <span>Return Requests</span>
-        {% if admin_pending_returns_count %}
-          <span class="badge bg-warning text-dark ms-auto font-monospace px-1.5 py-0.5" style="font-size: 10px;">{{ admin_pending_returns_count }}</span>
+      <!-- 4. Products, 5. Add Product, 6. Categories, 7. Inventory -->
+      {% if can_manage_products %}
+        <span class="admin-nav-heading">Catalogue &amp; Stock</span>
+        <a href="{% url 'custom_admin:product_list' %}" class="admin-nav-link {% if request.resolver_match.url_name == 'product_list' or request.resolver_match.url_name == 'product_detail' or request.resolver_match.url_name == 'product_edit' %}active{% endif %}">
+          <i class="bi bi-box-seam"></i>
+          <span>Products</span>
+          {% if admin_pending_products_count %}
+            <span class="badge bg-warning text-dark ms-auto px-1.5 py-0.5" style="font-size: 11px;">{{ admin_pending_products_count }}</span>
+          {% endif %}
+        </a>
+        <a href="{% url 'custom_admin:product_add' %}" class="admin-nav-link {% if request.resolver_match.url_name == 'product_add' %}active{% endif %}">
+          <i class="bi bi-plus-circle-fill"></i>
+          <span>Add Product</span>
+        </a>
+        <a href="{% url 'custom_admin:category_list' %}" class="admin-nav-link {% if 'category' in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-grid-fill"></i>
+          <span>Categories</span>
+        </a>
+        <a href="{% url 'custom_admin:inventory' %}" class="admin-nav-link {% if request.resolver_match.url_name == 'inventory' %}active{% endif %}">
+          <i class="bi bi-stack"></i>
+          <span>Inventory</span>
+          {% if admin_low_stock_count %}
+            <span class="badge bg-warning text-dark ms-auto px-1.5 py-0.5" style="font-size: 11px;">{{ admin_low_stock_count }}</span>
+          {% endif %}
+        </a>
+      {% endif %}
+
+      <!-- 8. Orders & Returns & 9. Customers -->
+      {% if can_manage_support or can_manage_finance %}
+        <span class="admin-nav-heading">Fulfillment &amp; Users</span>
+        <a href="{% url 'custom_admin:order_list' %}" class="admin-nav-link {% if 'order' in request.resolver_match.url_name and 'seller' not in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-cart-check-fill"></i>
+          <span>Orders</span>
+        </a>
+      {% endif %}
+      {% if can_manage_support %}
+        <a href="{% url 'custom_admin:customer_list' %}" class="admin-nav-link {% if 'customer' in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-people-fill"></i>
+          <span>Customers</span>
+        </a>
+        <a href="{% url 'custom_admin:return_list' %}" class="admin-nav-link {% if 'return' in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-arrow-return-left"></i>
+          <span>Returns &amp; Exchanges</span>
+          {% if admin_pending_returns_count %}
+            <span class="badge bg-warning text-dark ms-auto px-1.5 py-0.5" style="font-size: 11px;">{{ admin_pending_returns_count }}</span>
+          {% endif %}
+        </a>
+      {% endif %}
+
+      <!-- 10. Payouts, 11. Commissions, Ledger, Invoices -->
+      {% if can_manage_finance %}
+        <span class="admin-nav-heading">Finance</span>
+        <a href="{% url 'custom_admin:seller_payout_management' %}" class="admin-nav-link {% if 'payout' in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-wallet2"></i>
+          <span>Payouts</span>
+          {% if admin_pending_payouts_count %}
+            <span class="badge bg-danger ms-auto px-1.5 py-0.5" style="font-size: 11px;">{{ admin_pending_payouts_count }}</span>
+          {% endif %}
+        </a>
+        <a href="{% url 'custom_admin:commissions' %}" class="admin-nav-link {% if request.resolver_match.url_name == 'commissions' %}active{% endif %}">
+          <i class="bi bi-pie-chart-fill"></i>
+          <span>Commissions</span>
+        </a>
+        <a href="{% url 'custom_admin:ledger_list' %}" class="admin-nav-link {% if 'ledger' in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-journal-text"></i>
+          <span>Financial Ledger</span>
+        </a>
+        <a href="{% url 'custom_admin:invoice_list' %}" class="admin-nav-link {% if 'invoice' in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-file-earmark-pdf"></i>
+          <span>Invoices</span>
+        </a>
+      {% endif %}
+
+      <!-- 12. Reports -->
+      {% if can_manage_finance or can_manage_products or can_manage_sellers %}
+        <span class="admin-nav-heading">Intelligence</span>
+        <a href="{% url 'custom_admin:reports' %}" class="admin-nav-link {% if request.resolver_match.url_name == 'reports' %}active{% endif %}">
+          <i class="bi bi-bar-chart-line-fill"></i>
+          <span>Reports</span>
+        </a>
+      {% endif %}
+
+      <!-- 13. Admin Users and Roles, 14. Audit Logs, 15. Settings -->
+      {% if can_manage_users or can_manage_audit or can_manage_settings %}
+        <span class="admin-nav-heading">System Administration</span>
+        {% if can_manage_users %}
+          <a href="{% url 'custom_admin:users_list' %}" class="admin-nav-link {% if 'users' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-person-badge"></i>
+            <span>Admin Users &amp; Roles</span>
+          </a>
         {% endif %}
-      </a>
-      <a href="{% url 'custom_admin:invoice_list' %}" class="admin-nav-link {% if 'invoice' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="bi bi-file-earmark-pdf"></i>
-        <span>Tax &amp; Invoices</span>
-      </a>
-
-      <span class="admin-nav-heading">Finance &amp; Payouts</span>
-      <a href="{% url 'custom_admin:seller_payout_management' %}" class="admin-nav-link {% if 'seller_payout' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="bi bi-wallet2"></i>
-        <span>Seller Payouts</span>
-      </a>
-      <a href="{% url 'custom_admin:ledger_list' %}" class="admin-nav-link {% if 'ledger' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="bi bi-journal-text"></i>
-        <span>Financial Ledger</span>
-      </a>
-      <a href="{% url 'custom_admin:cod_reconcile' %}" class="admin-nav-link {% if 'cod' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="bi bi-cash-coin"></i>
-        <span>COD Reconciliation</span>
-      </a>
-      <a href="{% url 'custom_admin:payout_list' %}" class="admin-nav-link {% if 'payout_list' in request.resolver_match.url_name or 'payout_detail' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="bi bi-cash-stack"></i>
-        <span>Payout Batches</span>
-      </a>
-      <a href="{% url 'custom_admin:payout_create' %}" class="admin-nav-link {% if 'payout_create' in request.resolver_match.url_name or 'seller_bank_verify' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="bi bi-bank2"></i>
-        <span>Bank Verifications</span>
-        {% if admin_pending_bank_verifications_count %}
-          <span class="badge bg-warning text-dark ms-auto font-monospace px-1.5 py-0.5" style="font-size: 10px;">{{ admin_pending_bank_verifications_count }}</span>
+        {% if can_manage_audit %}
+          <a href="{% url 'custom_admin:audit_logs' %}" class="admin-nav-link {% if 'audit' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-shield-check"></i>
+            <span>Audit Logs</span>
+          </a>
         {% endif %}
-      </a>
-      <a href="{% url 'custom_admin:manual_adjustment' %}" class="admin-nav-link {% if 'adjustment' in request.resolver_match.url_name %}active{% endif %}">
-        <i class="bi bi-sliders"></i>
-        <span>Manual Adjustment</span>
-      </a>
+        {% if can_manage_settings %}
+          <a href="{% url 'custom_admin:settings' %}" class="admin-nav-link {% if 'settings' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-gear-wide-connected"></i>
+            <span>Settings</span>
+          </a>
+        {% endif %}
+      {% endif %}
 
-      <span class="admin-nav-heading">System Shortcuts</span>
-
+      <span class="admin-nav-heading">Quick Shortcuts</span>
       <a href="{% url 'core:home' %}" target="_blank" class="admin-nav-link">
         <i class="bi bi-box-arrow-up-right"></i>
-        <span>View Storefront</span>
-      </a>
-      <a href="/admin/" target="_blank" class="admin-nav-link">
-        <i class="bi bi-shield-lock"></i>
-        <span>Django Admin</span>
+        <span>Storefront</span>
       </a>
     </nav>
 
     <div class="admin-sidebar-footer">
       <div class="d-flex align-items-center gap-2 mb-2">
-        <div class="rounded-circle bg-secondary d-flex align-items-center justify-content-center text-white" style="width: 32px; height: 32px; font-weight: 700; font-size: 0.8rem;">
+        <div class="rounded-circle bg-warning bg-opacity-25 text-warning d-flex align-items-center justify-content-center fw-bold" style="width: 36px; height: 36px; font-size: 0.9rem;">
           {{ request.user.username|slice:":1"|upper }}
         </div>
         <div class="overflow-hidden">
           <div class="text-white text-truncate fw-semibold small">{{ request.user.get_full_name|default:request.user.username }}</div>
-          <div class="text-secondary small" style="font-size: 0.7rem;">Administrator</div>
+          <div class="text-muted small" style="font-size: 0.7rem;">{{ admin_user_role|default:"Administrator" }}</div>
         </div>
       </div>
       <form method="post" action="{% url 'custom_admin:logout' %}">
@@ -430,16 +496,104 @@
         <h5 class="mb-0 fw-bold">{% block page_title %}Dashboard{% endblock %}</h5>
       </div>
 
-      <div class="d-flex align-items-center gap-3">
-        <a href="{% url 'core:home' %}" target="_blank" class="btn btn-sm btn-outline-secondary d-none d-sm-inline-flex align-items-center gap-1">
-          <i class="bi bi-shop"></i> Storefront
-        </a>
-        <div class="vr d-none d-sm-block"></div>
-        <div class="d-flex align-items-center gap-2">
-          <span class="badge bg-dark text-white fw-medium px-2 py-1">
-            <i class="bi bi-shield-check text-warning me-1"></i>Staff
+      <!-- Omni-Search Bar -->
+      <form class="d-none d-md-flex admin-topbar-search" method="get" action="{% url 'custom_admin:global_search' %}">
+        <div class="input-group input-group-sm">
+          <span class="input-group-text bg-light border-end-0 text-muted">
+            <i class="bi bi-search"></i>
           </span>
-          <span class="small fw-semibold text-secondary d-none d-md-inline">{{ request.user.username }}</span>
+          <input type="search" name="q" class="form-control bg-light border-start-0" placeholder="Search orders, products, sellers..." aria-label="Search" value="{{ query|default:'' }}">
+        </div>
+      </form>
+
+      <div class="d-flex align-items-center gap-3">
+        <!-- Notifications Dropdown -->
+        <div class="dropdown">
+          <button class="btn btn-sm btn-light position-relative" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Notifications">
+            <i class="bi bi-bell fs-6"></i>
+            {% if admin_total_notifications_count > 0 %}
+              <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 10px;">
+                {{ admin_total_notifications_count }}
+              </span>
+            {% endif %}
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow border-0 p-2" style="width: 290px; font-size: 0.85rem;">
+            <li class="dropdown-header fw-bold text-dark px-2 py-1">Operational Alerts</li>
+            {% if admin_pending_sellers_count > 0 %}
+              <li>
+                <a class="dropdown-item rounded py-2 d-flex align-items-center justify-content-between" href="{% url 'custom_admin:seller_approvals' %}">
+                  <span><i class="bi bi-person-check text-warning me-2"></i>Pending Sellers</span>
+                  <span class="badge bg-danger">{{ admin_pending_sellers_count }}</span>
+                </a>
+              </li>
+            {% endif %}
+            {% if admin_pending_payouts_count > 0 %}
+              <li>
+                <a class="dropdown-item rounded py-2 d-flex align-items-center justify-content-between" href="{% url 'custom_admin:seller_payout_management' %}">
+                  <span><i class="bi bi-wallet2 text-danger me-2"></i>Pending Payouts</span>
+                  <span class="badge bg-danger">{{ admin_pending_payouts_count }}</span>
+                </a>
+              </li>
+            {% endif %}
+            {% if admin_pending_bank_verifications_count > 0 %}
+              <li>
+                <a class="dropdown-item rounded py-2 d-flex align-items-center justify-content-between" href="{% url 'custom_admin:payout_create' %}">
+                  <span><i class="bi bi-bank2 text-primary me-2"></i>Bank Verifications</span>
+                  <span class="badge bg-warning text-dark">{{ admin_pending_bank_verifications_count }}</span>
+                </a>
+              </li>
+            {% endif %}
+            {% if admin_low_stock_count > 0 %}
+              <li>
+                <a class="dropdown-item rounded py-2 d-flex align-items-center justify-content-between" href="{% url 'custom_admin:inventory' %}?filter=low">
+                  <span><i class="bi bi-stack text-warning me-2"></i>Low Stock Products</span>
+                  <span class="badge bg-warning text-dark">{{ admin_low_stock_count }}</span>
+                </a>
+              </li>
+            {% endif %}
+            {% if admin_pending_returns_count > 0 %}
+              <li>
+                <a class="dropdown-item rounded py-2 d-flex align-items-center justify-content-between" href="{% url 'custom_admin:return_list' %}">
+                  <span><i class="bi bi-arrow-return-left text-info me-2"></i>Return Requests</span>
+                  <span class="badge bg-info text-dark">{{ admin_pending_returns_count }}</span>
+                </a>
+              </li>
+            {% endif %}
+            {% if admin_total_notifications_count == 0 %}
+              <li class="px-2 py-3 text-center text-muted small">
+                <i class="bi bi-check2-circle text-success fs-5 d-block mb-1"></i>
+                All administrative queues are clear!
+              </li>
+            {% endif %}
+          </ul>
+        </div>
+
+        <div class="vr d-none d-sm-block"></div>
+
+        <!-- Admin Profile Pill -->
+        <div class="dropdown">
+          <button class="btn btn-sm btn-light dropdown-toggle d-flex align-items-center gap-2 border" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="badge bg-dark text-white fw-semibold px-2 py-1">
+              {{ admin_user_role|default:"Administrator" }}
+            </span>
+            <span class="small fw-semibold text-secondary d-none d-md-inline">{{ request.user.username }}</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow border-0 p-2" style="font-size: 0.85rem;">
+            <li class="dropdown-header text-muted px-2 py-1">Signed in as <strong>{{ request.user.username }}</strong></li>
+            <li><a class="dropdown-item rounded" href="{% url 'core:home' %}" target="_blank"><i class="bi bi-shop me-2"></i>Storefront</a></li>
+            {% if can_manage_settings %}
+              <li><a class="dropdown-item rounded" href="{% url 'custom_admin:settings' %}"><i class="bi bi-gear me-2"></i>Settings</a></li>
+            {% endif %}
+            <li><hr class="dropdown-divider"></li>
+            <li>
+              <form method="post" action="{% url 'custom_admin:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="dropdown-item rounded text-danger">
+                  <i class="bi bi-box-arrow-right me-2"></i>Sign Out
+                </button>
+              </form>
+            </li>
+          </ul>
         </div>
       </div>
     </header>
@@ -449,15 +603,15 @@
       {% if messages %}
         <div class="mb-4">
           {% for message in messages %}
-            <div class="alert alert-{% if message.tags == 'error' %}danger{% elif message.tags %}{{ message.tags }}{% else %}info{% endif %} alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm" role="alert">
+            <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show d-flex align-items-center gap-2 shadow-sm" role="alert">
               {% if message.tags == 'success' %}
-                <i class="bi bi-check-circle-fill text-success fs-5"></i>
-              {% elif message.tags == 'error' or message.tags == 'danger' %}
-                <i class="bi bi-exclamation-triangle-fill text-danger fs-5"></i>
+                <i class="bi bi-check-circle-fill fs-5"></i>
+              {% elif message.tags == 'error' %}
+                <i class="bi bi-exclamation-triangle-fill fs-5"></i>
               {% elif message.tags == 'warning' %}
-                <i class="bi bi-exclamation-circle-fill text-warning fs-5"></i>
+                <i class="bi bi-exclamation-circle-fill fs-5"></i>
               {% else %}
-                <i class="bi bi-info-circle-fill text-info fs-5"></i>
+                <i class="bi bi-info-circle-fill fs-5"></i>
               {% endif %}
               <div class="flex-grow-1">{{ message }}</div>
               <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -471,11 +625,11 @@
   </div>
 </div>
 
-<!-- Bootstrap JS -->
+<!-- Bootstrap 5.3.3 Bundle with Popper -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 
 <script>
-  // Mobile sidebar toggle
+  // Mobile sidebar toggle handler
   const sidebar = document.getElementById('adminSidebar');
   const backdrop = document.getElementById('sidebarBackdrop');
   const toggleBtn = document.getElementById('sidebarToggleBtn');
@@ -497,5 +651,6 @@
 </script>
 
 {% block extra_js %}{% endblock %}
+
 </body>
 </html>

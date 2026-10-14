@@ -1,0 +1,162 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Inventory &amp; Stock — Fitmeezo Admin{% endblock %}
+{% block page_title %}Inventory &amp; Stock Management{% endblock %}
+
+{% block content %}
+<!-- Metric Cards Row -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Total Stock Units</div>
+      <h3 class="fw-bold mb-0 mt-1">{{ all_units }} <span class="fs-6 fw-normal text-muted">units</span></h3>
+      <div class="small text-muted">Across all products &amp; variants</div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Low Stock Alert (&lt;10)</div>
+      <h3 class="fw-bold mb-0 mt-1 text-warning">{{ low_stock_count }}</h3>
+      <div class="small text-muted"><a href="?filter=low" class="text-decoration-none">Filter low items &rarr;</a></div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Out of Stock (0)</div>
+      <h3 class="fw-bold mb-0 mt-1 text-danger">{{ out_of_stock_count }}</h3>
+      <div class="small text-muted"><a href="?filter=out" class="text-decoration-none">Filter out of stock &rarr;</a></div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Healthy Stock (10+)</div>
+      <h3 class="fw-bold mb-0 mt-1 text-success">{{ page_obj.paginator.count }}</h3>
+      <div class="small text-muted">Total catalogue rows</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filters Bar -->
+<div class="fm-card p-3 mb-4">
+  <form method="get" class="row g-2 align-items-center">
+    <div class="col-12 col-md-5">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" class="form-control" placeholder="Search product name, SKU, seller..." value="{{ query }}">
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <select name="filter" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="all" {% if filter_type == 'all' or not filter_type %}selected{% endif %}>All Inventory Levels</option>
+        <option value="low" {% if filter_type == 'low' %}selected{% endif %}>Low Stock (&lt;10 units)</option>
+        <option value="out" {% if filter_type == 'out' %}selected{% endif %}>Out of Stock (0 units)</option>
+        <option value="in" {% if filter_type == 'in' %}selected{% endif %}>Healthy Stock (&ge;10 units)</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <select name="category" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Categories</option>
+        {% for cat in categories %}
+          <option value="{{ cat.id }}" {% if category_id == cat.id|stringformat:"s" %}selected{% endif %}>{{ cat.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-12 col-md-1 d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-dark w-100">Filter</button>
+      {% if query or filter_type != 'all' or category_id %}
+        <a href="{% url 'custom_admin:inventory' %}" class="btn btn-sm btn-outline-secondary" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Inventory Table -->
+<div class="fm-card">
+  <div class="fm-card-header d-flex justify-content-between align-items-center">
+    <span>Stock Monitor ({{ page_obj.paginator.count }})</span>
+    <a href="{% url 'custom_admin:reports_export' report_type='inventory' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-download me-1"></i> Export Inventory CSV
+    </a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Product / SKU</th>
+          <th>Category</th>
+          <th>Seller / Origin</th>
+          <th>Current Stock</th>
+          <th>Status</th>
+          <th class="text-end">Quick Stock Adjustment</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for prod in products %}
+        <tr>
+          <td>
+            <div class="fw-bold">
+              <a href="{% url 'custom_admin:product_detail' pk=prod.pk %}" class="text-decoration-none text-dark">
+                {{ prod.name }}
+              </a>
+            </div>
+            <span class="font-monospace small text-muted">{{ prod.sku }}</span>
+          </td>
+          <td>{{ prod.category.name|default:"-" }}</td>
+          <td>{{ prod.seller.store_name|default:"Platform Direct" }}</td>
+          <td>
+            <span class="fs-6 fw-bold {% if prod.stock_quantity == 0 %}text-danger{% elif prod.stock_quantity < 10 %}text-warning{% else %}text-dark{% endif %}">
+              {{ prod.stock_quantity }}
+            </span>
+          </td>
+          <td>
+            {% if prod.stock_quantity == 0 %}
+              <span class="badge bg-danger">Out of Stock</span>
+            {% elif prod.stock_quantity < 10 %}
+              <span class="badge bg-warning text-dark">Low Stock</span>
+            {% else %}
+              <span class="badge bg-success">In Stock</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <!-- Inline Stock Adjustment Form -->
+            <form method="post" action="{% url 'custom_admin:inventory_update' %}" class="d-inline-flex align-items-center gap-1 justify-content-end">
+              {% csrf_token %}
+              <input type="hidden" name="product_id" value="{{ prod.pk }}">
+              <input type="number" name="stock_quantity" class="form-control form-control-sm text-center" style="width: 80px;" min="0" value="{{ prod.stock_quantity }}" required>
+              <button type="submit" class="btn btn-sm btn-outline-dark" title="Save updated stock">
+                <i class="bi bi-check-lg"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="6" class="text-center py-5 text-muted">
+            <i class="bi bi-stack fs-1 d-block mb-2 text-secondary"></i>
+            No items match the selected inventory filters.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+  <div class="p-3 border-top d-flex justify-content-between align-items-center">
+    <div class="small text-muted">
+      Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} items
+    </div>
+    <ul class="pagination pagination-sm mb-0">
+      {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}&filter={{ filter_type }}&category={{ category_id }}">Previous</a></li>
+      {% endif %}
+      <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+      {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}&filter={{ filter_type }}&category={{ category_id }}">Next</a></li>
+      {% endif %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

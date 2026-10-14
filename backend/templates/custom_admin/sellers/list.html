@@ -1,0 +1,184 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Seller Directory — Fitmeezo Admin{% endblock %}
+{% block page_title %}Sellers Directory{% endblock %}
+
+{% block content %}
+<!-- Metric Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Total Sellers</div>
+      <h3 class="fw-bold mb-0 mt-1">{{ total_sellers_count }}</h3>
+      <div class="small text-muted">All registered merchants</div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Approved Stores</div>
+      <h3 class="fw-bold mb-0 mt-1 text-success">{{ approved_sellers_count }}</h3>
+      <div class="small text-muted">Active marketplace merchants</div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Pending Applications</div>
+      <h3 class="fw-bold mb-0 mt-1 text-warning">{{ pending_sellers_count }}</h3>
+      <div class="small text-muted"><a href="{% url 'custom_admin:seller_approvals' %}" class="text-decoration-none">Review queue &rarr;</a></div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Suspended Stores</div>
+      <h3 class="fw-bold mb-0 mt-1 text-danger">{{ suspended_sellers_count }}</h3>
+      <div class="small text-muted">Temporarily unlisted</div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="fm-card p-3 mb-4">
+  <form method="get" class="row g-2 align-items-center">
+    <div class="col-12 col-md-5">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" class="form-control" placeholder="Search store name, legal name, email, phone, city..." value="{{ query }}">
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Account Statuses</option>
+        <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>Pending Approval</option>
+        <option value="approved" {% if status_filter == 'approved' %}selected{% endif %}>Approved</option>
+        <option value="rejected" {% if status_filter == 'rejected' %}selected{% endif %}>Rejected</option>
+        <option value="suspended" {% if status_filter == 'suspended' %}selected{% endif %}>Suspended</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <select name="bank" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Bank Statuses</option>
+        <option value="unverified" {% if bank_filter == 'unverified' %}selected{% endif %}>Unverified</option>
+        <option value="pending" {% if bank_filter == 'pending' %}selected{% endif %}>Bank Pending Review</option>
+        <option value="verified" {% if bank_filter == 'verified' %}selected{% endif %}>Bank Verified</option>
+        <option value="rejected" {% if bank_filter == 'rejected' %}selected{% endif %}>Bank Rejected</option>
+      </select>
+    </div>
+    <div class="col-12 col-md-1 d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-dark w-100">Filter</button>
+      {% if query or status_filter or bank_filter %}
+        <a href="{% url 'custom_admin:seller_list' %}" class="btn btn-sm btn-outline-secondary" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Sellers Table -->
+<div class="fm-card">
+  <div class="fm-card-header d-flex justify-content-between align-items-center">
+    <span>Seller Directory ({{ page_obj.paginator.count }})</span>
+    <a href="{% url 'custom_admin:reports_export' report_type='sellers' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-download me-1"></i> Export CSV
+    </a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Store &amp; Business</th>
+          <th>Contact</th>
+          <th>Location</th>
+          <th>Account Status</th>
+          <th>Bank Details</th>
+          <th>Catalogue</th>
+          <th>Commission</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for seller in sellers %}
+        <tr>
+          <td>
+            <div class="fw-bold">
+              <a href="{% url 'custom_admin:seller_detail' seller_id=seller.pk %}" class="text-decoration-none text-dark">
+                {{ seller.store_name }}
+              </a>
+            </div>
+            <div class="small text-muted">{{ seller.legal_business_name|default:"Individual" }}</div>
+            <div class="font-monospace small text-muted" style="font-size: 11px;">Joined {{ seller.created_at|date:"M d, Y" }}</div>
+          </td>
+          <td>
+            <div class="small"><i class="bi bi-envelope text-muted me-1"></i>{{ seller.support_email }}</div>
+            <div class="small text-muted"><i class="bi bi-telephone text-muted me-1"></i>{{ seller.support_phone|default:"-" }}</div>
+          </td>
+          <td>
+            <div class="small">{{ seller.city|default:"-" }}</div>
+            <div class="small text-muted">{{ seller.state|default:"" }}</div>
+          </td>
+          <td>
+            {% if seller.status == 'approved' %}
+              <span class="badge bg-success">Approved</span>
+            {% elif seller.status == 'pending' %}
+              <span class="badge bg-warning text-dark">Pending</span>
+            {% elif seller.status == 'suspended' %}
+              <span class="badge bg-danger">Suspended</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ seller.get_status_display }}</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if seller.bank_verification_status == 'verified' %}
+              <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Verified</span>
+            {% elif seller.bank_verification_status == 'pending' %}
+              <a href="{% url 'custom_admin:seller_bank_verify' seller_id=seller.pk %}" class="badge bg-warning text-dark text-decoration-none">
+                <i class="bi bi-hourglass-split me-1"></i>Review
+              </a>
+            {% elif seller.bank_verification_status == 'rejected' %}
+              <span class="badge bg-danger">Rejected</span>
+            {% else %}
+              <span class="badge bg-light text-dark border">Unverified</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="small fw-semibold">{{ seller.total_products }} Products</div>
+            <div class="small text-muted">{{ seller.total_orders }} Orders</div>
+          </td>
+          <td>
+            <span class="fw-semibold">{{ seller.commission_rate }}%</span>
+          </td>
+          <td class="text-end">
+            <a href="{% url 'custom_admin:seller_detail' seller_id=seller.pk %}" class="btn btn-sm btn-outline-dark">
+              View Profile
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="8" class="text-center py-5 text-muted">
+            <i class="bi bi-shop fs-1 d-block mb-2 text-secondary"></i>
+            No sellers match the selected filters.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+  <div class="p-3 border-top d-flex justify-content-between align-items-center">
+    <div class="small text-muted">
+      Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} sellers
+    </div>
+    <ul class="pagination pagination-sm mb-0">
+      {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}&status={{ status_filter }}&bank={{ bank_filter }}">Previous</a></li>
+      {% endif %}
+      <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+      {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}&status={{ status_filter }}&bank={{ bank_filter }}">Next</a></li>
+      {% endif %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

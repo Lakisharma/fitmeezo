@@ -1,0 +1,419 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}{{ seller.store_name }} — Seller Profile{% endblock %}
+{% block page_title %}Seller Profile{% endblock %}
+
+{% block content %}
+<!-- Header Bar -->
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div class="d-flex align-items-center gap-3">
+    <div class="rounded-circle bg-warning bg-opacity-25 text-warning p-3 d-flex align-items-center justify-content-center" style="width: 54px; height: 54px;">
+      <i class="bi bi-shop fs-3"></i>
+    </div>
+    <div>
+      <div class="d-flex align-items-center gap-2">
+        <h4 class="fw-bold mb-0 text-dark">{{ seller.store_name }}</h4>
+        {% if seller.status == 'approved' %}
+          <span class="badge bg-success">Approved</span>
+        {% elif seller.status == 'pending' %}
+          <span class="badge bg-warning text-dark">Pending</span>
+        {% elif seller.status == 'suspended' %}
+          <span class="badge bg-danger">Suspended</span>
+        {% else %}
+          <span class="badge bg-secondary">{{ seller.get_status_display }}</span>
+        {% endif %}
+      </div>
+      <div class="text-muted small">Registered by user <strong>{{ seller.user.username }}</strong> on {{ seller.created_at|date:"M d, Y H:i" }}</div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="{% url 'custom_admin:seller_list' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i> Back to Sellers
+    </a>
+    {% if seller.status == 'pending' %}
+      <form method="post" action="{% url 'custom_admin:seller_action' seller_id=seller.pk %}" class="d-inline" onsubmit="return confirm('Approve this seller account?');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="approve">
+        <button type="submit" class="btn btn-sm btn-success fw-semibold"><i class="bi bi-check-circle me-1"></i> Approve Store</button>
+      </form>
+      <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#rejectModal">
+        <i class="bi bi-x-circle me-1"></i> Reject
+      </button>
+    {% elif seller.status == 'approved' %}
+      <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#suspendModal">
+        <i class="bi bi-pause-circle me-1"></i> Suspend Store
+      </button>
+    {% elif seller.status == 'suspended' %}
+      <form method="post" action="{% url 'custom_admin:seller_action' seller_id=seller.pk %}" class="d-inline" onsubmit="return confirm('Reactivate this seller account?');">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reactivate">
+        <button type="submit" class="btn btn-sm btn-success fw-semibold"><i class="bi bi-play-circle me-1"></i> Reactivate Store</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Performance Summary Row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Catalogue Items</div>
+      <h3 class="fw-bold mb-0 mt-1">{{ seller_products_count }}</h3>
+      <div class="small text-muted">Active products listed</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Fulfilled Orders</div>
+      <h3 class="fw-bold mb-0 mt-1">{{ seller_orders_count }}</h3>
+      <div class="small text-muted">Customer orders</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Total Sales (GMV)</div>
+      <h3 class="fw-bold mb-0 mt-1 text-success">₹{{ total_sales_revenue|floatformat:2 }}</h3>
+      <div class="small text-muted">Gross merchandise value</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Platform Commission</div>
+      <h3 class="fw-bold mb-0 mt-1 text-primary">₹{{ total_commission_earned|floatformat:2 }}</h3>
+      <div class="small text-muted">Retained at {{ seller.commission_rate }}%</div>
+    </div>
+  </div>
+</div>
+
+<!-- Details & Settings Grid -->
+<div class="row g-4 mb-4">
+  <!-- Business & Contact Info -->
+  <div class="col-12 col-lg-6">
+    <div class="fm-card h-100">
+      <div class="fm-card-header">
+        <i class="bi bi-building text-primary me-2"></i>Business &amp; Tax Information
+      </div>
+      <div class="fm-card-body">
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <span class="text-muted small d-block">Legal Business Name</span>
+            <span class="fw-semibold text-dark">{{ seller.legal_business_name|default:"Individual / Unregistered" }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-muted small d-block">Business Entity Type</span>
+            <span class="fw-semibold text-dark">{{ seller.get_business_type_display }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-muted small d-block">Support Email</span>
+            <span class="fw-semibold text-dark">{{ seller.support_email }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-muted small d-block">Support Phone</span>
+            <span class="fw-semibold text-dark">{{ seller.support_phone|default:"-" }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-muted small d-block">GSTIN</span>
+            <span class="font-monospace fw-bold text-dark">{{ seller.gstin|default:"Not Provided" }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-muted small d-block">PAN Number</span>
+            <span class="font-monospace fw-bold text-dark">{{ seller.pan_number|default:"Not Provided" }}</span>
+          </div>
+        </div>
+
+        <div class="border-top pt-3 mt-3">
+          <span class="text-muted small fw-semibold d-block mb-1">Registered Address</span>
+          <div class="small text-dark">{{ seller.registered_address|default:"-" }}</div>
+          <div class="small text-muted">{{ seller.city }}, {{ seller.state }} - {{ seller.postal_code }}</div>
+        </div>
+
+        {% if seller.pickup_address %}
+        <div class="border-top pt-3 mt-3">
+          <span class="text-muted small fw-semibold d-block mb-1">Warehouse Pickup Address</span>
+          <div class="small text-dark">{{ seller.pickup_address }}</div>
+          <div class="small text-muted">{{ seller.pickup_city }}, {{ seller.pickup_state }} - {{ seller.pickup_postal_code }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Banking & Commission Configuration -->
+  <div class="col-12 col-lg-6">
+    <div class="fm-card h-100">
+      <div class="fm-card-header d-flex justify-content-between align-items-center">
+        <div><i class="bi bi-bank2 text-warning me-2"></i>Banking &amp; Commission</div>
+        <a href="{% url 'custom_admin:seller_bank_verify' seller_id=seller.pk %}" class="btn btn-sm btn-outline-primary">
+          Verify Bank
+        </a>
+      </div>
+      <div class="fm-card-body">
+        <div class="bg-light rounded-3 p-3 mb-3 border">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="fw-semibold small text-dark">Bank Verification Status</span>
+            {% if seller.bank_verification_status == 'verified' %}
+              <span class="badge bg-success">Verified &amp; Approved</span>
+            {% elif seller.bank_verification_status == 'pending' %}
+              <span class="badge bg-warning text-dark">Pending Manual Verification</span>
+            {% elif seller.bank_verification_status == 'rejected' %}
+              <span class="badge bg-danger">Verification Rejected</span>
+            {% else %}
+              <span class="badge bg-secondary">Unverified</span>
+            {% endif %}
+          </div>
+          <div class="row g-2 small">
+            <div class="col-6"><span class="text-muted">Account Holder:</span> <span class="fw-bold">{{ seller.bank_account_holder_name|default:"-" }}</span></div>
+            <div class="col-6"><span class="text-muted">Bank Name:</span> <span class="fw-semibold">{{ seller.bank_name|default:"-" }}</span></div>
+            <div class="col-6"><span class="text-muted">Account Number:</span> <span class="font-monospace">{{ seller.bank_account_number|default:"-" }}</span></div>
+            <div class="col-6"><span class="text-muted">IFSC Code:</span> <span class="font-monospace fw-bold">{{ seller.bank_ifsc_code|default:"-" }}</span></div>
+          </div>
+        </div>
+
+        <!-- Commission Rate Update Form -->
+        <div class="p-3 border rounded-3">
+          <h6 class="fw-bold text-dark mb-2">Platform Commission Rate</h6>
+          <form method="post" action="{% url 'custom_admin:seller_commission_update' seller_id=seller.pk %}" class="row g-2 align-items-end">
+            {% csrf_token %}
+            <div class="col-8">
+              <label class="form-label small text-muted mb-1">Commission Rate (%)</label>
+              <div class="input-group input-group-sm">
+                <input type="number" step="0.10" min="0" max="100" name="commission_rate" class="form-control" value="{{ seller.commission_rate }}" required>
+                <span class="input-group-text">%</span>
+              </div>
+            </div>
+            <div class="col-4">
+              <button type="submit" class="btn btn-sm btn-dark w-100">Update Rate</button>
+            </div>
+          </form>
+        </div>
+
+        {% if seller.admin_notes %}
+        <div class="mt-3">
+          <span class="text-muted small fw-semibold d-block mb-1">Administrative Notes &amp; Audit Log</span>
+          <pre class="bg-light p-2 rounded small text-muted border mb-0" style="font-size: 11px; max-height: 120px; overflow-y: auto;">{{ seller.admin_notes }}</pre>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabs: Products, Orders, Ledger, Payouts -->
+<div class="fm-card">
+  <div class="fm-card-header p-2">
+    <ul class="nav nav-tabs card-header-tabs" id="sellerTab" role="tablist">
+      <li class="nav-item">
+        <button class="nav-link active" id="products-tab" data-bs-toggle="tab" data-bs-target="#products" type="button" role="tab">Products ({{ seller_products_count }})</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="orders-tab" data-bs-toggle="tab" data-bs-target="#orders" type="button" role="tab">Orders ({{ seller_orders_count }})</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="ledger-tab" data-bs-toggle="tab" data-bs-target="#ledger" type="button" role="tab">Ledger Entries</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" id="payouts-tab" data-bs-toggle="tab" data-bs-target="#payouts" type="button" role="tab">Payout Batches</button>
+      </li>
+    </ul>
+  </div>
+
+  <div class="tab-content p-3" id="sellerTabContent">
+    <!-- Products Tab -->
+    <div class="tab-pane fade show active" id="products" role="tabpanel">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>SKU</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th>Stock</th>
+              <th>Approval</th>
+              <th>Active</th>
+              <th class="text-end">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for prod in seller_products %}
+            <tr>
+              <td class="fw-semibold">
+                <a href="{% url 'custom_admin:product_detail' pk=prod.pk %}" class="text-decoration-none text-dark">{{ prod.name }}</a>
+              </td>
+              <td class="font-monospace small">{{ prod.sku }}</td>
+              <td>{{ prod.category.name|default:"-" }}</td>
+              <td class="fw-bold">₹{{ prod.price|floatformat:2 }}</td>
+              <td>{{ prod.stock_quantity }}</td>
+              <td><span class="badge {% if prod.approval_status == 'approved' %}bg-success{% elif prod.approval_status == 'pending' %}bg-warning text-dark{% else %}bg-danger{% endif %}">{{ prod.approval_status }}</span></td>
+              <td>{% if prod.is_active %}<span class="badge bg-success">Yes</span>{% else %}<span class="badge bg-secondary">No</span>{% endif %}</td>
+              <td class="text-end">
+                <a href="{% url 'custom_admin:product_edit' pk=prod.pk %}" class="btn btn-sm btn-light border py-0 px-2"><i class="bi bi-pencil"></i></a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="text-center py-4 text-muted">No products listed by this merchant yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Orders Tab -->
+    <div class="tab-pane fade" id="orders" role="tabpanel">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Order #</th>
+              <th>Date</th>
+              <th>Items GMV</th>
+              <th>Commission</th>
+              <th>Net Due</th>
+              <th>Fulfillment Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for so in seller_orders %}
+            <tr>
+              <td class="fw-semibold">
+                <a href="{% url 'custom_admin:order_detail' pk=so.order.pk %}" class="text-decoration-none text-dark">{{ so.order.order_number }}</a>
+              </td>
+              <td class="small text-muted">{{ so.created_at|date:"M d, Y" }}</td>
+              <td class="fw-bold">₹{{ so.total_amount|floatformat:2 }}</td>
+              <td class="text-primary">₹{{ so.commission_amount|floatformat:2 }}</td>
+              <td class="fw-bold text-success">₹{{ so.seller_payout_amount|floatformat:2 }}</td>
+              <td><span class="badge badge-status badge-status-{{ so.status }}">{{ so.get_status_display }}</span></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center py-4 text-muted">No orders recorded for this merchant.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Ledger Tab -->
+    <div class="tab-pane fade" id="ledger" role="tabpanel">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>Current Posted Balance: <strong class="fs-5 text-success">₹{{ posted_balance|floatformat:2 }}</strong></div>
+        <a href="{% url 'custom_admin:ledger_list' %}" class="btn btn-sm btn-outline-dark">Open Global Ledger</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Category</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Reference</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for entry in ledger_entries %}
+            <tr>
+              <td class="small text-muted">{{ entry.created_at|date:"M d, H:i" }}</td>
+              <td><span class="badge bg-light text-dark border">{{ entry.category }}</span></td>
+              <td class="fw-bold {% if entry.amount >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {% if entry.amount >= 0 %}+{% endif %}₹{{ entry.amount|floatformat:2 }}
+              </td>
+              <td><span class="badge {% if entry.status == 'posted' %}bg-success{% else %}bg-secondary{% endif %}">{{ entry.status }}</span></td>
+              <td class="font-monospace small">{{ entry.source_reference|default:"-" }}</td>
+              <td class="small text-muted">{{ entry.description }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center py-4 text-muted">No financial ledger entries for this seller.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Payouts Tab -->
+    <div class="tab-pane fade" id="payouts" role="tabpanel">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Batch Reference</th>
+              <th>Period</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Created</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for batch in payout_batches %}
+            <tr>
+              <td class="font-monospace fw-semibold">
+                <a href="{% url 'custom_admin:payout_detail' batch_reference=batch.batch_reference %}" class="text-decoration-none text-dark">{{ batch.batch_reference }}</a>
+              </td>
+              <td class="small text-muted">{{ batch.period_start|date:"M d" }} – {{ batch.period_end|date:"M d" }}</td>
+              <td class="fw-bold">₹{{ batch.amount|floatformat:2 }}</td>
+              <td><span class="badge {% if batch.status == 'completed' %}bg-success{% elif batch.status == 'pending' %}bg-warning text-dark{% else %}bg-secondary{% endif %}">{{ batch.status }}</span></td>
+              <td class="small text-muted">{{ batch.created_at|date:"M d, Y" }}</td>
+              <td>
+                <a href="{% url 'custom_admin:payout_detail' batch_reference=batch.batch_reference %}" class="btn btn-sm btn-outline-dark py-0 px-2">Inspect</a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center py-4 text-muted">No payout batches generated for this merchant yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Rejection Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'custom_admin:seller_action' seller_id=seller.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reject">
+        <div class="modal-header">
+          <h5 class="modal-title">Reject Seller Application</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">Specify an administrative reason for rejecting this application:</p>
+          <textarea name="reason" class="form-control" rows="3" placeholder="Rejection reason..." required></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-danger fw-semibold">Reject Application</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Suspension Modal -->
+<div class="modal fade" id="suspendModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'custom_admin:seller_action' seller_id=seller.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="suspend">
+        <div class="modal-header">
+          <h5 class="modal-title">Suspend Seller Store</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-danger small fw-semibold"><i class="bi bi-exclamation-triangle me-1"></i>Warning: Suspending this seller will automatically unlist all of their products from customer storefront search.</p>
+          <textarea name="reason" class="form-control" rows="3" placeholder="Reason for suspension..." required></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-danger fw-semibold">Confirm Suspension</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

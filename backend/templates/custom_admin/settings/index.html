@@ -1,0 +1,105 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}System Settings — Fitmeezo Admin{% endblock %}
+{% block page_title %}System Settings &amp; Configuration{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="fw-bold mb-1">Marketplace Environment &amp; Parameters</h4>
+    <p class="text-muted small mb-0">Production system status, database engine, payment integration, and defaults.</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Brand & Storefront Parameters -->
+  <div class="col-12 col-lg-6">
+    <div class="fm-card h-100">
+      <div class="fm-card-header">
+        <i class="bi bi-shop text-primary me-2"></i>Brand &amp; Marketplace Parameters
+      </div>
+      <div class="fm-card-body">
+        <table class="table table-sm align-middle mb-0">
+          <tbody>
+            <tr>
+              <td class="text-muted small w-50">Marketplace Brand Name</td>
+              <td class="fw-bold">{{ brand_name }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted small">Brand Tagline</td>
+              <td class="fw-semibold">{{ brand_tagline }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted small">Customer Support Email</td>
+              <td>{{ support_email }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted small">Default Operating Currency</td>
+              <td><span class="badge bg-light text-dark border">{{ currency }} ({{ currency_symbol }})</span></td>
+            </tr>
+            <tr>
+              <td class="text-muted small">Default Seller Commission Rate</td>
+              <td class="fw-bold text-primary">{{ default_commission_rate }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted small">Admin Session Timeout</td>
+              <td>{{ session_cookie_age }} seconds</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gateway & Integration Status -->
+  <div class="col-12 col-lg-6">
+    <div class="fm-card h-100">
+      <div class="fm-card-header">
+        <i class="bi bi-cpu text-success me-2"></i>Integrations &amp; Infrastructure
+      </div>
+      <div class="fm-card-body">
+        <table class="table table-sm align-middle mb-0">
+          <tbody>
+            <tr>
+              <td class="text-muted small w-50">Database Engine</td>
+              <td>
+                <span class="badge {% if 'postgresql' in db_engine %}bg-success{% else %}bg-primary{% endif %}">
+                  {{ db_engine }}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted small">Active Database Target</td>
+              <td class="font-monospace small text-truncate" style="max-width: 200px;">{{ db_name }}</td>
+            </tr>
+            <tr>
+              <td class="text-muted small">Production Mode (DEBUG=False)</td>
+              <td>
+                {% if not debug_mode %}
+                  <span class="badge bg-success"><i class="bi bi-shield-check me-1"></i>Production Mode</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark"><i class="bi bi-exclamation-triangle me-1"></i>Development Mode</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted small">Payment Gateway (Razorpay)</td>
+              <td>
+                {% if razorpay_configured %}
+                  <span class="badge bg-success">Configured &amp; Active</span>
+                {% else %}
+                  <span class="badge bg-secondary">Simulated / Mock Mode</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <td class="text-muted small">Authorized Hostnames</td>
+              <td class="small font-monospace text-muted">{{ allowed_hosts|join:", " }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

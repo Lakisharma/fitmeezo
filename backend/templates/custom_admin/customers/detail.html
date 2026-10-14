@@ -1,0 +1,140 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}{{ customer.username }} — Customer Profile{% endblock %}
+{% block page_title %}Customer Profile{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div class="d-flex align-items-center gap-3">
+    <div class="rounded-circle bg-secondary bg-opacity-25 text-secondary p-3 d-flex align-items-center justify-content-center" style="width: 52px; height: 52px;">
+      <i class="bi bi-person-fill fs-3"></i>
+    </div>
+    <div>
+      <div class="d-flex align-items-center gap-2">
+        <h4 class="fw-bold mb-0 text-dark">{{ customer.get_full_name|default:customer.username }}</h4>
+        {% if customer.is_active %}
+          <span class="badge bg-success">Active Account</span>
+        {% else %}
+          <span class="badge bg-danger">Deactivated</span>
+        {% endif %}
+      </div>
+      <div class="text-muted small">Registered on {{ customer.date_joined|date:"M d, Y H:i" }}</div>
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <a href="{% url 'custom_admin:customer_list' %}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-left me-1"></i> Back to Customers
+    </a>
+    <form method="post" action="{% url 'custom_admin:customer_toggle_status' user_id=customer.pk %}" onsubmit="return confirm('Confirm toggling status for {{ customer.username }}?');">
+      {% csrf_token %}
+      {% if customer.is_active %}
+        <button type="submit" class="btn btn-sm btn-outline-danger">
+          <i class="bi bi-slash-circle me-1"></i> Deactivate Customer
+        </button>
+      {% else %}
+        <button type="submit" class="btn btn-sm btn-success">
+          <i class="bi bi-check-circle me-1"></i> Activate Account
+        </button>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- Customer Metrics -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4">
+    <div class="fm-card p-3">
+      <div class="text-muted small fw-semibold text-uppercase">Lifetime Spend</div>
+      <h3 class="fw-bold mb-0 mt-1 text-success">₹{{ total_spent|floatformat:2 }}</h3>
+      <div class="small text-muted">Excluding cancellations</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="fm-card p-3">
+      <div class="text-muted small fw-semibold text-uppercase">Total Orders</div>
+      <h3 class="fw-bold mb-0 mt-1 text-dark">{{ orders_count }}</h3>
+      <div class="small text-muted">Customer checkout history</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="fm-card p-3">
+      <div class="text-muted small fw-semibold text-uppercase">Contact Info</div>
+      <div class="small mt-1"><i class="bi bi-envelope me-1 text-muted"></i>{{ customer.email|default:"No email registered" }}</div>
+      <div class="small text-muted"><i class="bi bi-telephone me-1 text-muted"></i>{{ customer.customerprofile.phone_number|default:"No phone registered" }}</div>
+    </div>
+  </div>
+</div>
+
+<!-- Saved Addresses & Order History -->
+<div class="row g-4">
+  <!-- Saved Shipping Addresses -->
+  <div class="col-12 col-lg-4">
+    <div class="fm-card h-100">
+      <div class="fm-card-header">
+        <i class="bi bi-geo-alt text-primary me-2"></i>Saved Addresses ({{ addresses.count }})
+      </div>
+      <div class="fm-card-body">
+        {% for addr in addresses %}
+        <div class="p-3 bg-light rounded-3 mb-2 border {% if addr.is_default %}border-warning{% endif %}">
+          <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold small text-dark">{{ addr.full_name }}</span>
+            {% if addr.is_default %}
+              <span class="badge bg-warning text-dark" style="font-size: 10px;">Default</span>
+            {% endif %}
+          </div>
+          <div class="small text-muted">{{ addr.address_line1 }}{% if addr.address_line2 %}, {{ addr.address_line2 }}{% endif %}</div>
+          <div class="small text-muted">{{ addr.city }}, {{ addr.state }} - {{ addr.postal_code }}</div>
+          <div class="small text-muted mt-1"><i class="bi bi-telephone me-1"></i>{{ addr.phone_number }}</div>
+        </div>
+        {% empty %}
+        <div class="text-center py-4 text-muted small">No saved shipping addresses.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Order History -->
+  <div class="col-12 col-lg-8">
+    <div class="fm-card h-100">
+      <div class="fm-card-header">
+        <i class="bi bi-clock-history text-primary me-2"></i>Order History ({{ orders_count }})
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Order #</th>
+              <th>Date</th>
+              <th>Items</th>
+              <th>Total</th>
+              <th>Status</th>
+              <th>Payment</th>
+              <th class="text-end">View</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for o in orders %}
+            <tr>
+              <td class="fw-semibold">
+                <a href="{% url 'custom_admin:order_detail' pk=o.pk %}" class="text-decoration-none text-dark">{{ o.order_number }}</a>
+              </td>
+              <td class="small text-muted">{{ o.created_at|date:"M d, Y" }}</td>
+              <td class="small">{{ o.items.count }} items</td>
+              <td class="fw-bold">₹{{ o.total_amount|floatformat:2 }}</td>
+              <td><span class="badge badge-status badge-status-{{ o.status }}">{{ o.get_status_display }}</span></td>
+              <td><span class="badge badge-pay-{{ o.payment_status }}">{{ o.get_payment_status_display }}</span></td>
+              <td class="text-end">
+                <a href="{% url 'custom_admin:order_detail' pk=o.pk %}" class="btn btn-sm btn-light border py-0 px-2"><i class="bi bi-chevron-right"></i></a>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center py-4 text-muted">No orders placed by this customer yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

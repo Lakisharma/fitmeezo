@@ -84,24 +84,66 @@ from .services import cancel_order
 User = get_user_model()
 
 
-def admin_required(view_func):
-    """
-    Decorator requiring active staff or superuser credentials.
-    Redirects unauthenticated users to the custom admin login page.
-    Returns HTTP 403 Forbidden to authenticated customers/non-staff.
-    """
-    @wraps(view_func)
-    def _wrapped_view(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            login_url = reverse("custom_admin:login")
-            return redirect(f"{login_url}?next={request.get_full_path()}")
-        if not (request.user.is_staff or request.user.is_superuser):
-            return HttpResponseForbidden(
-                "Access Denied: You must possess Staff or Administrator permissions to view this page."
-            )
-        return view_func(request, *args, **kwargs)
+from django.contrib.admin.models import LogEntry
+from .admin_permissions import (
+    ALL_ROLES,
+    ROLE_FINANCE_MANAGER,
+    ROLE_PRODUCT_MANAGER,
+    ROLE_SELLER_MANAGER,
+    ROLE_SUPER_ADMIN,
+    ROLE_SUPPORT_MANAGER,
+    admin_role_required,
+    get_user_role,
+    has_admin_permission,
+    log_admin_action,
+)
 
-    return _wrapped_view
+
+def admin_required(view_func=None, allowed_roles=None):
+    """
+    Decorator requiring active staff or superuser credentials and optional role check.
+    Redirects unauthenticated users to the custom admin login page.
+    Returns HTTP 403 Forbidden with custom_admin/403.html to unauthorized users.
+    Supports:
+        @admin_required
+        @admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
+    """
+    def decorator(fn):
+        @wraps(fn)
+        def _wrapped(request, *args, **kwargs):
+            if not request.user.is_authenticated:
+                login_url = reverse("custom_admin:login")
+                return redirect(f"{login_url}?next={request.get_full_path()}")
+            if not request.user.is_active or not (request.user.is_staff or request.user.is_superuser):
+                return render(
+                    request,
+                    "custom_admin/403.html",
+                    {
+                        "required_roles": allowed_roles or ["Staff / Administrator"],
+                        "user_role": "None",
+                        "error_message": "Access Denied: You must possess an active Staff or Administrator account to access this page.",
+                    },
+                    status=403,
+                )
+            if allowed_roles and not has_admin_permission(request.user, allowed_roles):
+                user_role = get_user_role(request.user)
+                return render(
+                    request,
+                    "custom_admin/403.html",
+                    {
+                        "required_roles": allowed_roles if isinstance(allowed_roles, list) else [allowed_roles],
+                        "user_role": user_role,
+                        "error_message": f"Your role ({user_role}) does not have permission to access this management section.",
+                    },
+                    status=403,
+                )
+            return fn(request, *args, **kwargs)
+
+        return _wrapped
+
+    if view_func is not None and callable(view_func):
+        return decorator(view_func)
+    return decorator
 
 
 # ==============================================================================
@@ -160,13 +202,27 @@ def admin_dashboard_view(request):
     """
     Main store performance overview displaying live database metrics.
     """
-    # 1. Product & inventory metrics
+    period = request.GET.get("period", "all").strip().lower()
+    start_date = None
+    now = timezone.now()
+
+    if period == "today":
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    elif period == "7d":
+        start_date = now - timedelta(days=7)
+    elif period == "30d":
+        start_date = now - timedelta(days=30)
+    elif period == "this_month":
+        start_date = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    # 1. Product & catalogue metrics
     total_products = Product.objects.count()
     active_products = Product.objects.filter(is_active=True).count()
+    pending_product_approvals = Product.objects.filter(approval_status="pending").count()
     total_categories = Category.objects.count()
     active_categories = Category.objects.filter(is_active=True).count()
 
-    # Calculate accurate total inventory units without double-counting variants
+    # Accurate total inventory units across products & variants
     variant_stock = ProductVariant.objects.filter(is_active=True).aggregate(
         total=Sum("stock_quantity")
     )["total"] or 0
@@ -175,29 +231,52 @@ def admin_dashboard_view(request):
     )["total"] or 0
     total_inventory = variant_stock + standalone_stock
 
-    # 2. Customer metrics
+    # 2. Customer & Seller metrics
     total_customers = User.objects.filter(is_staff=False, is_superuser=False).count()
+    total_sellers = Seller.objects.count()
+    pending_seller_approvals = Seller.objects.filter(status=Seller.STATUS_PENDING).count()
+    approved_sellers = Seller.objects.filter(status=Seller.STATUS_APPROVED).count()
+    suspended_sellers = Seller.objects.filter(status=Seller.STATUS_SUSPENDED).count()
 
-    # 3. Order metrics
-    total_orders = Order.objects.count()
-    pending_orders = Order.objects.filter(status=Order.STATUS_PENDING).count()
-    processing_orders = Order.objects.filter(status=Order.STATUS_PROCESSING).count()
-    delivered_orders = Order.objects.filter(status=Order.STATUS_DELIVERED).count()
-    cancelled_orders = Order.objects.filter(status=Order.STATUS_CANCELLED).count()
+    # 3. Order metrics (filtered if date range selected)
+    orders_qs = Order.objects.all()
+    if start_date:
+        orders_qs = orders_qs.filter(created_at__gte=start_date)
+
+    total_orders = orders_qs.count()
+    pending_orders = orders_qs.filter(status=Order.STATUS_PENDING).count()
+    processing_orders = orders_qs.filter(status=Order.STATUS_PROCESSING).count()
+    shipped_orders = orders_qs.filter(status=Order.STATUS_SHIPPED).count()
+    delivered_orders = orders_qs.filter(status=Order.STATUS_DELIVERED).count()
+    cancelled_orders = orders_qs.filter(status=Order.STATUS_CANCELLED).count()
 
     # Financial revenue: sum of total_amount for non-cancelled orders
-    total_revenue = Order.objects.exclude(status=Order.STATUS_CANCELLED).aggregate(
+    total_revenue = orders_qs.exclude(status=Order.STATUS_CANCELLED).aggregate(
         total=Sum("total_amount")
     )["total"] or Decimal("0.00")
 
-    # 4. Recent orders list
+    # 4. Payout metrics
+    pending_payouts_count = PayoutBatch.objects.filter(status="pending").count()
+    completed_payouts_count = PayoutBatch.objects.filter(status="completed").count()
+    failed_payouts_count = PayoutBatch.objects.filter(status="failed").count()
+    total_payouts_disbursed = PayoutBatch.objects.filter(status="completed").aggregate(
+        total=Sum("amount")
+    )["total"] or Decimal("0.00")
+
+    # 5. Recent orders list
     recent_orders = (
         Order.objects.select_related("user")
         .prefetch_related("items")
         .order_by("-created_at")[:8]
     )
 
-    # 5. Low-stock products (inventory < 10)
+    # 6. Recent sellers registered
+    recent_sellers = (
+        Seller.objects.select_related("user")
+        .order_by("-created_at")[:5]
+    )
+
+    # 7. Low-stock products (inventory < 10)
     low_stock_products = []
     for prod in Product.objects.filter(is_active=True).prefetch_related("variants")[:50]:
         if prod.available_inventory < 10:
@@ -208,23 +287,55 @@ def admin_dashboard_view(request):
     pending_bank_verifications = Seller.objects.filter(bank_verification_status="pending").order_by("-updated_at")
     pending_bank_verifications_count = pending_bank_verifications.count()
 
+    # 8. Recent administrative activity logs
+    recent_activities = LogEntry.objects.select_related("user", "content_type").order_by("-action_time")[:8]
+
+    # 9. 7-day trend chart data for visualization
+    chart_days = []
+    chart_counts = []
+    chart_revenues = []
+    for i in range(6, -1, -1):
+        day_date = (now - timedelta(days=i)).date()
+        day_orders = Order.objects.filter(created_at__date=day_date)
+        count = day_orders.count()
+        rev = day_orders.exclude(status="cancelled").aggregate(s=Sum("total_amount"))["s"] or Decimal("0.00")
+        chart_days.append(day_date.strftime("%b %d"))
+        chart_counts.append(count)
+        chart_revenues.append(float(rev))
+
     context = {
+        "period": period,
         "total_products": total_products,
         "active_products": active_products,
+        "pending_product_approvals": pending_product_approvals,
         "total_categories": total_categories,
         "active_categories": active_categories,
         "total_customers": total_customers,
+        "total_sellers": total_sellers,
+        "pending_seller_approvals": pending_seller_approvals,
+        "approved_sellers": approved_sellers,
+        "suspended_sellers": suspended_sellers,
         "total_orders": total_orders,
         "pending_orders": pending_orders,
         "processing_orders": processing_orders,
+        "shipped_orders": shipped_orders,
         "delivered_orders": delivered_orders,
         "cancelled_orders": cancelled_orders,
         "total_inventory": total_inventory,
         "total_revenue": total_revenue,
+        "pending_payouts_count": pending_payouts_count,
+        "completed_payouts_count": completed_payouts_count,
+        "failed_payouts_count": failed_payouts_count,
+        "total_payouts_disbursed": total_payouts_disbursed,
         "recent_orders": recent_orders,
+        "recent_sellers": recent_sellers,
+        "recent_activities": recent_activities,
         "low_stock_products": low_stock_products,
         "pending_bank_verifications": pending_bank_verifications,
         "pending_bank_verifications_count": pending_bank_verifications_count,
+        "chart_days": chart_days,
+        "chart_counts": chart_counts,
+        "chart_revenues": chart_revenues,
     }
     return render(request, "custom_admin/dashboard.html", context)
 
@@ -233,7 +344,7 @@ def admin_dashboard_view(request):
 # PRODUCT MANAGEMENT VIEWS
 # ==============================================================================
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 def admin_product_list_view(request):
     """
     Catalogue listing with search, category/status filters, and pagination.
@@ -285,7 +396,7 @@ def admin_product_list_view(request):
     return render(request, "custom_admin/products/list.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 def admin_product_add_view(request):
     """
     Creates a new catalogue product.
@@ -306,7 +417,7 @@ def admin_product_add_view(request):
     return render(request, "custom_admin/products/form.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 def admin_product_detail_view(request, pk):
     """
     Displays full details, gallery images, variants, and rating metrics for a product.
@@ -326,7 +437,7 @@ def admin_product_detail_view(request, pk):
     return render(request, "custom_admin/products/detail.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 def admin_product_edit_view(request, pk):
     """
     Modifies an existing product's attributes.
@@ -350,7 +461,7 @@ def admin_product_edit_view(request, pk):
     return render(request, "custom_admin/products/form.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 @require_POST
 def admin_product_toggle_status_view(request, pk):
     """
@@ -371,7 +482,7 @@ def admin_product_toggle_status_view(request, pk):
 # Gallery Images & Variants Sub-actions
 # ------------------------------------------------------------------------------
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 @require_POST
 def admin_product_image_add_view(request, pk):
     """
@@ -390,7 +501,7 @@ def admin_product_image_add_view(request, pk):
     return redirect("custom_admin:product_detail", pk=product.pk)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 @require_POST
 def admin_product_image_delete_view(request, pk, image_pk):
     """
@@ -403,7 +514,7 @@ def admin_product_image_delete_view(request, pk, image_pk):
     return redirect("custom_admin:product_detail", pk=product.pk)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 @require_POST
 def admin_product_variant_add_view(request, pk):
     """
@@ -423,7 +534,7 @@ def admin_product_variant_add_view(request, pk):
     return redirect("custom_admin:product_detail", pk=product.pk)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 def admin_product_variant_edit_view(request, pk, variant_pk):
     """
     Edits an existing product variant.
@@ -448,7 +559,7 @@ def admin_product_variant_edit_view(request, pk, variant_pk):
     return render(request, "custom_admin/products/variant_edit.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 @require_POST
 def admin_product_variant_toggle_view(request, pk, variant_pk):
     """
@@ -463,7 +574,7 @@ def admin_product_variant_toggle_view(request, pk, variant_pk):
     return redirect("custom_admin:product_detail", pk=product.pk)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 @require_POST
 def admin_product_variant_delete_view(request, pk, variant_pk):
     """
@@ -481,7 +592,7 @@ def admin_product_variant_delete_view(request, pk, variant_pk):
 # CATEGORY MANAGEMENT VIEWS
 # ==============================================================================
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 def admin_category_list_view(request):
     """
     Lists categories with product counts, active status, and reordering weights.
@@ -499,7 +610,7 @@ def admin_category_list_view(request):
     return render(request, "custom_admin/categories/list.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 def admin_category_add_view(request):
     """
     Adds a new catalogue category.
@@ -520,7 +631,7 @@ def admin_category_add_view(request):
     return render(request, "custom_admin/categories/form.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 def admin_category_edit_view(request, pk):
     """
     Modifies an existing category.
@@ -544,7 +655,7 @@ def admin_category_edit_view(request, pk):
     return render(request, "custom_admin/categories/form.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 @require_POST
 def admin_category_toggle_status_view(request, pk):
     """
@@ -559,7 +670,7 @@ def admin_category_toggle_status_view(request, pk):
     return redirect("custom_admin:category_list")
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
 @require_POST
 def admin_category_delete_view(request, pk):
     """
@@ -587,7 +698,7 @@ def admin_category_delete_view(request, pk):
 # ORDER MANAGEMENT VIEWS
 # ==============================================================================
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
 def admin_order_list_view(request):
     """
     Orders listing with search, status filters, payment filters, and pagination.
@@ -603,7 +714,16 @@ def admin_order_list_view(request):
             | Q(user__email__icontains=q)
             | Q(shipping_full_name__icontains=q)
             | Q(shipping_phone_number__icontains=q)
-        )
+            | Q(seller_orders__seller__store_name__icontains=q)
+        ).distinct()
+
+    date_filter = request.GET.get("date", "").strip()
+    if date_filter:
+        try:
+            target_date = datetime.strptime(date_filter, "%Y-%m-%d").date()
+            orders = orders.filter(created_at__date=target_date)
+        except Exception:
+            pass
 
     # Order fulfillment status filter
     status_filter = request.GET.get("status", "").strip()
@@ -637,7 +757,7 @@ def admin_order_list_view(request):
     return render(request, "custom_admin/orders/list.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
 def admin_order_detail_view(request, pk):
     """
     Complete order details view with snapshots, line items, and transition controls.
@@ -661,7 +781,7 @@ def admin_order_detail_view(request, pk):
     return render(request, "custom_admin/orders/detail.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
 @require_POST
 def admin_order_update_status_view(request, pk):
     """
@@ -697,7 +817,7 @@ def admin_order_update_status_view(request, pk):
     return redirect("custom_admin:order_detail", pk=order.pk)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
 @require_POST
 def admin_order_update_payment_view(request, pk):
     """
@@ -732,7 +852,7 @@ def admin_order_update_payment_view(request, pk):
 # PHASE 7: SELLER LEDGER, COD RECONCILIATION & PAYOUT MANAGEMENT VIEWS
 # ==============================================================================
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 def admin_ledger_list_view(request):
     """
     Platform administrator master financial ledger overview.
@@ -835,7 +955,7 @@ def admin_ledger_list_view(request):
     return render(request, "custom_admin/ledger/index.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 def admin_cod_reconcile_view(request):
     """
     Courier Cash-on-Delivery (COD) reconciliation console.
@@ -900,7 +1020,7 @@ def admin_cod_reconcile_view(request):
     return render(request, "custom_admin/ledger/cod_reconcile.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 def admin_payout_batch_list_view(request):
     """
     Platform administrator payout batch dashboard.
@@ -938,7 +1058,7 @@ def admin_payout_batch_list_view(request):
     return render(request, "custom_admin/ledger/payout_list.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 def admin_payout_batch_create_view(request):
     """
     Payout batch preparation workspace.
@@ -998,7 +1118,7 @@ def admin_payout_batch_create_view(request):
     return render(request, "custom_admin/ledger/payout_create.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 def admin_payout_batch_detail_view(request, batch_reference):
     """
     Detailed audit view of a specific PayoutBatch.
@@ -1030,7 +1150,7 @@ def admin_payout_batch_detail_view(request, batch_reference):
     return render(request, "custom_admin/ledger/payout_detail.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_POST
 def admin_payout_batch_process_view(request, batch_reference):
     """
@@ -1064,7 +1184,7 @@ def admin_payout_batch_process_view(request, batch_reference):
     return redirect("custom_admin:payout_detail", batch_reference=batch.batch_reference)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_POST
 def admin_payout_batch_reverse_view(request, batch_reference):
     """
@@ -1096,7 +1216,7 @@ def admin_payout_batch_reverse_view(request, batch_reference):
 # SELLER PAYOUT MANAGEMENT DASHBOARD & CONTROLS
 # ==============================================================================
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 def admin_seller_payout_management_view(request):
     """
     Dedicated Custom Admin Seller Payout Management Dashboard.
@@ -1341,7 +1461,7 @@ def admin_seller_payout_management_view(request):
     return render(request, "custom_admin/ledger/payout_management.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 def admin_seller_payout_review_view(request, seller_id):
     """
     Dedicated drill-down review console for an individual seller's monthly payout cycle.
@@ -1391,7 +1511,7 @@ def admin_seller_payout_review_view(request, seller_id):
     return render(request, "custom_admin/ledger/seller_payout_review.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_POST
 def admin_generate_cycle_payout_batch_view(request):
     """
@@ -1469,7 +1589,7 @@ def admin_generate_cycle_payout_batch_view(request):
         return redirect(next_url)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_POST
 def admin_payout_batch_approve_view(request, batch_reference):
     """
@@ -1493,7 +1613,7 @@ def admin_payout_batch_approve_view(request, batch_reference):
     return redirect(next_url)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_POST
 def admin_payout_batch_hold_view(request, batch_reference):
     """
@@ -1519,7 +1639,7 @@ def admin_payout_batch_hold_view(request, batch_reference):
     return redirect(next_url)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_POST
 def admin_payout_batch_release_view(request, batch_reference):
     """
@@ -1540,7 +1660,7 @@ def admin_payout_batch_release_view(request, batch_reference):
     return redirect(next_url)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_POST
 def admin_payout_batch_reject_view(request, batch_reference):
     """
@@ -1566,7 +1686,7 @@ def admin_payout_batch_reject_view(request, batch_reference):
     return redirect(next_url)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 def admin_seller_payout_history_view(request, seller_id):
     """
     Historical payout audit log and batch run ledger for a specific seller.
@@ -1593,7 +1713,7 @@ def admin_seller_payout_history_view(request, seller_id):
     return render(request, "custom_admin/ledger/seller_payout_history.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 def admin_manual_adjustment_view(request):
     """
     Administrative manual financial adjustment entry console.
@@ -1637,7 +1757,7 @@ def admin_manual_adjustment_view(request):
     return render(request, "custom_admin/ledger/manual_adjustment.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_GET
 def admin_export_ledger_csv_view(request):
     """
@@ -1704,7 +1824,7 @@ def admin_export_ledger_csv_view(request):
 # PHASE 8: CUSTOM ADMIN INVOICE MANAGEMENT VIEWS
 # ==============================================================================
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_GET
 def admin_invoice_list_view(request):
     """
@@ -1753,7 +1873,7 @@ def admin_invoice_list_view(request):
     return render(request, "custom_admin/invoices/index.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_GET
 def admin_invoice_pdf_view(request, pk):
     """
@@ -1783,7 +1903,7 @@ def admin_invoice_pdf_view(request, pk):
     return response
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER, ROLE_FINANCE_MANAGER])
 def admin_seller_bank_verification_view(request, seller_id):
     """
     Platform administrator review and verification of a seller's submitted bank details.
@@ -1874,7 +1994,7 @@ def admin_seller_bank_verification_view(request, seller_id):
 # RETURN & EXCHANGE MANAGEMENT VIEWS (PHASE 6 & CUSTOM ADMIN)
 # ==============================================================================
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SUPPORT_MANAGER])
 def admin_return_list_view(request):
     """
     Returns and exchange requests list in Custom Admin with filtering,
@@ -1954,7 +2074,7 @@ def admin_return_list_view(request):
     return render(request, "custom_admin/returns/return_list.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SUPPORT_MANAGER])
 def admin_return_detail_view(request, request_number):
     """
     Comprehensive administrative detail view for a return/exchange request:
@@ -1987,7 +2107,7 @@ def admin_return_detail_view(request, request_number):
     return render(request, "custom_admin/returns/return_detail.html", context)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SUPPORT_MANAGER])
 @require_POST
 def admin_return_transition_view(request, request_number):
     """
@@ -2039,7 +2159,7 @@ def admin_return_transition_view(request, request_number):
     return redirect("custom_admin:return_detail", request_number=return_req.request_number)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SUPPORT_MANAGER])
 @require_POST
 def admin_return_reject_view(request, request_number):
     """
@@ -2074,7 +2194,7 @@ def admin_return_reject_view(request, request_number):
     return redirect("custom_admin:return_detail", request_number=return_req.request_number)
 
 
-@admin_required
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SUPPORT_MANAGER])
 @require_POST
 def admin_return_refund_view(request, request_number):
     """

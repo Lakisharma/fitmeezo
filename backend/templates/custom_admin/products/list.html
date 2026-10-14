@@ -99,7 +99,14 @@
               {% if product.is_featured %}
                 <span class="badge bg-warning text-dark ms-1" style="font-size: 0.65rem;">Featured</span>
               {% endif %}
-              <div class="text-muted small">SKU: <span class="fw-semibold">{{ product.sku }}</span></div>
+              <div class="text-muted small">
+                SKU: <span class="fw-semibold">{{ product.sku }}</span>
+                {% if product.seller %}
+                  • <span class="text-primary"><i class="bi bi-shop me-1"></i>{{ product.seller.store_name }}</span>
+                {% else %}
+                  • <span class="text-muted">Platform</span>
+                {% endif %}
+              </div>
             </td>
             <td>
               <span class="badge bg-light text-dark border">{{ product.category.name }}</span>

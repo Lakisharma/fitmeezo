@@ -123,6 +123,7 @@ class AdminProductForm(forms.ModelForm):
             "slug",
             "sku",
             "category",
+            "seller",
             "short_description",
             "description",
             "price",
@@ -134,6 +135,10 @@ class AdminProductForm(forms.ModelForm):
             "breadth_cm",
             "height_cm",
             "is_dimensions_verified",
+            "is_returnable",
+            "return_window_days",
+            "approval_status",
+            "is_approved",
             "is_active",
             "is_featured",
         ]
@@ -188,11 +193,35 @@ class AdminProductForm(forms.ModelForm):
             "height_cm": forms.NumberInput(
                 attrs={"class": "form-control", "step": "0.01", "min": "0.01", "placeholder": "Height in cm"}
             ),
+            "seller": forms.Select(attrs={"class": "form-select"}),
+            "approval_status": forms.Select(attrs={"class": "form-select"}),
+            "is_approved": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "is_returnable": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+            "return_window_days": forms.NumberInput(
+                attrs={"class": "form-control", "min": "0", "placeholder": "7"}
+            ),
             "is_dimensions_verified": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
             "is_featured": forms.CheckboxInput(attrs={"class": "form-check-input"}),
         }
 
+    # approval_status has a model-level default ('approved') but Django's ModelForm
+    # makes CharField-with-choices required. Override to make it optional so admin
+    # forms submitted without this field (e.g. via API or minimal test payloads) still
+    # validate correctly and the model default is applied automatically.
+    approval_status = forms.ChoiceField(
+        choices=[("", "— Use default (approved) —")] + Product.APPROVAL_CHOICES,
+        required=False,
+        initial=Product.APPROVAL_APPROVED,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        help_text="Administrative moderation lifecycle status. Defaults to 'approved'.",
+    )
+
+    def clean_approval_status(self):
+        value = self.cleaned_data.get("approval_status", "")
+        if not value:
+            return Product.APPROVAL_APPROVED
+        return value
 
     def clean_image(self):
         img = self.cleaned_data.get("image")
@@ -703,5 +732,195 @@ class AdminPayoutRejectForm(forms.Form):
         if not reason:
             raise ValidationError("A mandatory reason is required to reject a payout batch.")
         return reason
+
+
+class AdminSellerActionForm(forms.Form):
+    """
+    Form for administrative seller approval, rejection, suspension, and reactivation.
+    """
+    ACTION_APPROVE = "approve"
+    ACTION_REJECT = "reject"
+    ACTION_SUSPEND = "suspend"
+    ACTION_REACTIVATE = "reactivate"
+
+    ACTION_CHOICES = [
+        (ACTION_APPROVE, "Approve Application"),
+        (ACTION_REJECT, "Reject Application"),
+        (ACTION_SUSPEND, "Suspend Store"),
+        (ACTION_REACTIVATE, "Reactivate Store"),
+    ]
+
+    action = forms.ChoiceField(choices=ACTION_CHOICES, widget=forms.HiddenInput())
+    reason = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Provide a reason or internal administrative note...",
+            }
+        ),
+        help_text="Required when rejecting or suspending a seller account.",
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        action = cleaned_data.get("action")
+        reason = (cleaned_data.get("reason") or "").strip()
+        if action in (self.ACTION_REJECT, self.ACTION_SUSPEND) and not reason:
+            raise ValidationError("A mandatory reason must be provided when rejecting or suspending a seller.")
+        return cleaned_data
+
+
+class AdminSellerCommissionForm(forms.Form):
+    """
+    Form for updating a seller's custom marketplace commission rate.
+    """
+    commission_rate = forms.DecimalField(
+        label="Platform Commission Rate (%)",
+        max_digits=5,
+        decimal_places=2,
+        min_value=Decimal("0.00"),
+        max_value=Decimal("100.00"),
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "step": "0.10", "placeholder": "10.00", "required": True}
+        ),
+        help_text="Standard percentage retained by the marketplace from each fulfilled item sale.",
+    )
+
+
+class AdminInventoryUpdateForm(forms.Form):
+    """
+    Form for updating inventory stock levels safely with validation.
+    """
+    stock_quantity = forms.IntegerField(
+        label="New Stock Quantity",
+        min_value=0,
+        widget=forms.NumberInput(
+            attrs={"class": "form-control", "min": "0", "placeholder": "100", "required": True}
+        ),
+        help_text="Must be 0 or greater. Negative inventory quantities are strictly prevented.",
+    )
+    reason = forms.CharField(
+        label="Adjustment Reason / Reference",
+        required=False,
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "e.g. Physical count reconciliation, restock shipment"}
+        ),
+    )
+
+
+class AdminStaffUserForm(forms.Form):
+    """
+    Form for creating a new administrative staff member.
+    """
+    from .admin_permissions import ALL_ROLES
+
+    ROLE_CHOICES = [(r, r) for r in ALL_ROLES]
+
+    username = forms.CharField(
+        label="Username",
+        max_length=150,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "admin_john", "required": True}),
+    )
+    email = forms.EmailField(
+        label="Email Address",
+        widget=forms.EmailInput(attrs={"class": "form-control", "placeholder": "john@fitmeezo.com", "required": True}),
+    )
+    first_name = forms.CharField(
+        label="First Name",
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "John"}),
+    )
+    last_name = forms.CharField(
+        label="Last Name",
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Doe"}),
+    )
+    password = forms.CharField(
+        label="Temporary Password",
+        widget=forms.PasswordInput(attrs={"class": "form-control", "placeholder": "At least 8 characters", "required": True}),
+    )
+    role = forms.ChoiceField(
+        label="Administrative Role",
+        choices=ROLE_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select", "required": True}),
+    )
+    is_active = forms.BooleanField(
+        label="Account Active",
+        initial=True,
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
+    def clean_username(self):
+        username = self.cleaned_data.get("username", "").strip()
+        if User.objects.filter(username__iexact=username).exists():
+            raise ValidationError("A user with this username already exists.")
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data.get("email", "").strip().lower()
+        if User.objects.filter(email__iexact=email).exists():
+            raise ValidationError("A user with this email already exists.")
+        return email
+
+    def clean_password(self):
+        pwd = self.cleaned_data.get("password")
+        if len(pwd) < 8:
+            raise ValidationError("Password must contain at least 8 characters.")
+        return pwd
+
+
+class AdminUserRoleForm(forms.Form):
+    """
+    Form for updating an existing staff member's administrative role.
+    """
+    from .admin_permissions import ALL_ROLES
+
+    ROLE_CHOICES = [(r, r) for r in ALL_ROLES]
+
+    role = forms.ChoiceField(
+        label="Administrative Role",
+        choices=ROLE_CHOICES,
+        widget=forms.Select(attrs={"class": "form-select", "required": True}),
+    )
+    is_active = forms.BooleanField(
+        label="Account Active",
+        required=False,
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
+
+class AdminReportFilterForm(forms.Form):
+    """
+    Form for date-range filtering of analytical reports.
+    """
+    PRESET_CHOICES = [
+        ("all", "All Time"),
+        ("today", "Today"),
+        ("7d", "Last 7 Days"),
+        ("30d", "Last 30 Days"),
+        ("this_month", "This Month"),
+        ("custom", "Custom Date Range"),
+    ]
+
+    preset = forms.ChoiceField(
+        choices=PRESET_CHOICES,
+        required=False,
+        initial="all",
+        widget=forms.Select(attrs={"class": "form-select", "id": "reportPresetSelect"}),
+    )
+    start_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+    end_date = forms.DateField(
+        required=False,
+        widget=forms.DateInput(attrs={"class": "form-control", "type": "date"}),
+    )
+
 
 

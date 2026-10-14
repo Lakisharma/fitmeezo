@@ -1,0 +1,159 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Platform Commissions — Fitmeezo Admin{% endblock %}
+{% block page_title %}Platform Commissions{% endblock %}
+
+{% block content %}
+<!-- Metric Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-sm-6 col-xl-4">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Lifetime Marketplace Commission</div>
+      <h3 class="fw-bold mb-0 mt-1 text-primary">₹{{ total_commission_all_time|floatformat:2 }}</h3>
+      <div class="small text-muted">All-time platform revenue from completed sales</div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-4">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">This Month's Commission</div>
+      <h3 class="fw-bold mb-0 mt-1 text-success">₹{{ month_commission|floatformat:2 }}</h3>
+      <div class="small text-muted">Earned during the current calendar month</div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-4">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Active Merchants</div>
+      <h3 class="fw-bold mb-0 mt-1 text-dark">{{ all_sellers.count }}</h3>
+      <div class="small text-muted">Generating commissions across the marketplace</div>
+    </div>
+  </div>
+</div>
+
+<!-- Top Sellers by Commission Row -->
+<div class="row g-4 mb-4">
+  <div class="col-12 col-lg-5">
+    <div class="fm-card h-100">
+      <div class="fm-card-header">
+        <i class="bi bi-trophy text-warning me-2"></i>Top Commission Partners
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Merchant</th>
+              <th>GMV</th>
+              <th>Commission</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in top_sellers %}
+            <tr>
+              <td>
+                <div class="fw-bold">
+                  <a href="{% url 'custom_admin:seller_detail' seller_id=s.pk %}" class="text-decoration-none text-dark">{{ s.store_name }}</a>
+                </div>
+                <div class="small text-muted">{{ s.commission_rate }}% rate</div>
+              </td>
+              <td class="small fw-semibold">₹{{ s.total_gmv|default:0|floatformat:0 }}</td>
+              <td class="fw-bold text-primary">₹{{ s.total_comm|default:0|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center py-4 text-muted">No seller commission records yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-7">
+    <div class="fm-card h-100">
+      <div class="fm-card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-filter text-primary me-2"></i>Filter Commissions by Merchant</span>
+      </div>
+      <div class="fm-card-body">
+        <form method="get" class="row g-2 align-items-end mb-3">
+          <div class="col-9">
+            <label class="form-label small text-muted">Select Merchant Partner</label>
+            <select name="seller" class="form-select form-select-sm" onchange="this.form.submit()">
+              <option value="">All Sellers</option>
+              {% for s in all_sellers %}
+                <option value="{{ s.id }}" {% if selected_seller_id == s.id|stringformat:"s" %}selected{% endif %}>
+                  {{ s.store_name }} ({{ s.commission_rate }}%)
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-3">
+            <button type="submit" class="btn btn-sm btn-dark w-100">Filter</button>
+          </div>
+        </form>
+        <p class="text-muted small">
+          Fitmeezo's multi-seller architecture calculates platform commission on every fulfilled sub-order (`SellerOrder.commission_amount`), retaining platform earnings before net payout funds are credited to the seller's eligible ledger balance.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Commission Transactions Table -->
+<div class="fm-card">
+  <div class="fm-card-header d-flex justify-content-between align-items-center">
+    <span>Commission Earnings by Sub-Order ({{ page_obj.paginator.count }})</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Order #</th>
+          <th>Date</th>
+          <th>Merchant Partner</th>
+          <th>Order GMV</th>
+          <th>Commission Earned</th>
+          <th>Seller Payout Amount</th>
+          <th>Order Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for so in commission_orders %}
+        <tr>
+          <td class="fw-semibold">
+            <a href="{% url 'custom_admin:order_detail' pk=so.order.pk %}" class="text-decoration-none text-dark">{{ so.order.order_number }}</a>
+          </td>
+          <td class="small text-muted">{{ so.created_at|date:"M d, Y" }}</td>
+          <td>
+            <a href="{% url 'custom_admin:seller_detail' seller_id=so.seller.pk %}" class="text-decoration-none text-dark fw-semibold">
+              {{ so.seller.store_name }}
+            </a>
+          </td>
+          <td class="fw-bold">₹{{ so.total_amount|floatformat:2 }}</td>
+          <td class="fw-bold text-primary">+₹{{ so.commission_amount|floatformat:2 }}</td>
+          <td class="fw-semibold text-success">₹{{ so.seller_payout_amount|floatformat:2 }}</td>
+          <td><span class="badge badge-status badge-status-{{ so.status }}">{{ so.get_status_display }}</span></td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-center py-5 text-muted">No commission records found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+  <div class="p-3 border-top d-flex justify-content-between align-items-center">
+    <div class="small text-muted">
+      Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} commission transactions
+    </div>
+    <ul class="pagination pagination-sm mb-0">
+      {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&seller={{ selected_seller_id }}">Previous</a></li>
+      {% endif %}
+      <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+      {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&seller={{ selected_seller_id }}">Next</a></li>
+      {% endif %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

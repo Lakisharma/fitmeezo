@@ -31,8 +31,8 @@
       {% endif %}
 
       <div class="row g-3">
-        <!-- Title & Category -->
-        <div class="col-12 col-md-8">
+        <!-- Title, Category & Seller -->
+        <div class="col-12 col-md-6">
           <label class="form-label fw-semibold">Product Title <span class="text-danger">*</span></label>
           {{ form.name }}
           {% if form.name.errors %}
@@ -40,11 +40,20 @@
           {% endif %}
         </div>
 
-        <div class="col-12 col-md-4">
+        <div class="col-12 col-md-3">
           <label class="form-label fw-semibold">Category <span class="text-danger">*</span></label>
           {{ form.category }}
           {% if form.category.errors %}
             <div class="text-danger small mt-1">{{ form.category.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="col-12 col-md-3">
+          <label class="form-label fw-semibold">Merchant / Seller</label>
+          {{ form.seller }}
+          <small class="text-muted">Leave blank for platform-direct product.</small>
+          {% if form.seller.errors %}
+            <div class="text-danger small mt-1">{{ form.seller.errors.0 }}</div>
           {% endif %}
         </div>
 
@@ -134,22 +143,47 @@
           {% endif %}
         </div>
 
-        <!-- Visibility Flags -->
-        <div class="col-12 col-md-6">
-          <div class="form-check form-switch p-3 border rounded bg-light">
+        <!-- Visibility Flags & Approval Status -->
+        <div class="col-12 col-md-4">
+          <div class="form-check form-switch p-3 border rounded bg-light h-100">
             {{ form.is_active }}
             <label class="form-check-label fw-semibold ms-2" for="{{ form.is_active.id_for_label }}">
-              Active Status (Discoverable &amp; Purchasable on Storefront)
+              Active Status (Storefront Discoverable)
+            </label>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-4">
+          <div class="form-check form-switch p-3 border rounded bg-light h-100">
+            {{ form.is_featured }}
+            <label class="form-check-label fw-semibold ms-2" for="{{ form.is_featured.id_for_label }}">
+              Featured (Homepage Spotlight)
+            </label>
+          </div>
+        </div>
+
+        <div class="col-12 col-md-4">
+          <div class="p-3 border rounded bg-light h-100">
+            <label class="form-label small fw-semibold text-muted mb-1">Catalogue Approval Status</label>
+            {{ form.approval_status }}
+          </div>
+        </div>
+
+        <!-- Returns Policy -->
+        <div class="col-12 col-md-6">
+          <div class="form-check p-3 border rounded bg-light h-100">
+            {{ form.is_returnable }}
+            <label class="form-check-label fw-semibold ms-2" for="{{ form.is_returnable.id_for_label }}">
+              Eligible for Customer Returns
             </label>
           </div>
         </div>
 
         <div class="col-12 col-md-6">
-          <div class="form-check form-switch p-3 border rounded bg-light">
-            {{ form.is_featured }}
-            <label class="form-check-label fw-semibold ms-2" for="{{ form.is_featured.id_for_label }}">
-              Featured Product (Showcase on Homepage)
-            </label>
+          <div class="p-3 border rounded bg-light h-100">
+            <label class="form-label small fw-semibold text-muted mb-1">Return Window (Days)</label>
+            {{ form.return_window_days }}
+            <small class="text-muted">Standard period allowed for exchange/return requests.</small>
           </div>
         </div>
 

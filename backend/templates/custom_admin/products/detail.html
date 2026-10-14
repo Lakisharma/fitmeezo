@@ -17,19 +17,81 @@
     {% endif %}
   </div>
 
-  <div class="d-flex align-items-center gap-2">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    {% if product.approval_status == 'pending' %}
+      <form method="post" action="{% url 'custom_admin:product_approval' pk=product.pk %}" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="approve">
+        <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-check-circle me-1"></i> Approve</button>
+      </form>
+      <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectProductModal">
+        <i class="bi bi-x-circle me-1"></i> Reject
+      </button>
+    {% endif %}
     <a href="{{ product.get_absolute_url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
-      <i class="bi bi-box-arrow-up-right"></i> View on Storefront
+      <i class="bi bi-box-arrow-up-right"></i> Storefront
     </a>
     <a href="{% url 'custom_admin:product_edit' pk=product.pk %}" class="btn btn-sm btn-dark">
-      <i class="bi bi-pencil"></i> Edit Product
+      <i class="bi bi-pencil"></i> Edit
     </a>
     <form method="post" action="{% url 'custom_admin:product_toggle_status' pk=product.pk %}" class="d-inline">
       {% csrf_token %}
-      <button type="submit" class="btn btn-sm {% if product.is_active %}btn-outline-danger{% else %}btn-outline-success{% endif %}">
-        {% if product.is_active %}<i class="bi bi-slash-circle"></i> Deactivate{% else %}<i class="bi bi-check-circle"></i> Activate{% endif %}
+      <button type="submit" class="btn btn-sm {% if product.is_active %}btn-outline-warning text-dark{% else %}btn-outline-success{% endif %}">
+        {% if product.is_active %}<i class="bi bi-eye-slash"></i> Unpublish{% else %}<i class="bi bi-eye"></i> Publish{% endif %}
       </button>
     </form>
+    <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteProductModal">
+      <i class="bi bi-trash"></i> Delete
+    </button>
+  </div>
+</div>
+
+<!-- Rejection Modal -->
+<div class="modal fade" id="rejectProductModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'custom_admin:product_approval' pk=product.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="reject">
+        <div class="modal-header">
+          <h5 class="modal-title">Reject Product: {{ product.name }}</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label small fw-semibold">Mandatory Rejection Explanation <span class="text-danger">*</span></label>
+          <textarea name="reason" class="form-control" rows="3" placeholder="Explain why this product cannot be approved..." required></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-danger">Confirm Rejection</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Safe Delete Modal -->
+<div class="modal fade" id="deleteProductModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" action="{% url 'custom_admin:product_delete' pk=product.pk %}">
+        {% csrf_token %}
+        <div class="modal-header">
+          <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Delete Product Safeguard</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <p>Are you sure you want to permanently delete <strong>{{ product.name }}</strong> (SKU: {{ product.sku }})?</p>
+          <div class="alert alert-warning small mb-0">
+            <i class="bi bi-shield-lock me-1"></i><strong>Safety Safeguard:</strong> If this product is referenced in any existing customer orders or transactions, hard deletion will be prevented automatically to preserve financial audit integrity, and the product will be safely unlisted (set to Inactive) instead.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-sm btn-danger fw-semibold">Confirm Deletion</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 

@@ -1,0 +1,124 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Seller Approvals Queue — Fitmeezo Admin{% endblock %}
+{% block page_title %}Seller Approvals Queue{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="fw-bold mb-1">Pending Seller Applications</h4>
+    <p class="text-muted small mb-0">Review merchant business details, contact information, and KYC data before granting store access.</p>
+  </div>
+  <a href="{% url 'custom_admin:seller_list' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Seller Directory
+  </a>
+</div>
+
+{% if pending_count > 0 %}
+<div class="row g-4">
+  {% for seller in pending_sellers %}
+  <div class="col-12 col-xl-6">
+    <div class="fm-card h-100">
+      <div class="fm-card-header d-flex justify-content-between align-items-center">
+        <div>
+          <span class="fs-6 fw-bold text-dark">{{ seller.store_name }}</span>
+          <span class="badge bg-warning text-dark ms-2">Pending Approval</span>
+        </div>
+        <span class="small text-muted">Applied {{ seller.created_at|date:"M d, Y" }}</span>
+      </div>
+      <div class="fm-card-body">
+        <div class="row g-3 mb-3">
+          <div class="col-sm-6">
+            <div class="text-muted small">Legal Business Name</div>
+            <div class="fw-semibold text-dark">{{ seller.legal_business_name|default:"Individual Proprietor" }}</div>
+          </div>
+          <div class="col-sm-6">
+            <div class="text-muted small">Business Type</div>
+            <div class="fw-semibold text-dark">{{ seller.get_business_type_display }}</div>
+          </div>
+          <div class="col-sm-6">
+            <div class="text-muted small">Contact Email</div>
+            <div class="fw-semibold text-dark">{{ seller.support_email }}</div>
+          </div>
+          <div class="col-sm-6">
+            <div class="text-muted small">Registered Mobile</div>
+            <div class="fw-semibold text-dark">{{ seller.registered_mobile|default:seller.support_phone|default:"-" }}</div>
+          </div>
+          <div class="col-sm-6">
+            <div class="text-muted small">GSTIN</div>
+            <div class="font-monospace small fw-bold">{{ seller.gstin|default:"Not Provided" }}</div>
+          </div>
+          <div class="col-sm-6">
+            <div class="text-muted small">PAN Number</div>
+            <div class="font-monospace small fw-bold">{{ seller.pan_number|default:"Not Provided" }}</div>
+          </div>
+        </div>
+
+        <div class="bg-light rounded-3 p-3 mb-3 border">
+          <div class="text-muted small fw-semibold mb-1">Registered Address</div>
+          <div class="small text-dark">{{ seller.registered_address|default:"No address provided." }}</div>
+          <div class="small text-muted mt-1">{{ seller.city|default:"" }}, {{ seller.state|default:"" }} - {{ seller.postal_code|default:"" }}</div>
+        </div>
+
+        <div class="d-flex align-items-center justify-content-between pt-2 border-top">
+          <a href="{% url 'custom_admin:seller_detail' seller_id=seller.pk %}" class="btn btn-sm btn-outline-dark">
+            Full Inspection
+          </a>
+          <div class="d-flex gap-2">
+            <!-- Reject Button with Modal Trigger -->
+            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal{{ seller.pk }}">
+              <i class="bi bi-x-circle me-1"></i> Reject
+            </button>
+            <!-- Approve Button Form -->
+            <form method="post" action="{% url 'custom_admin:seller_action' seller_id=seller.pk %}" onsubmit="return confirm('Confirm approval for {{ seller.store_name }}?');">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="approve">
+              <button type="submit" class="btn btn-sm btn-success fw-semibold">
+                <i class="bi bi-check-circle me-1"></i> Approve Store
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rejection Reason Modal -->
+  <div class="modal fade" id="rejectModal{{ seller.pk }}" tabindex="-1" aria-labelledby="rejectModalLabel{{ seller.pk }}" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form method="post" action="{% url 'custom_admin:seller_action' seller_id=seller.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="reject">
+          <div class="modal-header">
+            <h5 class="modal-title" id="rejectModalLabel{{ seller.pk }}">Reject Seller Application</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small">Provide a mandatory reason for rejecting <strong>{{ seller.store_name }}</strong>. This will be preserved in the audit trail.</p>
+            <div class="mb-3">
+              <label class="form-label small fw-semibold">Rejection Explanation <span class="text-danger">*</span></label>
+              <textarea name="reason" class="form-control" rows="3" placeholder="e.g. Invalid GSTIN certificate, blurred identification documents..." required></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-sm btn-danger fw-semibold">Confirm Rejection</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="fm-card p-5 text-center shadow-sm">
+  <div class="rounded-circle bg-success bg-opacity-10 text-success d-inline-flex align-items-center justify-content-center p-4 mb-3" style="width: 70px; height: 70px;">
+    <i class="bi bi-check2-all fs-2"></i>
+  </div>
+  <h5 class="fw-bold text-dark">No Pending Applications</h5>
+  <p class="text-muted small mb-3">All merchant applications have been reviewed. New seller registrations will appear here automatically.</p>
+  <a href="{% url 'custom_admin:seller_list' %}" class="btn btn-sm btn-outline-dark">View Approved Sellers</a>
+</div>
+{% endif %}
+{% endblock %}

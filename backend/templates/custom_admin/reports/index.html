@@ -1,0 +1,202 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Reports &amp; Intelligence — Fitmeezo Admin{% endblock %}
+{% block page_title %}Reports &amp; Intelligence{% endblock %}
+
+{% block content %}
+<!-- Date Range Filter Header -->
+<div class="fm-card p-3 mb-4">
+  <form method="get" class="row g-2 align-items-center">
+    <div class="col-12 col-md-3">
+      <label class="form-label small text-muted mb-1">Date Preset</label>
+      <select name="preset" class="form-select form-select-sm" id="reportPresetSelect" onchange="if(this.value!='custom') this.form.submit();">
+        <option value="all" {% if preset == 'all' %}selected{% endif %}>All Time</option>
+        <option value="today" {% if preset == 'today' %}selected{% endif %}>Today</option>
+        <option value="7d" {% if preset == '7d' %}selected{% endif %}>Last 7 Days</option>
+        <option value="30d" {% if preset == '30d' %}selected{% endif %}>Last 30 Days</option>
+        <option value="this_month" {% if preset == 'this_month' %}selected{% endif %}>This Month</option>
+        <option value="custom" {% if preset == 'custom' %}selected{% endif %}>Custom Date Range</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label small text-muted mb-1">Start Date</label>
+      <input type="date" name="start_date" class="form-control form-control-sm" value="{{ request.GET.start_date }}">
+    </div>
+    <div class="col-6 col-md-3">
+      <label class="form-label small text-muted mb-1">End Date</label>
+      <input type="date" name="end_date" class="form-control form-control-sm" value="{{ request.GET.end_date }}">
+    </div>
+    <div class="col-12 col-md-3 d-flex align-items-end gap-2">
+      <button type="submit" class="btn btn-sm btn-dark w-100">Apply Date Filter</button>
+      <a href="{% url 'custom_admin:reports' %}" class="btn btn-sm btn-outline-secondary" title="Reset Filters"><i class="bi bi-arrow-counterclockwise"></i></a>
+    </div>
+  </form>
+</div>
+
+<!-- Sales & Revenue Overview Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Gross Revenue</div>
+      <h3 class="fw-bold mb-0 mt-1 text-success">₹{{ gross_sales|floatformat:2 }}</h3>
+      <div class="small text-muted">Across {{ total_orders_count }} orders in range</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Discounts Granted</div>
+      <h3 class="fw-bold mb-0 mt-1 text-danger">₹{{ discounts_given|floatformat:2 }}</h3>
+      <div class="small text-muted">Promo &amp; coupon deductions</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Shipping Collected</div>
+      <h3 class="fw-bold mb-0 mt-1 text-info">₹{{ shipping_collected|floatformat:2 }}</h3>
+      <div class="small text-muted">Delivery fees</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Net Product Sales</div>
+      <h3 class="fw-bold mb-0 mt-1 text-dark">₹{{ net_sales|floatformat:2 }}</h3>
+      <div class="small text-muted">Excluding delivery charges</div>
+    </div>
+  </div>
+</div>
+
+<!-- Quick CSV Exports Row -->
+<div class="fm-card p-3 mb-4">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+      <span class="fw-bold text-dark"><i class="bi bi-file-earmark-spreadsheet text-success me-2"></i>Download Operational Data Exports</span>
+      <div class="small text-muted">Generate instant audit-ready CSV spreadsheets.</div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="{% url 'custom_admin:reports_export' report_type='sales' %}" class="btn btn-sm btn-outline-dark">
+        <i class="bi bi-download me-1"></i> Sales CSV
+      </a>
+      <a href="{% url 'custom_admin:reports_export' report_type='sellers' %}" class="btn btn-sm btn-outline-dark">
+        <i class="bi bi-download me-1"></i> Sellers CSV
+      </a>
+      <a href="{% url 'custom_admin:reports_export' report_type='products' %}" class="btn btn-sm btn-outline-dark">
+        <i class="bi bi-download me-1"></i> Products CSV
+      </a>
+      <a href="{% url 'custom_admin:reports_export' report_type='inventory' %}" class="btn btn-sm btn-outline-dark">
+        <i class="bi bi-download me-1"></i> Inventory CSV
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Report Details: Seller & Product Performance Grid -->
+<div class="row g-4 mb-4">
+  <!-- Top Sellers Performance -->
+  <div class="col-12 col-lg-6">
+    <div class="fm-card h-100">
+      <div class="fm-card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-shop text-warning me-2"></i>Top Merchant Performance</span>
+        <span class="small text-muted">By sales volume</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Merchant</th>
+              <th>Orders</th>
+              <th>GMV</th>
+              <th>Commission</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in seller_performance %}
+            <tr>
+              <td class="fw-bold">{{ s.seller__store_name }}</td>
+              <td>{{ s.orders_count }}</td>
+              <td class="fw-semibold text-success">₹{{ s.total_revenue|floatformat:0 }}</td>
+              <td class="fw-bold text-primary">₹{{ s.total_commission|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center py-4 text-muted">No merchant sales during this period.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Best Selling Products -->
+  <div class="col-12 col-lg-6">
+    <div class="fm-card h-100">
+      <div class="fm-card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-stars text-primary me-2"></i>Top Selling Products</span>
+        <span class="small text-muted">By units dispatched</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>SKU</th>
+              <th>Units Sold</th>
+              <th>Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in top_products %}
+            <tr>
+              <td class="fw-semibold text-truncate" style="max-width: 180px;">{{ p.product_name }}</td>
+              <td class="font-monospace small text-muted">{{ p.product_sku }}</td>
+              <td><span class="badge bg-light text-dark border">{{ p.units_sold }} units</span></td>
+              <td class="fw-bold text-success">₹{{ p.total_revenue|floatformat:2 }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="4" class="text-center py-4 text-muted">No item sales recorded in this period.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Order Status Distribution Table -->
+<div class="fm-card">
+  <div class="fm-card-header">
+    <i class="bi bi-pie-chart text-info me-2"></i>Order Fulfillment Status Distribution
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Fulfillment State</th>
+          <th>Order Count</th>
+          <th>Status Significance</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for os in orders_by_status %}
+        <tr>
+          <td>
+            <span class="badge badge-status badge-status-{{ os.status }}">
+              {{ os.status|capfirst }}
+            </span>
+          </td>
+          <td class="fw-bold fs-6">{{ os.count }}</td>
+          <td class="small text-muted">
+            {% if os.status == 'delivered' %}Successfully fulfilled and delivered to customer
+            {% elif os.status == 'shipped' %}In transit with logistics carrier
+            {% elif os.status == 'processing' %}Merchant preparing package for pickup
+            {% elif os.status == 'pending' %}Awaiting payment verification or merchant acceptance
+            {% elif os.status == 'cancelled' %}Order cancelled and excluded from merchant payout calculations
+            {% endif %}
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="text-center py-4 text-muted">No orders found in the selected timeframe.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

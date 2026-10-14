@@ -1,0 +1,141 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Audit Trail &amp; Logs — Fitmeezo Admin{% endblock %}
+{% block page_title %}Administrative Audit Trail{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-4">
+  <div>
+    <h4 class="fw-bold mb-1">System Audit Logs</h4>
+    <p class="text-muted small mb-0">Immutable records of administrative operations, payout executions, status overrides, and security events.</p>
+  </div>
+</div>
+
+<!-- Search Bar -->
+<div class="fm-card p-3 mb-4">
+  <form method="get" class="row g-2 align-items-center">
+    <div class="col-12 col-md-10">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" class="form-control" placeholder="Search by user, action message, object reference..." value="{{ query }}">
+      </div>
+    </div>
+    <div class="col-12 col-md-2 d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-dark w-100">Search Logs</button>
+      {% if query %}
+        <a href="{% url 'custom_admin:audit_logs' %}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-x-lg"></i></a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Audit Log Table -->
+<div class="fm-card mb-4">
+  <div class="fm-card-header">
+    <i class="bi bi-shield-check text-primary me-2"></i>Action Log Records ({{ page_obj.paginator.count }})
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Actor</th>
+          <th>Target Entity</th>
+          <th>Action Type</th>
+          <th>Details / Reason</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td class="font-monospace small text-muted text-nowrap">{{ log.action_time|date:"Y-m-d H:i:s" }}</td>
+          <td>
+            <div class="fw-semibold small text-dark">{{ log.user.username }}</div>
+            <div class="text-muted" style="font-size: 11px;">{{ log.user.email }}</div>
+          </td>
+          <td>
+            <span class="badge bg-light text-dark border">{{ log.content_type.name|default:"Object"|capfirst }}</span>
+            <span class="small fw-semibold ms-1">{{ log.object_repr|truncatechars:40 }}</span>
+          </td>
+          <td>
+            {% if log.is_addition %}
+              <span class="badge bg-success">Created</span>
+            {% elif log.is_change %}
+              <span class="badge bg-warning text-dark">Modified</span>
+            {% elif log.is_deletion %}
+              <span class="badge bg-danger">Deleted</span>
+            {% else %}
+              <span class="badge bg-secondary">Action</span>
+            {% endif %}
+          </td>
+          <td class="small text-muted">{{ log.change_message|default:"No additional notes recorded." }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="5" class="text-center py-5 text-muted">No audit log records found matching your query.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+  <div class="p-3 border-top d-flex justify-content-between align-items-center">
+    <div class="small text-muted">
+      Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} log entries
+    </div>
+    <ul class="pagination pagination-sm mb-0">
+      {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}">Previous</a></li>
+      {% endif %}
+      <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+      {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}">Next</a></li>
+      {% endif %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Financial Payout Audit Trail -->
+<div class="fm-card">
+  <div class="fm-card-header">
+    <i class="bi bi-wallet2 text-success me-2"></i>Recent Financial Payout Audit Trail
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Actor</th>
+          <th>Batch Reference</th>
+          <th>Transition</th>
+          <th>Reason / Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p_log in recent_payout_logs %}
+        <tr>
+          <td class="small text-muted text-nowrap">{{ p_log.created_at|date:"M d, H:i" }}</td>
+          <td class="fw-semibold small">{{ p_log.actor.username|default:"System" }}</td>
+          <td class="font-monospace small">
+            <a href="{% url 'custom_admin:payout_detail' batch_reference=p_log.payout_batch.batch_reference %}" class="text-decoration-none">
+              {{ p_log.payout_batch.batch_reference }}
+            </a>
+          </td>
+          <td>
+            <span class="badge bg-secondary">{{ p_log.from_status }}</span>
+            <i class="bi bi-arrow-right mx-1 small text-muted"></i>
+            <span class="badge bg-dark">{{ p_log.to_status }}</span>
+          </td>
+          <td class="small text-muted">{{ p_log.reason|default:"Standard state transition" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-center py-4 text-muted">No payout audit entries recorded.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

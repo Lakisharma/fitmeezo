@@ -1,0 +1,46 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}403 Forbidden — Fitmeezo Admin{% endblock %}
+{% block page_title %}Access Denied{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center py-5">
+  <div class="col-12 col-md-8 col-lg-6 text-center">
+    <div class="fm-card p-5 shadow-sm">
+      <div class="rounded-circle bg-danger bg-opacity-10 text-danger d-inline-flex align-items-center justify-content-center p-4 mb-4" style="width: 80px; height: 80px;">
+        <i class="bi bi-shield-x fs-1"></i>
+      </div>
+      <h3 class="fw-bold text-dark mb-2">Access Denied (403 Forbidden)</h3>
+      <p class="text-muted mb-4">
+        {{ error_message|default:"You do not possess the required administrative permissions to access this page." }}
+      </p>
+
+      <div class="bg-light rounded-3 p-3 text-start mb-4 border">
+        <div class="d-flex justify-content-between mb-2 pb-2 border-bottom">
+          <span class="text-muted small">Your Active Role:</span>
+          <span class="badge bg-secondary fw-semibold">{{ user_role|default:"Standard Staff" }}</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted small">Authorized Roles:</span>
+          <div class="d-flex gap-1 flex-wrap justify-content-end">
+            {% for role in required_roles %}
+              <span class="badge bg-dark fw-normal">{{ role }}</span>
+            {% empty %}
+              <span class="badge bg-dark fw-normal">Super Admin</span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 justify-content-center">
+        <a href="{% url 'custom_admin:dashboard' %}" class="btn btn-fm-primary px-4">
+          <i class="bi bi-speedometer2 me-1"></i> Return to Dashboard
+        </a>
+        <a href="javascript:history.back()" class="btn btn-outline-secondary px-4">
+          <i class="bi bi-arrow-left me-1"></i> Go Back
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

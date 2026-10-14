@@ -1,0 +1,137 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Customer Accounts — Fitmeezo Admin{% endblock %}
+{% block page_title %}Customer Management{% endblock %}
+
+{% block content %}
+<!-- Metric Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-sm-6 col-xl-4">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Total Customers</div>
+      <h3 class="fw-bold mb-0 mt-1">{{ total_customers_count }}</h3>
+      <div class="small text-muted">Registered buyer accounts</div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-4">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Active Accounts</div>
+      <h3 class="fw-bold mb-0 mt-1 text-success">{{ active_customers_count }}</h3>
+      <div class="small text-muted">Eligible to purchase</div>
+    </div>
+  </div>
+  <div class="col-12 col-sm-6 col-xl-4">
+    <div class="fm-card p-3 h-100">
+      <div class="text-muted small fw-semibold text-uppercase">Security Guarantee</div>
+      <div class="d-flex align-items-center gap-2 mt-2">
+        <i class="bi bi-shield-check text-success fs-4"></i>
+        <span class="small text-muted">Passwords &amp; authentication credentials are never exposed.</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Search Bar -->
+<div class="fm-card p-3 mb-4">
+  <form method="get" class="row g-2 align-items-center">
+    <div class="col-12 col-md-8">
+      <div class="input-group input-group-sm">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="text" name="q" class="form-control" placeholder="Search customer username, email, name, phone..." value="{{ query }}">
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+        <option value="">All Statuses</option>
+        <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Active Accounts</option>
+        <option value="inactive" {% if status_filter == 'inactive' %}selected{% endif %}>Deactivated Accounts</option>
+      </select>
+    </div>
+    <div class="col-6 col-md-1 d-flex gap-1">
+      <button type="submit" class="btn btn-sm btn-dark w-100">Filter</button>
+      {% if query or status_filter %}
+        <a href="{% url 'custom_admin:customer_list' %}" class="btn btn-sm btn-outline-secondary" title="Clear Filters"><i class="bi bi-x-lg"></i></a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Customers Table -->
+<div class="fm-card">
+  <div class="fm-card-header d-flex justify-content-between align-items-center">
+    <span>Customer Directory ({{ page_obj.paginator.count }})</span>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead>
+        <tr>
+          <th>Customer</th>
+          <th>Contact Email</th>
+          <th>Phone</th>
+          <th>Orders Placed</th>
+          <th>Total Spent</th>
+          <th>Joined Date</th>
+          <th>Status</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cust in customers %}
+        <tr>
+          <td>
+            <div class="fw-bold">
+              <a href="{% url 'custom_admin:customer_detail' user_id=cust.pk %}" class="text-decoration-none text-dark">
+                {{ cust.get_full_name|default:cust.username }}
+              </a>
+            </div>
+            <div class="small text-muted font-monospace">@{{ cust.username }}</div>
+          </td>
+          <td>{{ cust.email|default:"-" }}</td>
+          <td>{{ cust.customerprofile.phone_number|default:"-" }}</td>
+          <td><span class="badge bg-light text-dark border">{{ cust.orders_count }} orders</span></td>
+          <td class="fw-bold text-success">₹{{ cust.total_spent|default:0|floatformat:2 }}</td>
+          <td class="small text-muted">{{ cust.date_joined|date:"M d, Y" }}</td>
+          <td>
+            {% if cust.is_active %}
+              <span class="badge bg-success">Active</span>
+            {% else %}
+              <span class="badge bg-danger">Deactivated</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{% url 'custom_admin:customer_detail' user_id=cust.pk %}" class="btn btn-sm btn-outline-dark">
+              Profile
+            </a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr>
+          <td colspan="8" class="text-center py-5 text-muted">
+            <i class="bi bi-people fs-1 d-block mb-2 text-secondary"></i>
+            No registered customer accounts found.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  {% if page_obj.has_other_pages %}
+  <div class="p-3 border-top d-flex justify-content-between align-items-center">
+    <div class="small text-muted">
+      Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }} customers
+    </div>
+    <ul class="pagination pagination-sm mb-0">
+      {% if page_obj.has_previous %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}&q={{ query }}&status={{ status_filter }}">Previous</a></li>
+      {% endif %}
+      <li class="page-item active"><span class="page-link">{{ page_obj.number }}</span></li>
+      {% if page_obj.has_next %}
+        <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}&q={{ query }}&status={{ status_filter }}">Next</a></li>
+      {% endif %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
