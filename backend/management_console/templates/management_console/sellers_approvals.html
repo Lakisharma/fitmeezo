@@ -1,0 +1,146 @@
+{% extends "management_console/base.html" %}
+
+{% block title %}Seller Approvals &amp; Verification{% endblock %}
+
+{% block breadcrumbs %}
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:dashboard' %}">Dashboard</a>
+  <span class="separator">/</span>
+  <span class="current">Seller Approvals</span>
+{% endblock %}
+
+{% block content %}
+<div class="console-page-header">
+  <div>
+    <h1 class="console-page-title">Seller Approvals &amp; Verification</h1>
+    <p class="console-page-subtitle">Verify merchant credentials, review GSTIN/PAN documentation, and regulate platform commissions.</p>
+  </div>
+  <a href="{% url 'management_console:model_list' 'core' 'seller' %}" class="console-btn console-btn-secondary">
+    <i class="bi bi-list-ul me-1"></i> All Sellers
+  </a>
+</div>
+
+<!-- FILTER STATUS TABS -->
+<div class="console-card" style="margin-bottom: 1.5rem;">
+  <div class="console-card-body" style="padding: 1rem 1.25rem; display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    <span class="fw-semibold text-muted small me-2"><i class="bi bi-funnel me-1"></i> Status:</span>
+    <a href="{% url 'management_console:seller_approvals' %}?status=pending" class="console-btn {% if filter_status == 'pending' %}console-btn-primary{% else %}console-btn-secondary{% endif %} console-btn-sm">
+      <i class="bi bi-clock-history me-1"></i> Pending Verification
+    </a>
+    <a href="{% url 'management_console:seller_approvals' %}?status=approved" class="console-btn {% if filter_status == 'approved' %}console-btn-primary{% else %}console-btn-secondary{% endif %} console-btn-sm">
+      <i class="bi bi-check2-circle me-1"></i> Approved Sellers
+    </a>
+    <a href="{% url 'management_console:seller_approvals' %}?status=rejected" class="console-btn {% if filter_status == 'rejected' %}console-btn-primary{% else %}console-btn-secondary{% endif %} console-btn-sm">
+      <i class="bi bi-x-circle me-1"></i> Rejected
+    </a>
+    <a href="{% url 'management_console:seller_approvals' %}?status=all" class="console-btn {% if filter_status == 'all' %}console-btn-primary{% else %}console-btn-secondary{% endif %} console-btn-sm">
+      All Sellers
+    </a>
+  </div>
+</div>
+
+<!-- SELLERS LIST CARD -->
+<div class="console-card">
+  <div class="console-table-container">
+    <table class="console-table">
+      <thead>
+        <tr>
+          <th>Store &amp; Business Name</th>
+          <th>Contact &amp; Location</th>
+          <th>Tax Identification</th>
+          <th>Bank Status</th>
+          <th>Commission Rate</th>
+          <th>Status</th>
+          <th style="text-align: right;">Verification Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for seller in sellers %}
+          <tr>
+            <td>
+              <div class="fw-bold">
+                <a href="{% url 'management_console:model_change' 'core' 'seller' seller.pk %}" style="color: var(--mc-brand); text-decoration: none;">
+                  {{ seller.store_name }}
+                </a>
+              </div>
+              <div class="small text-muted">{{ seller.legal_business_name|default:"Not specified" }}</div>
+              <div class="small text-muted font-monospace">User: {{ seller.user.username }}</div>
+            </td>
+            <td>
+              <div>{{ seller.support_email }}</div>
+              <div class="small text-muted">{{ seller.support_phone }}</div>
+              <div class="small text-muted">{{ seller.city }}, {{ seller.state }}</div>
+            </td>
+            <td>
+              <div class="small"><strong>GSTIN:</strong> {{ seller.gstin|default:"None" }}</div>
+              <div class="small"><strong>PAN:</strong> {{ seller.pan_number|default:"None" }}</div>
+            </td>
+            <td>
+              {% if seller.bank_verification_status == 'verified' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-check me-1"></i>Verified</span>
+              {% elif seller.bank_verification_status == 'rejected' %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Rejected</span>
+              {% else %}
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Pending Check</span>
+              {% endif %}
+            </td>
+            <td>
+              <form method="post" style="display: flex; align-items: center; gap: 0.35rem;">
+                {% csrf_token %}
+                <input type="hidden" name="seller_id" value="{{ seller.pk }}">
+                <input type="hidden" name="action" value="update_commission">
+                <input type="number" step="0.1" name="commission_rate" value="{{ seller.commission_rate }}" class="console-input console-input-sm" style="width: 75px; padding: 0.25rem 0.4rem; font-size: 0.8rem;">
+                <span class="small text-muted">%</span>
+                <button type="submit" class="console-btn console-btn-secondary console-btn-sm" style="padding: 0.25rem 0.5rem;" title="Save Commission">
+                  <i class="bi bi-check-lg"></i>
+                </button>
+              </form>
+            </td>
+            <td>
+              {% if seller.status == 'approved' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle">Approved</span>
+              {% elif seller.status == 'pending' %}
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Pending</span>
+              {% elif seller.status == 'rejected' %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Rejected</span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-muted border border-secondary-subtle">{{ seller.get_status_display }}</span>
+              {% endif %}
+            </td>
+            <td style="text-align: right; white-space: nowrap;">
+              {% if seller.status != 'approved' %}
+                <form method="post" style="display: inline-block;">
+                  {% csrf_token %}
+                  <input type="hidden" name="seller_id" value="{{ seller.pk }}">
+                  <input type="hidden" name="action" value="approve">
+                  <button type="submit" class="console-btn console-btn-primary console-btn-sm" onclick="return confirm('Approve and activate this merchant store?')">
+                    <i class="bi bi-check-circle me-1"></i> Approve
+                  </button>
+                </form>
+              {% endif %}
+
+              {% if seller.status != 'rejected' %}
+                <form method="post" style="display: inline-block; margin-left: 0.35rem;">
+                  {% csrf_token %}
+                  <input type="hidden" name="seller_id" value="{{ seller.pk }}">
+                  <input type="hidden" name="action" value="reject">
+                  <button type="submit" class="console-btn console-btn-secondary console-btn-sm text-danger border-danger-subtle" onclick="return confirm('Reject this seller application?')">
+                    <i class="bi bi-x-circle me-1"></i> Reject
+                  </button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="text-center py-5 text-muted">
+              <i class="bi bi-shop fs-1 d-block mb-3 opacity-50"></i>
+              <div class="fw-bold">No seller records matching filter "{{ filter_status }}"</div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

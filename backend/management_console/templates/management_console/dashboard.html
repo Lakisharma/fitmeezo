@@ -1,0 +1,211 @@
+{% extends "management_console/base.html" %}
+
+{% block title %}Dashboard Overview{% endblock %}
+
+{% block breadcrumbs %}
+  <span class="separator">/</span>
+  <span class="current">Dashboard</span>
+{% endblock %}
+
+{% block content %}
+<div class="console-page-header">
+  <div>
+    <h1 class="console-page-title">Enterprise Operations Dashboard</h1>
+    <p class="console-page-subtitle">Real-time database analytics and administrative control center.</p>
+  </div>
+  <div style="display: flex; gap: 0.75rem;">
+    <a href="{% url 'management_console:product_add' %}" class="console-btn console-btn-primary">
+      <i class="bi bi-plus-circle me-1"></i> Add Product
+    </a>
+    <a href="{% url 'management_console:seller_approvals' %}" class="console-btn console-btn-secondary">
+      <i class="bi bi-shop me-1"></i> Seller Approvals
+    </a>
+  </div>
+</div>
+
+<!-- STATS CARDS GRID -->
+<div class="console-stats-grid">
+  <!-- Revenue Card -->
+  <div class="console-stat-card">
+    <div>
+      <div class="console-stat-label">Total Realized Revenue</div>
+      <div class="console-stat-value" style="color: #059669;">₹{{ total_revenue }}</div>
+      <div class="console-stat-meta"><i class="bi bi-check2-circle text-success me-1"></i> Settled and paid orders</div>
+    </div>
+    <div class="console-stat-icon-wrapper icon-success">
+      <i class="bi bi-currency-rupee"></i>
+    </div>
+  </div>
+
+  <!-- Orders Card -->
+  <div class="console-stat-card">
+    <div>
+      <div class="console-stat-label">Customer Orders</div>
+      <div class="console-stat-value">{{ total_orders }}</div>
+      <div class="console-stat-meta"><span class="badge bg-primary-subtle text-primary border border-primary-subtle me-1">{{ today_orders }} new today</span> &bull; {{ pending_orders }} in fulfillment</div>
+    </div>
+    <div class="console-stat-icon-wrapper icon-info">
+      <i class="bi bi-bag-check"></i>
+    </div>
+  </div>
+
+  <!-- Products Card -->
+  <div class="console-stat-card">
+    <div>
+      <div class="console-stat-label">Catalog Products</div>
+      <div class="console-stat-value">{{ total_products }}</div>
+      <div class="console-stat-meta">
+        {{ active_products }} active
+        {% if low_stock_products > 0 %}
+          &bull; <span class="text-warning fw-semibold">{{ low_stock_products }} low stock</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="console-stat-icon-wrapper icon-brand">
+      <i class="bi bi-box-seam"></i>
+    </div>
+  </div>
+
+  <!-- Sellers Card -->
+  <div class="console-stat-card">
+    <div>
+      <div class="console-stat-label">Merchant Sellers</div>
+      <div class="console-stat-value">{{ total_sellers }}</div>
+      <div class="console-stat-meta">
+        {{ active_sellers }} active
+        {% if pending_sellers > 0 %}
+          &bull; <span class="badge bg-warning-subtle text-warning border border-warning-subtle">{{ pending_sellers }} pending review</span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="console-stat-icon-wrapper icon-warning">
+      <i class="bi bi-shop"></i>
+    </div>
+  </div>
+</div>
+
+<!-- TWO-COLUMN DASHBOARD SECTIONS -->
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+  <!-- LEFT: RECENT ORDERS TABLE -->
+  <div class="console-card">
+    <div class="console-card-header">
+      <div class="console-card-title"><i class="bi bi-receipt me-2"></i>Recent Customer Orders</div>
+      <a href="{% url 'management_console:model_list' 'core' 'order' %}" class="console-btn console-btn-secondary console-btn-sm">
+        View All Orders <i class="bi bi-arrow-right ms-1"></i>
+      </a>
+    </div>
+    <div class="console-table-container">
+      <table class="console-table">
+        <thead>
+          <tr>
+            <th>Order #</th>
+            <th>Customer</th>
+            <th>Total Amount</th>
+            <th>Payment</th>
+            <th>Status</th>
+            <th>Date</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for order in recent_orders %}
+            <tr>
+              <td>
+                <a href="{% url 'management_console:order_detail' order.pk %}" class="fw-bold text-decoration-none" style="color: var(--mc-brand);">
+                  #{{ order.order_number }}
+                </a>
+              </td>
+              <td>
+                <div class="fw-semibold">{{ order.shipping_full_name|default:order.user.username }}</div>
+                <div class="small text-muted">{{ order.shipping_phone_number|default:order.user.email }}</div>
+              </td>
+              <td class="fw-bold">₹{{ order.total_amount }}</td>
+              <td>
+                {% if order.payment_status == 'paid' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle">Paid</span>
+                {% elif order.payment_status == 'pending' %}
+                  <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Pending</span>
+                {% else %}
+                  <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">{{ order.get_payment_status_display }}</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge bg-info-subtle text-info border border-info-subtle">{{ order.get_status_display }}</span>
+              </td>
+              <td class="small text-muted">{{ order.created_at|date:"d M Y, H:i" }}</td>
+              <td>
+                <a href="{% url 'management_console:order_detail' order.pk %}" class="console-btn console-btn-secondary console-btn-sm" title="View details">
+                  <i class="bi bi-eye"></i>
+                </a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-center py-4 text-muted">
+                <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                No orders recorded yet.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- RIGHT: PENDING SELLERS & AUDIT TRAIL -->
+  <div>
+    <!-- Pending Sellers Queue -->
+    <div class="console-card" style="margin-bottom: 1.5rem;">
+      <div class="console-card-header">
+        <div class="console-card-title"><i class="bi bi-person-badge me-2"></i>Pending Approvals</div>
+        <a href="{% url 'management_console:seller_approvals' %}" class="console-btn console-btn-secondary console-btn-sm">
+          Review
+        </a>
+      </div>
+      <div class="console-card-body" style="padding: 1rem 1.25rem;">
+        {% for seller in pending_sellers_list %}
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--mc-border);">
+            <div>
+              <div class="fw-bold text-dark">{{ seller.store_name }}</div>
+              <div class="small text-muted">{{ seller.city }}, {{ seller.state }} &bull; GSTIN: {{ seller.gstin|default:"N/A" }}</div>
+            </div>
+            <a href="{% url 'management_console:seller_approvals' %}" class="console-btn console-btn-primary console-btn-sm">
+              Verify
+            </a>
+          </div>
+        {% empty %}
+          <div class="text-center py-3 text-muted small">
+            <i class="bi bi-check2-circle text-success fs-4 d-block mb-1"></i>
+            All seller applications reviewed.
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Recent Audit Logs -->
+    <div class="console-card">
+      <div class="console-card-header">
+        <div class="console-card-title"><i class="bi bi-clock-history me-2"></i>Audit Activity</div>
+        <a href="{% url 'management_console:audit_logs' %}" class="console-btn console-btn-secondary console-btn-sm">
+          All Logs
+        </a>
+      </div>
+      <div class="console-card-body" style="padding: 1rem 1.25rem;">
+        {% for log in recent_audit_logs %}
+          <div style="padding: 0.65rem 0; border-bottom: 1px solid var(--mc-border); font-size: 0.825rem;">
+            <div style="display: flex; justify-content: space-between;">
+              <span class="fw-semibold text-dark">{{ log.user.username }}</span>
+              <span class="text-muted small">{{ log.action_time|date:"H:i, d M" }}</span>
+            </div>
+            <div class="text-muted" style="margin-top: 0.2rem;">
+              {{ log.get_action_flag_display }}: <span class="text-dark">{{ log.object_repr|truncatechars:35 }}</span>
+            </div>
+          </div>
+        {% empty %}
+          <div class="text-center py-3 text-muted small">No audit activity logged.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

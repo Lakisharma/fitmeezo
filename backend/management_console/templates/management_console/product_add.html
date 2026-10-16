@@ -1,0 +1,246 @@
+{% extends "management_console/base.html" %}
+
+{% block title %}Add Product Studio{% endblock %}
+
+{% block breadcrumbs %}
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:dashboard' %}">Dashboard</a>
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:model_list' 'core' 'product' %}">Products</a>
+  <span class="separator">/</span>
+  <span class="current">Product Studio</span>
+{% endblock %}
+
+{% block content %}
+<div class="console-page-header">
+  <div>
+    <h1 class="console-page-title">Fitmeezo Product Studio</h1>
+    <p class="console-page-subtitle">Publish a new catalog product with pricing, variants, and dimensions verification.</p>
+  </div>
+  <a href="{% url 'management_console:model_list' 'core' 'product' %}" class="console-btn console-btn-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Products
+  </a>
+</div>
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="console-alert console-alert-danger">
+      {% for error in form.non_field_errors %}
+        <div>{{ error }}</div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+    <!-- MAIN COLUMN -->
+    <div>
+      <!-- Basic Details Card -->
+      <div class="console-card">
+        <div class="console-card-header">
+          <div class="console-card-title"><i class="bi bi-tag me-2"></i>Product Identity</div>
+        </div>
+        <div class="console-card-body">
+          <div class="console-form-group">
+            <label class="console-label">Product Title <span class="text-danger">*</span></label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="console-error-text">{{ form.name.errors.0 }}</div>{% endif %}
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="console-form-group">
+              <label class="console-label">SKU Code <span class="text-danger">*</span></label>
+              {{ form.sku }}
+              {% if form.sku.errors %}<div class="console-error-text">{{ form.sku.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="console-form-group">
+              <label class="console-label">URL Slug (Optional)</label>
+              {{ form.slug }}
+              <div class="console-help-text">Leave blank to auto-generate from title.</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="console-form-group">
+              <label class="console-label">Category <span class="text-danger">*</span></label>
+              {{ form.category }}
+              {% if form.category.errors %}<div class="console-error-text">{{ form.category.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="console-form-group">
+              <label class="console-label">Merchant Seller <span class="text-danger">*</span></label>
+              {{ form.seller }}
+              {% if form.seller.errors %}<div class="console-error-text">{{ form.seller.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="console-form-group">
+            <label class="console-label">Short Tagline Description</label>
+            {{ form.short_description }}
+          </div>
+
+          <div class="console-form-group">
+            <label class="console-label">Full Product Description</label>
+            {{ form.description }}
+          </div>
+        </div>
+      </div>
+
+      <!-- Pricing & Stock Card -->
+      <div class="console-card">
+        <div class="console-card-header">
+          <div class="console-card-title"><i class="bi bi-currency-rupee me-2"></i>Pricing &amp; Inventory</div>
+        </div>
+        <div class="console-card-body">
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+            <div class="console-form-group">
+              <label class="console-label">Selling Price (₹) <span class="text-danger">*</span></label>
+              {{ form.price }}
+              {% if form.price.errors %}<div class="console-error-text">{{ form.price.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="console-form-group">
+              <label class="console-label">Compare At / MRP (₹)</label>
+              {{ form.compare_at_price }}
+              {% if form.compare_at_price.errors %}<div class="console-error-text">{{ form.compare_at_price.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="console-form-group">
+              <label class="console-label">Initial Stock Units <span class="text-danger">*</span></label>
+              {{ form.stock_quantity }}
+              {% if form.stock_quantity.errors %}<div class="console-error-text">{{ form.stock_quantity.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Initial Variant Setup (Optional) -->
+      <div class="console-card">
+        <div class="console-card-header">
+          <div class="console-card-title"><i class="bi bi-grid-3x3-gap me-2"></i>Initial Variant (Optional)</div>
+        </div>
+        <div class="console-card-body">
+          <p class="small text-muted mb-3">You can optionally attach an initial variant (e.g. Size M, Color Navy) during product creation.</p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 0.75rem;">
+            <div>
+              <label class="console-label">Option Type</label>
+              <select name="variant_type" class="console-select">
+                <option value="Size">Size</option>
+                <option value="Color">Color</option>
+                <option value="Style">Style</option>
+              </select>
+            </div>
+            <div>
+              <label class="console-label">Option Value</label>
+              <input type="text" name="variant_value" class="console-input" placeholder="e.g. XL">
+            </div>
+            <div>
+              <label class="console-label">Variant SKU</label>
+              <input type="text" name="variant_sku" class="console-input" placeholder="e.g. FTM-01-XL">
+            </div>
+            <div>
+              <label class="console-label">Price (₹)</label>
+              <input type="number" step="0.01" name="variant_price" class="console-input" placeholder="Price">
+            </div>
+            <div>
+              <label class="console-label">Stock Units</label>
+              <input type="number" name="variant_stock" class="console-input" placeholder="Stock">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN: MEDIA, LOGISTICS & PUBLISH CONTROLS -->
+    <div>
+      <!-- Primary Image Card -->
+      <div class="console-card">
+        <div class="console-card-header">
+          <div class="console-card-title"><i class="bi bi-image me-2"></i>Primary Image</div>
+        </div>
+        <div class="console-card-body">
+          <div class="console-form-group">
+            {{ form.image }}
+            <div class="console-help-text">Accepted: JPG, JPEG, PNG, WebP (Max 5MB).</div>
+            {% if form.image.errors %}<div class="console-error-text">{{ form.image.errors.0 }}</div>{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Shipping & Physical Dimensions -->
+      <div class="console-card">
+        <div class="console-card-header">
+          <div class="console-card-title"><i class="bi bi-truck me-2"></i>Shipping Dimensions</div>
+        </div>
+        <div class="console-card-body">
+          <div class="console-form-group">
+            <label class="console-label">Dead Weight (Grams)</label>
+            {{ form.weight_grams }}
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.5rem;">
+            <div class="console-form-group">
+              <label class="console-label">L (cm)</label>
+              {{ form.length_cm }}
+            </div>
+            <div class="console-form-group">
+              <label class="console-label">B (cm)</label>
+              {{ form.breadth_cm }}
+            </div>
+            <div class="console-form-group">
+              <label class="console-label">H (cm)</label>
+              {{ form.height_cm }}
+            </div>
+          </div>
+          <div class="console-form-group form-check" style="margin-top: 0.5rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              {{ form.is_dimensions_verified }}
+              <span class="small fw-semibold">Dimensions Verified for Shipping</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Status & Publication -->
+      <div class="console-card">
+        <div class="console-card-header">
+          <div class="console-card-title"><i class="bi bi-sliders me-2"></i>Status &amp; Workflow</div>
+        </div>
+        <div class="console-card-body">
+          <div class="console-form-group">
+            <label class="console-label">Approval Status</label>
+            {{ form.approval_status }}
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem;">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              {{ form.is_active }}
+              <span class="small fw-semibold">Active in Catalog</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              {{ form.is_approved }}
+              <span class="small fw-semibold">Admin Approved</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              {{ form.is_featured }}
+              <span class="small fw-semibold">Featured on Homepage</span>
+            </label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+              {{ form.is_returnable }}
+              <span class="small fw-semibold">Eligible for Customer Returns</span>
+            </label>
+          </div>
+
+          <div class="console-form-group" style="margin-top: 1rem;">
+            <label class="console-label">Return Window (Days)</label>
+            {{ form.return_window_days }}
+          </div>
+
+          <div style="margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--mc-border);">
+            <button type="submit" class="console-btn console-btn-primary" style="width: 100%; padding: 0.75rem;">
+              <i class="bi bi-cloud-arrow-up-fill me-1"></i> Publish Product
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}

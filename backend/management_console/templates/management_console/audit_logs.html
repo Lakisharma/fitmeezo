@@ -1,0 +1,123 @@
+{% extends "management_console/base.html" %}
+
+{% block title %}System Audit Logs{% endblock %}
+
+{% block breadcrumbs %}
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:dashboard' %}">Dashboard</a>
+  <span class="separator">/</span>
+  <span class="current">Audit Logs</span>
+{% endblock %}
+
+{% block content %}
+<div class="console-page-header">
+  <div>
+    <h1 class="console-page-title">Enterprise Audit Logs</h1>
+    <p class="console-page-subtitle">Immutable chronological ledger of all administrative modifications, creations, and deletions.</p>
+  </div>
+</div>
+
+<!-- FILTER CARD -->
+<div class="console-card" style="margin-bottom: 1.5rem;">
+  <div class="console-card-body" style="padding: 1rem 1.25rem;">
+    <form method="get" style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+      <div style="min-width: 180px;">
+        <select name="action" class="console-select" onchange="this.form.submit()">
+          <option value="">All Action Flags</option>
+          <option value="1" {% if action_filter == '1' %}selected{% endif %}>Addition (Created)</option>
+          <option value="2" {% if action_filter == '2' %}selected{% endif %}>Change (Updated)</option>
+          <option value="3" {% if action_filter == '3' %}selected{% endif %}>Deletion (Removed)</option>
+        </select>
+      </div>
+      <div style="min-width: 200px;">
+        <input type="text" name="user" value="{{ user_filter|default:'' }}" class="console-input" placeholder="Filter by staff username...">
+      </div>
+      <button type="submit" class="console-btn console-btn-secondary">
+        <i class="bi bi-funnel me-1"></i> Filter
+      </button>
+      {% if action_filter or user_filter %}
+        <a href="{% url 'management_console:audit_logs' %}" class="console-btn console-btn-secondary">
+          <i class="bi bi-arrow-counterclockwise"></i> Reset
+        </a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- LOGS TABLE CARD -->
+<div class="console-card">
+  <div class="console-table-container">
+    <table class="console-table">
+      <thead>
+        <tr>
+          <th>Timestamp</th>
+          <th>Staff User</th>
+          <th>Action</th>
+          <th>Model / Object</th>
+          <th>Change Summary</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in page_obj %}
+          <tr>
+            <td class="small text-muted font-monospace" style="white-space: nowrap;">
+              {{ log.action_time|date:"Y-m-d H:i:s" }}
+            </td>
+            <td>
+              <span class="fw-bold text-dark">{{ log.user.username }}</span>
+              {% if log.user.is_superuser %}
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 0.65rem;">Superuser</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if log.action_flag == 1 %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle">Addition</span>
+              {% elif log.action_flag == 2 %}
+                <span class="badge bg-info-subtle text-info border border-info-subtle">Change</span>
+              {% elif log.action_flag == 3 %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Deletion</span>
+              {% endif %}
+            </td>
+            <td>
+              <div class="fw-semibold">{{ log.content_type.name|title }}</div>
+              <div class="small text-muted font-monospace">ID: {{ log.object_id }}</div>
+            </td>
+            <td>
+              <div class="fw-semibold text-dark">{{ log.object_repr }}</div>
+              <div class="small text-muted">{{ log.change_message|default:"Action completed" }}</div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" class="text-center py-5 text-muted">
+              <i class="bi bi-journal-text fs-2 d-block mb-2 opacity-50"></i>
+              No audit logs recorded matching this criteria.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+    <div class="console-pagination">
+      <div class="text-muted small">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+      </div>
+      <div class="console-page-numbers">
+        {% if page_obj.has_previous %}
+          <a href="?page={{ page_obj.previous_page_number }}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if user_filter %}&user={{ user_filter }}{% endif %}" class="console-page-link">
+            <i class="bi bi-chevron-left"></i>
+          </a>
+        {% endif %}
+        <span class="console-page-link active">{{ page_obj.number }}</span>
+        {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}{% if action_filter %}&action={{ action_filter }}{% endif %}{% if user_filter %}&user={{ user_filter }}{% endif %}" class="console-page-link">
+            <i class="bi bi-chevron-right"></i>
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

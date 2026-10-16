@@ -1,0 +1,168 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Console{% endblock %} — Fitmeezo Management Console</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="{% static 'images/brand/favicon.svg' %}">
+
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- Management Console Enterprise Stylesheet -->
+  <link rel="stylesheet" href="{% static 'management_console/css/console.css' %}">
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+  <div class="console-app">
+    <!-- SIDEBAR -->
+    <aside class="console-sidebar" id="consoleSidebar">
+      <div class="console-sidebar-header">
+        <a href="{% url 'management_console:dashboard' %}" class="console-brand-link">
+          <div class="console-brand-logo">F</div>
+          <div>
+            <div class="console-brand-text">Fitmeezo</div>
+            <div class="console-brand-tagline">Console Enterprise</div>
+          </div>
+        </a>
+        <span class="console-badge-pro">PRO</span>
+      </div>
+
+      <nav class="console-sidebar-nav">
+        <!-- Dashboard Core Link -->
+        <a href="{% url 'management_console:dashboard' %}" class="console-nav-link {% if active_nav == 'dashboard' %}active{% endif %}">
+          <i class="bi bi-grid-1x2-fill"></i>
+          <span>Dashboard</span>
+        </a>
+
+        <!-- Global Search Link -->
+        <a href="{% url 'management_console:global_search' %}" class="console-nav-link {% if active_nav == 'search' %}active{% endif %}">
+          <i class="bi bi-search"></i>
+          <span>Global Search</span>
+        </a>
+
+        <!-- Dynamic Navigation Modules -->
+        {% for group in nav_modules %}
+          <div class="console-nav-group-title" data-group="{{ group.id }}">
+            <span><i class="bi {{ group.icon }} me-1"></i> {{ group.title }}</span>
+            <i class="bi bi-chevron-down chevron"></i>
+          </div>
+          <div class="console-nav-sublinks-wrapper" id="group-{{ group.id }}" style="display: flex; flex-direction: column;">
+            {% for shortcut in group.shortcuts %}
+              <a href="{% url shortcut.url_name %}" class="console-nav-sublink {% if active_nav == shortcut.url_name %}active{% endif %}" style="color: var(--mc-brand); font-weight: 600;">
+                <span><i class="bi {{ shortcut.icon }} me-1"></i> {{ shortcut.title }}</span>
+              </a>
+            {% endfor %}
+            {% for item in group.items %}
+              <a href="{% url 'management_console:model_list' item.app_label item.model_name %}" class="console-nav-sublink {% if active_nav == item.app_label|add:'_'|add:item.model_name %}active{% endif %}">
+                <span>{{ item.title }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        {% endfor %}
+
+        <!-- Quick Switcher to Other Panels & Storefront -->
+        <div class="console-nav-header">System Switcher</div>
+        <a href="/" target="_blank" class="console-nav-link">
+          <i class="bi bi-shop-window"></i>
+          <span>View Storefront</span>
+        </a>
+        <a href="/admin/" target="_blank" class="console-nav-link">
+          <i class="bi bi-shield-check"></i>
+          <span>Original Django Admin</span>
+        </a>
+        <a href="/custom-admin/" target="_blank" class="console-nav-link">
+          <i class="bi bi-wallet2"></i>
+          <span>Seller Payout Admin</span>
+        </a>
+      </nav>
+
+      <!-- Sidebar User Footer -->
+      <div class="console-sidebar-footer">
+        <div class="console-user-pill">
+          <div class="console-user-avatar">
+            {{ request.user.username|make_list|first|upper }}
+          </div>
+          <div class="console-user-details">
+            <span class="console-user-name">{{ request.user.get_full_name|default:request.user.username }}</span>
+            <span class="console-user-role">{% if request.user.is_superuser %}Super Admin{% else %}Staff{% endif %}</span>
+          </div>
+        </div>
+        <a href="{% url 'management_console:logout' %}" class="console-icon-btn" title="Sign Out">
+          <i class="bi bi-box-arrow-right"></i>
+        </a>
+      </div>
+    </aside>
+
+    <!-- MAIN BODY -->
+    <main class="console-main">
+      <!-- TOPBAR -->
+      <header class="console-topbar">
+        <div class="console-topbar-left">
+          <button type="button" class="console-icon-btn d-lg-none" id="consoleSidebarToggle" aria-label="Toggle Navigation">
+            <i class="bi bi-list fs-5"></i>
+          </button>
+          <div class="console-breadcrumbs">
+            <a href="{% url 'management_console:dashboard' %}"><i class="bi bi-house-door"></i></a>
+            {% block breadcrumbs %}{% endblock %}
+          </div>
+        </div>
+
+        <div class="console-topbar-right">
+          <!-- Global Search Box -->
+          <form action="{% url 'management_console:global_search' %}" method="get" class="console-search-box">
+            <i class="bi bi-search console-search-icon"></i>
+            <input type="text" name="q" id="globalSearchInput" class="console-search-input" placeholder="Search products, orders, sellers..." value="{{ query|default:'' }}" autocomplete="off">
+            <span class="console-search-shortcut">⌘K</span>
+          </form>
+
+          <!-- Audit Logs Shortcut -->
+          <a href="{% url 'management_console:audit_logs' %}" class="console-icon-btn" title="View Audit Logs">
+            <i class="bi bi-clock-history"></i>
+          </a>
+
+          <!-- Live Store View -->
+          <a href="/" target="_blank" class="console-btn console-btn-secondary console-btn-sm">
+            <i class="bi bi-box-arrow-up-right"></i> Store
+          </a>
+        </div>
+      </header>
+
+      <!-- CONTENT AREA -->
+      <div class="console-content">
+        <!-- Flash Messages -->
+        {% if messages %}
+          {% for message in messages %}
+            <div class="console-alert console-alert-{{ message.tags }}">
+              {% if message.tags == 'success' %}
+                <i class="bi bi-check-circle-fill fs-5"></i>
+              {% elif message.tags == 'error' or message.tags == 'danger' %}
+                <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+              {% elif message.tags == 'warning' %}
+                <i class="bi bi-exclamation-circle-fill fs-5"></i>
+              {% else %}
+                <i class="bi bi-info-circle-fill fs-5"></i>
+              {% endif %}
+              <div class="flex-grow-1">{{ message }}</div>
+            </div>
+          {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+
+  <!-- Management Console Scripts -->
+  <script src="{% static 'management_console/js/console.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

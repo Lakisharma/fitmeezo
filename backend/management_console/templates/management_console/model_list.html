@@ -1,0 +1,166 @@
+{% extends "management_console/base.html" %}
+
+{% block title %}{{ verbose_name_plural|title }}{% endblock %}
+
+{% block breadcrumbs %}
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:dashboard' %}">Dashboard</a>
+  <span class="separator">/</span>
+  <span class="current">{{ verbose_name_plural|title }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="console-page-header">
+  <div>
+    <h1 class="console-page-title">{{ verbose_name_plural|title }}</h1>
+    <p class="console-page-subtitle">Managing {{ total_count }} total {{ verbose_name_plural|lower }} in {{ app_label }} database registry.</p>
+  </div>
+  <div>
+    {% if can_add and add_url %}
+      <a href="{{ add_url }}" class="console-btn console-btn-primary">
+        <i class="bi bi-plus-lg me-1"></i> Add {{ verbose_name|title }}
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- SEARCH & FILTERS TOOLBAR -->
+<div class="console-card" style="margin-bottom: 1.25rem;">
+  <div class="console-card-body" style="padding: 1rem 1.25rem;">
+    <form method="get" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+      <!-- Search Input -->
+      {% if search_fields %}
+        <div style="position: relative; flex: 1; min-width: 260px;">
+          <i class="bi bi-search" style="position: absolute; left: 0.85rem; top: 50%; transform: translateY(-50%); color: var(--mc-text-muted);"></i>
+          <input type="text" name="q" value="{{ search_query }}" class="console-input" style="padding-left: 2.25rem;" placeholder="Search by {{ search_fields|join:', ' }}...">
+        </div>
+      {% endif %}
+
+      <!-- Filters -->
+      {% for filter in filter_options %}
+        <div style="min-width: 160px;">
+          <select name="{{ filter.name }}" class="console-select" onchange="this.form.submit()">
+            <option value="">All {{ filter.title }}</option>
+            {% for choice_val, choice_label in filter.choices %}
+              <option value="{{ choice_val }}" {% if filter.selected == choice_val|stringformat:"s" %}selected{% endif %}>
+                {{ choice_label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+      {% endfor %}
+
+      <button type="submit" class="console-btn console-btn-secondary">
+        <i class="bi bi-funnel me-1"></i> Filter
+      </button>
+
+      {% if search_query or filter_options %}
+        <a href="{% url 'management_console:model_list' app_label model_name %}" class="console-btn console-btn-secondary" title="Reset Filters">
+          <i class="bi bi-arrow-counterclockwise"></i> Reset
+        </a>
+      {% endif %}
+    </form>
+  </div>
+</div>
+
+<!-- DATA TABLE CARD -->
+<div class="console-card">
+  <div class="console-table-container">
+    <table class="console-table">
+      <thead>
+        <tr>
+          {% for col in columns %}
+            <th>
+              {% if col.sortable %}
+                <a href="?o={% if request.GET.o == col.name %}-{% endif %}{{ col.name }}{% if search_query %}&q={{ search_query }}{% endif %}">
+                  {{ col.title }}
+                  {% if request.GET.o == col.name %}
+                    <i class="bi bi-arrow-up"></i>
+                  {% elif request.GET.o == '-'|add:col.name %}
+                    <i class="bi bi-arrow-down"></i>
+                  {% else %}
+                    <i class="bi bi-arrow-down-up opacity-25"></i>
+                  {% endif %}
+                </a>
+              {% else %}
+                {{ col.title }}
+              {% endif %}
+            </th>
+          {% endfor %}
+          <th style="text-align: right; width: 120px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            {% for cell in row.cells %}
+              <td>
+                {% if forloop.first %}
+                  <a href="{{ row.change_url }}" class="fw-bold text-decoration-none" style="color: var(--mc-brand);">
+                    {{ cell }}
+                  </a>
+                {% else %}
+                  {{ cell }}
+                {% endif %}
+              </td>
+            {% endfor %}
+            <td style="text-align: right; white-space: nowrap;">
+              <a href="{{ row.change_url }}" class="console-btn console-btn-secondary console-btn-sm" title="{% if can_change %}Edit Record{% else %}View Record{% endif %}">
+                <i class="bi {% if can_change %}bi-pencil{% else %}bi-eye{% endif %}"></i>
+              </a>
+              {% if row.delete_url %}
+                <a href="{{ row.delete_url }}" class="console-btn console-btn-secondary console-btn-sm text-danger border-danger-subtle ms-1" title="Delete Record">
+                  <i class="bi bi-trash"></i>
+                </a>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="{{ columns|length|add:1 }}" class="text-center py-5 text-muted">
+              <i class="bi bi-folder-x fs-1 d-block mb-3 opacity-50"></i>
+              <div class="fw-bold fs-5 text-dark">No {{ verbose_name_plural|lower }} found</div>
+              <p class="small text-muted mt-1">There are no records matching your criteria in the database.</p>
+              {% if can_add and add_url %}
+                <a href="{{ add_url }}" class="console-btn console-btn-primary console-btn-sm mt-3">
+                  <i class="bi bi-plus-lg me-1"></i> Create First {{ verbose_name|title }}
+                </a>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- PAGINATION CONTROLS -->
+  {% if page_obj.has_other_pages %}
+    <div class="console-pagination">
+      <div class="text-muted small">
+        Showing {{ page_obj.start_index }} to {{ page_obj.end_index }} of {{ total_count }} {{ verbose_name_plural|lower }}
+      </div>
+      <div class="console-page-numbers">
+        {% if page_obj.has_previous %}
+          <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if request.GET.o %}&o={{ request.GET.o }}{% endif %}" class="console-page-link">
+            <i class="bi bi-chevron-left"></i>
+          </a>
+        {% endif %}
+
+        {% for num in paginator.page_range %}
+          {% if page_obj.number == num %}
+            <span class="console-page-link active">{{ num }}</span>
+          {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+            <a href="?page={{ num }}{% if search_query %}&q={{ search_query }}{% endif %}{% if request.GET.o %}&o={{ request.GET.o }}{% endif %}" class="console-page-link">{{ num }}</a>
+          {% endif %}
+        {% endfor %}
+
+        {% if page_obj.has_next %}
+          <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if request.GET.o %}&o={{ request.GET.o }}{% endif %}" class="console-page-link">
+            <i class="bi bi-chevron-right"></i>
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

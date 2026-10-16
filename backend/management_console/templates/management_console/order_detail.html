@@ -1,0 +1,180 @@
+{% extends "management_console/base.html" %}
+
+{% block title %}Order #{{ order.order_number }}{% endblock %}
+
+{% block breadcrumbs %}
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:dashboard' %}">Dashboard</a>
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:model_list' 'core' 'order' %}">Orders</a>
+  <span class="separator">/</span>
+  <span class="current">#{{ order.order_number }}</span>
+{% endblock %}
+
+{% block content %}
+<div class="console-page-header">
+  <div>
+    <h1 class="console-page-title">Order #{{ order.order_number }}</h1>
+    <p class="console-page-subtitle">Placed on {{ order.created_at|date:"d M Y, H:i" }} &bull; Customer: {{ order.user.get_full_name|default:order.user.username }}</p>
+  </div>
+  <a href="{% url 'management_console:model_list' 'core' 'order' %}" class="console-btn console-btn-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Orders
+  </a>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+  <!-- LEFT: ORDER LINE ITEMS & FULFILLMENT -->
+  <div>
+    <!-- Line Items Card -->
+    <div class="console-card">
+      <div class="console-card-header">
+        <div class="console-card-title"><i class="bi bi-basket me-2"></i>Purchased Items ({{ items|length }})</div>
+      </div>
+      <div class="console-table-container">
+        <table class="console-table">
+          <thead>
+            <tr>
+              <th>Item / Product</th>
+              <th>Variant</th>
+              <th>Unit Price</th>
+              <th>Qty</th>
+              <th style="text-align: right;">Line Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in items %}
+              <tr>
+                <td>
+                  <div class="fw-bold">{{ item.product_name }}</div>
+                  <div class="small text-muted font-monospace">SKU: {{ item.sku }}</div>
+                </td>
+                <td>{{ item.variant_label|default:"Standard" }}</td>
+                <td>₹{{ item.unit_price }}</td>
+                <td class="fw-bold">{{ item.quantity }}</td>
+                <td style="text-align: right;" class="fw-bold">₹{{ item.line_total }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5" class="text-center py-4 text-muted">No items found for this order.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <!-- Summary Totals -->
+      <div style="padding: 1.25rem 1.5rem; background-color: #F8FAFC; border-top: 1px solid var(--mc-border); display: flex; flex-direction: column; align-items: flex-end; gap: 0.35rem; font-size: 0.9rem;">
+        <div>Subtotal: <span class="fw-semibold">₹{{ order.subtotal }}</span></div>
+        <div>Shipping Fee: <span class="fw-semibold">₹{{ order.shipping_fee }}</span></div>
+        {% if order.discount_amount > 0 %}
+          <div class="text-success">Discount: <span class="fw-semibold">-₹{{ order.discount_amount }}</span></div>
+        {% endif %}
+        <div style="font-size: 1.15rem; font-weight: 800; color: var(--mc-text-main); margin-top: 0.5rem; border-top: 1px solid var(--mc-border); padding-top: 0.5rem;">
+          Total Amount: <span style="color: #059669;">₹{{ order.total_amount }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Seller Packages Sub-Orders -->
+    {% if seller_orders %}
+      <div class="console-card">
+        <div class="console-card-header">
+          <div class="console-card-title"><i class="bi bi-box me-2"></i>Seller Packages ({{ seller_orders|length }})</div>
+        </div>
+        <div class="console-table-container">
+          <table class="console-table">
+            <thead>
+              <tr>
+                <th>Package #</th>
+                <th>Seller Store</th>
+                <th>Status</th>
+                <th>Shipping Method</th>
+                <th>Subtotal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for sub in seller_orders %}
+                <tr>
+                  <td class="fw-bold font-monospace">{{ sub.sub_order_number }}</td>
+                  <td>{{ sub.seller.store_name }}</td>
+                  <td><span class="badge bg-info-subtle text-info border border-info-subtle">{{ sub.get_status_display }}</span></td>
+                  <td>{{ sub.shipping_method|default:"Standard" }}</td>
+                  <td class="fw-bold">₹{{ sub.subtotal }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- RIGHT: STATUS CONTROLS & SHIPPING ADDRESS -->
+  <div>
+    <!-- Status Controls Card -->
+    <div class="console-card" style="margin-bottom: 1.5rem;">
+      <div class="console-card-header">
+        <div class="console-card-title"><i class="bi bi-toggles me-2"></i>Fulfillment Controls</div>
+      </div>
+      <div class="console-card-body">
+        <!-- Order Fulfillment Status -->
+        <form method="post" style="margin-bottom: 1.5rem;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_status">
+          <div class="console-form-group">
+            <label class="console-label">Order Fulfillment Status</label>
+            <select name="status" class="console-select">
+              {% for val, label in status_choices %}
+                <option value="{{ val }}" {% if order.status == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="console-btn console-btn-primary" style="width: 100%;">
+            Update Order Status
+          </button>
+        </form>
+
+        <hr style="border: none; border-top: 1px solid var(--mc-border); margin: 1.5rem 0;">
+
+        <!-- Payment Status -->
+        <form method="post">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_payment">
+          <div class="console-form-group">
+            <label class="console-label">Payment Status</label>
+            <select name="payment_status" class="console-select">
+              {% for val, label in payment_choices %}
+                <option value="{{ val }}" {% if order.payment_status == val %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="console-btn console-btn-secondary" style="width: 100%;">
+            Update Payment Status
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Shipping Details Card -->
+    <div class="console-card">
+      <div class="console-card-header">
+        <div class="console-card-title"><i class="bi bi-geo-alt me-2"></i>Shipping Address</div>
+      </div>
+      <div class="console-card-body" style="font-size: 0.875rem; line-height: 1.6;">
+        <div class="fw-bold text-dark fs-6">{{ order.shipping_full_name }}</div>
+        <div class="text-muted"><i class="bi bi-telephone me-1"></i> {{ order.shipping_phone_number }}</div>
+        <div class="mt-2 text-dark">
+          {{ order.shipping_address_line1 }}<br>
+          {% if order.shipping_address_line2 %}{{ order.shipping_address_line2 }}<br>{% endif %}
+          {{ order.shipping_city }}, {{ order.shipping_state }} - {{ order.shipping_postal_code }}<br>
+          {% if order.shipping_landmark %}<span class="text-muted">Landmark: {{ order.shipping_landmark }}</span><br>{% endif %}
+        </div>
+        <div class="mt-3 pt-2 border-top small text-muted">
+          Payment Method: <strong>{{ order.get_payment_method_display|default:order.payment_method }}</strong><br>
+          {% if order.razorpay_order_id %}Razorpay Order ID: <span class="font-monospace">{{ order.razorpay_order_id }}</span><br>{% endif %}
+          {% if order.razorpay_payment_id %}Payment ID: <span class="font-monospace">{{ order.razorpay_payment_id }}</span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

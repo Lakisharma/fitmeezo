@@ -15,6 +15,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # Fitmeezo Custom Admin Dashboard (Phase 1)
     path("custom-admin/", include("core.admin_urls", namespace="custom_admin")),
+    # Fitmeezo Management Console (Third Independent Admin Panel)
+    path("management-console/", include("management_console.urls", namespace="management_console")),
     # Compatibility redirect for legacy/alternate 'admin-portal/' prefix
     path("admin-portal/<path:subpath>", RedirectView.as_view(url="/custom-admin/%(subpath)s", permanent=False)),
     path("admin-portal/", RedirectView.as_view(url="/custom-admin/", permanent=False)),

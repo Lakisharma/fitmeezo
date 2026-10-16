@@ -1,0 +1,233 @@
+{% extends "management_console/base.html" %}
+
+{% block title %}Search Results: "{{ query }}"{% endblock %}
+
+{% block breadcrumbs %}
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:dashboard' %}">Dashboard</a>
+  <span class="separator">/</span>
+  <span class="current">Global Search</span>
+{% endblock %}
+
+{% block content %}
+<div class="console-page-header">
+  <div>
+    <h1 class="console-page-title">Search Results for <span style="color: var(--mc-brand);">"{{ query }}"</span></h1>
+    <p class="console-page-subtitle">Discovered {{ total_found }} database records matching your query.</p>
+  </div>
+</div>
+
+{% if total_found == 0 %}
+  <div class="console-card text-center py-5">
+    <div class="console-card-body">
+      <i class="bi bi-search fs-1 text-muted d-block mb-3 opacity-50"></i>
+      <div class="fw-bold fs-5 text-dark">No records found</div>
+      <p class="text-muted small mt-1">Try refining your search terms or search by exact SKU, order number, or email.</p>
+    </div>
+  </div>
+{% else %}
+  <!-- PRODUCTS -->
+  {% if results.products %}
+    <div class="console-card" style="margin-bottom: 1.5rem;">
+      <div class="console-card-header">
+        <div class="console-card-title"><i class="bi bi-box-seam me-2"></i>Catalog Products ({{ results.products|length }})</div>
+      </div>
+      <div class="console-table-container">
+        <table class="console-table">
+          <thead>
+            <tr>
+              <th>Title / SKU</th>
+              <th>Category</th>
+              <th>Seller</th>
+              <th>Price</th>
+              <th>Stock</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in results.products %}
+              <tr>
+                <td>
+                  <a href="{% url 'management_console:model_change' 'core' 'product' p.pk %}" class="fw-bold text-decoration-none" style="color: var(--mc-brand);">
+                    {{ p.name }}
+                  </a>
+                  <div class="small text-muted font-monospace">{{ p.sku }}</div>
+                </td>
+                <td>{{ p.category.name|default:"—" }}</td>
+                <td>{{ p.seller.store_name|default:"—" }}</td>
+                <td class="fw-bold">₹{{ p.price }}</td>
+                <td>{{ p.stock_quantity }} units</td>
+                <td style="text-align: right;">
+                  <a href="{% url 'management_console:model_change' 'core' 'product' p.pk %}" class="console-btn console-btn-secondary console-btn-sm">
+                    View Product
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- ORDERS -->
+  {% if results.orders %}
+    <div class="console-card" style="margin-bottom: 1.5rem;">
+      <div class="console-card-header">
+        <div class="console-card-title"><i class="bi bi-receipt me-2"></i>Customer Orders ({{ results.orders|length }})</div>
+      </div>
+      <div class="console-table-container">
+        <table class="console-table">
+          <thead>
+            <tr>
+              <th>Order #</th>
+              <th>Customer</th>
+              <th>Total Amount</th>
+              <th>Payment</th>
+              <th>Status</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for o in results.orders %}
+              <tr>
+                <td>
+                  <a href="{% url 'management_console:order_detail' o.pk %}" class="fw-bold text-decoration-none" style="color: var(--mc-brand);">
+                    #{{ o.order_number }}
+                  </a>
+                </td>
+                <td>{{ o.shipping_full_name|default:o.user.username }}</td>
+                <td class="fw-bold">₹{{ o.total_amount }}</td>
+                <td>{{ o.get_payment_status_display }}</td>
+                <td><span class="badge bg-info-subtle text-info border border-info-subtle">{{ o.get_status_display }}</span></td>
+                <td style="text-align: right;">
+                  <a href="{% url 'management_console:order_detail' o.pk %}" class="console-btn console-btn-secondary console-btn-sm">
+                    View Order
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- SELLERS -->
+  {% if results.sellers %}
+    <div class="console-card" style="margin-bottom: 1.5rem;">
+      <div class="console-card-header">
+        <div class="console-card-title"><i class="bi bi-shop me-2"></i>Merchants &amp; Sellers ({{ results.sellers|length }})</div>
+      </div>
+      <div class="console-table-container">
+        <table class="console-table">
+          <thead>
+            <tr>
+              <th>Store Name</th>
+              <th>Location</th>
+              <th>Contact</th>
+              <th>Status</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in results.sellers %}
+              <tr>
+                <td>
+                  <a href="{% url 'management_console:model_change' 'core' 'seller' s.pk %}" class="fw-bold text-decoration-none" style="color: var(--mc-brand);">
+                    {{ s.store_name }}
+                  </a>
+                </td>
+                <td>{{ s.city }}, {{ s.state }}</td>
+                <td>{{ s.support_email }}</td>
+                <td><span class="badge bg-light text-dark border">{{ s.get_status_display }}</span></td>
+                <td style="text-align: right;">
+                  <a href="{% url 'management_console:model_change' 'core' 'seller' s.pk %}" class="console-btn console-btn-secondary console-btn-sm">
+                    View Seller
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- CUSTOMERS -->
+  {% if results.customers %}
+    <div class="console-card" style="margin-bottom: 1.5rem;">
+      <div class="console-card-header">
+        <div class="console-card-title"><i class="bi bi-people me-2"></i>Registered Users &amp; Customers ({{ results.customers|length }})</div>
+      </div>
+      <div class="console-table-container">
+        <table class="console-table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Full Name</th>
+              <th>Email</th>
+              <th>Staff Status</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in results.customers %}
+              <tr>
+                <td class="fw-bold">{{ u.username }}</td>
+                <td>{{ u.get_full_name|default:"—" }}</td>
+                <td>{{ u.email }}</td>
+                <td>
+                  {% if u.is_staff %}<span class="badge bg-primary-subtle text-primary border border-primary-subtle">Staff</span>{% else %}Customer{% endif %}
+                </td>
+                <td style="text-align: right;">
+                  <a href="{% url 'management_console:model_change' 'auth' 'user' u.pk %}" class="console-btn console-btn-secondary console-btn-sm">
+                    View Account
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- CATEGORIES -->
+  {% if results.categories %}
+    <div class="console-card" style="margin-bottom: 1.5rem;">
+      <div class="console-card-header">
+        <div class="console-card-title"><i class="bi bi-collection me-2"></i>Categories ({{ results.categories|length }})</div>
+      </div>
+      <div class="console-table-container">
+        <table class="console-table">
+          <thead>
+            <tr>
+              <th>Category Name</th>
+              <th>Slug</th>
+              <th>Status</th>
+              <th style="text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in results.categories %}
+              <tr>
+                <td class="fw-bold">{{ c.name }}</td>
+                <td class="font-monospace text-muted">{{ c.slug }}</td>
+                <td>
+                  {% if c.is_active %}<span class="badge bg-success-subtle text-success border border-success-subtle">Active</span>{% else %}Inactive{% endif %}
+                </td>
+                <td style="text-align: right;">
+                  <a href="{% url 'management_console:model_change' 'core' 'category' c.pk %}" class="console-btn console-btn-secondary console-btn-sm">
+                    View Category
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+{% endif %}
+{% endblock %}

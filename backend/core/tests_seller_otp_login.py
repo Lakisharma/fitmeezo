@@ -22,11 +22,15 @@ from core.otp_services import (
 )
 from core.sms_services import (
     ConsoleSMSProvider,
+    Fast2SMSProvider,
     MockSMSProvider,
+    MSG91SMSProvider,
+    TextlocalSMSProvider,
     UnconfiguredSMSProvider,
     get_sms_provider,
     mask_phone_number,
 )
+from unittest.mock import MagicMock, patch
 
 User = get_user_model()
 
@@ -506,3 +510,116 @@ class SellerMobileOTPLoginTests(TestCase):
         })
         self.assertRedirects(response, reverse("core:seller_dashboard"))
         self.assertEqual(int(self.client.session["_auth_user_id"]), self.approved_user.id)
+
+    # --------------------------------------------------------------------------
+    # Production Provider Unit Tests (Mocked HTTP - No Real SMS Sent in Tests)
+    # --------------------------------------------------------------------------
+
+    def test_msg91_provider_missing_credentials_fails_cleanly(self):
+        """MSG91 provider returns clear error when credentials are not configured."""
+        import os
+        with patch.dict(os.environ, {"MSG91_AUTH_KEY": "", "SMS_AUTH_KEY": "", "MSG91_TEMPLATE_ID": ""}):
+            provider = MSG91SMSProvider()
+            success, msg = provider.send_otp("9876543210", "123456")
+            self.assertFalse(success)
+            self.assertIn("not properly configured", msg)
+
+    @patch("urllib.request.urlopen")
+    def test_msg91_provider_success_mocked_http(self, mock_urlopen):
+        """MSG91 v5 OTP API sends compliant request with 91-prefixed mobile and authkey header."""
+        import os
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = b'{"message": "OTP sent successfully", "type": "success"}'
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        with patch.dict(os.environ, {
+            "MSG91_AUTH_KEY": "test_auth_key_12345",
+            "MSG91_TEMPLATE_ID": "64b1234567890abcdef",
+            "MSG91_SENDER_ID": "FTMEZO",
+        }):
+            provider = MSG91SMSProvider()
+            success, msg = provider.send_otp("9876543210", "482910")
+            self.assertTrue(success)
+            self.assertIn("OTP sent successfully", msg)
+
+            # Inspect HTTP request details
+            self.assertTrue(mock_urlopen.called)
+            req = mock_urlopen.call_args[0][0]
+            self.assertIn("control.msg91.com/api/v5/otp", req.full_url)
+            self.assertIn("mobile=919876543210", req.full_url)
+            self.assertIn("template_id=64b1234567890abcdef", req.full_url)
+            self.assertIn("otp=482910", req.full_url)
+            self.assertIn("sender=FTMEZO", req.full_url)
+            self.assertEqual(req.headers.get("Authkey"), "test_auth_key_12345")
+
+    @patch("urllib.request.urlopen")
+    def test_msg91_provider_http_error_handled_safely(self, mock_urlopen):
+        """MSG91 HTTP 400/401 error is handled cleanly without crashing or exposing secrets."""
+        import os
+        import urllib.error
+        import io
+
+        err_body = b'{"message": "Invalid Template ID", "type": "error"}'
+        http_err = urllib.error.HTTPError(
+            url="https://control.msg91.com/api/v5/otp",
+            code=400,
+            msg="Bad Request",
+            hdrs={},
+            fp=io.BytesIO(err_body),
+        )
+        mock_urlopen.side_effect = http_err
+
+        with patch.dict(os.environ, {
+            "SMS_AUTH_KEY": "test_key",
+            "SMS_TEMPLATE_ID": "invalid_template",
+        }):
+            provider = MSG91SMSProvider()
+            success, msg = provider.send_otp("9876543210", "123456")
+            self.assertFalse(success)
+            self.assertIn("Invalid Template ID", msg)
+
+    @patch("urllib.request.urlopen")
+    def test_textlocal_provider_success_mocked_http(self, mock_urlopen):
+        """Textlocal provider sends form-encoded request and parses success status."""
+        import os
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = b'{"status": "success", "balance": 50, "messages": [{"id": "111"}]}'
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        with patch.dict(os.environ, {
+            "TEXTLOCAL_API_KEY": "test_textlocal_api_key",
+            "TEXTLOCAL_SENDER_ID": "FTMEZO",
+        }):
+            provider = TextlocalSMSProvider()
+            success, msg = provider.send_otp("9876543210", "654321")
+            self.assertTrue(success)
+            self.assertIn("OTP sent successfully", msg)
+
+            req = mock_urlopen.call_args[0][0]
+            self.assertEqual(req.full_url, "https://api.textlocal.in/send/")
+            self.assertIn(b"apiKey=test_textlocal_api_key", req.data)
+            self.assertIn(b"numbers=919876543210", req.data)
+            self.assertIn(b"654321", req.data)
+
+    @patch("urllib.request.urlopen")
+    def test_fast2sms_provider_success_mocked_http(self, mock_urlopen):
+        """Fast2SMS provider sends Quick OTP payload and parses return status."""
+        import os
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = b'{"return": true, "request_id": "req_123", "message": ["SMS sent successfully."]}'
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        with patch.dict(os.environ, {
+            "FAST2SMS_API_KEY": "test_fast2sms_key",
+        }):
+            provider = Fast2SMSProvider()
+            success, msg = provider.send_otp("9876543210", "998877")
+            self.assertTrue(success)
+            self.assertIn("OTP sent successfully", msg)
+

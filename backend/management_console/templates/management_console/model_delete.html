@@ -1,0 +1,49 @@
+{% extends "management_console/base.html" %}
+
+{% block title %}Confirm Deletion: {{ instance }}{% endblock %}
+
+{% block breadcrumbs %}
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:dashboard' %}">Dashboard</a>
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:model_list' app_label model_name %}">{{ verbose_name_plural|title }}</a>
+  <span class="separator">/</span>
+  <span class="current">Delete Confirmation</span>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 650px; margin: 3rem auto;">
+  <div class="console-card border-danger-subtle">
+    <div class="console-card-header bg-danger-subtle text-danger">
+      <div class="console-card-title text-danger">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Record Deletion
+      </div>
+    </div>
+    <div class="console-card-body" style="padding: 2rem;">
+      <p style="font-size: 1rem; color: var(--mc-text-main); margin-bottom: 1.5rem; line-height: 1.6;">
+        Are you certain you want to permanently delete the {{ verbose_name|lower }}:
+        <strong style="color: var(--mc-danger);">"{{ instance }}"</strong>?
+      </p>
+
+      <div class="console-alert console-alert-warning" style="margin-bottom: 2rem;">
+        <i class="bi bi-shield-exclamation fs-5"></i>
+        <div class="small">
+          <strong>Warning:</strong> This action cannot be undone. Associated records and relationships may be affected or cascade deleted depending on model constraints.
+        </div>
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+          <a href="{{ back_url }}" class="console-btn console-btn-secondary">
+            Cancel, Keep Record
+          </a>
+          <button type="submit" class="console-btn console-btn-danger">
+            <i class="bi bi-trash-fill me-1"></i> Yes, Permanently Delete
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -138,6 +138,7 @@ INSTALLED_APPS = [
 
     # Fitmeezo local apps
     "core.apps.CoreConfig",
+    "management_console.apps.ManagementConsoleConfig",
 ]
 
 SITE_ID = 1
@@ -541,10 +542,16 @@ FITMEEZO_SUPPORT_PHONE = os.getenv("SUPPORT_PHONE", "+91 98765 43210")
 FITMEEZO_SUPPORT_HOURS = os.getenv("SUPPORT_HOURS", "Mon - Sat, 10:00 AM - 7:00 PM IST")
 
 # ==============================================================================
-# SELLER OTP & SMS GATEWAY CONFIGURATION
+# SELLER OTP & SMS GATEWAY CONFIGURATION (PROD: MSG91 / TEXTLOCAL / FAST2SMS)
 # ==============================================================================
-# Supported options: 'console' (local dev), 'mock' (tests), 'fast2sms', 'twilio', 'msg91'
+# Supported options: 'msg91' (recommended India DLT), 'textlocal', 'fast2sms', 'twilio', 'console' (dev), 'mock' (tests)
 SMS_PROVIDER = os.getenv("SMS_PROVIDER", "console" if DEBUG else "").strip().lower()
+SMS_API_KEY = os.getenv("SMS_API_KEY", "").strip() or os.getenv("SMS_AUTH_KEY", "").strip()
+SMS_AUTH_KEY = SMS_API_KEY
+SMS_SENDER_ID = os.getenv("SMS_SENDER_ID", "").strip()
+SMS_TEMPLATE_ID = os.getenv("SMS_TEMPLATE_ID", "").strip()
+
+# Development bypass flag (strictly ignored and disabled in production when DEBUG=False)
 SELLER_OTP_DEV_MODE = os.getenv("SELLER_OTP_DEV_MODE", "True" if DEBUG else "False").strip().lower() in ("true", "1", "yes")
 
 

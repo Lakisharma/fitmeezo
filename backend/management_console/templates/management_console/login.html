@@ -1,0 +1,78 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en-IN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — Fitmeezo Management Console</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="{% static 'images/brand/favicon.svg' %}">
+
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- Management Console Stylesheet -->
+  <link rel="stylesheet" href="{% static 'management_console/css/console.css' %}">
+</head>
+<body>
+  <div class="console-login-wrapper">
+    <div class="console-login-card">
+      <div class="console-login-brand">
+        <div class="logo">F</div>
+        <h1 class="console-login-title">Management Console</h1>
+        <p class="console-login-subtitle">Enterprise Administration &amp; Operations Portal</p>
+      </div>
+
+      {% if messages %}
+        {% for message in messages %}
+          <div class="console-alert console-alert-{{ message.tags }}" style="margin-bottom: 1.5rem;">
+            <div>{{ message }}</div>
+          </div>
+        {% endfor %}
+      {% endif %}
+
+      {% if form.non_field_errors %}
+        <div class="console-alert console-alert-danger" style="margin-bottom: 1.5rem;">
+          {% for error in form.non_field_errors %}
+            <div>{{ error }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <form method="post" action="{% url 'management_console:login' %}?next={{ next }}">
+        {% csrf_token %}
+
+        <div class="console-form-group">
+          <label class="console-label" style="color: #CBD5E1;" for="consoleUsername">Staff Username or Email</label>
+          {{ form.username_or_email }}
+          {% if form.username_or_email.errors %}
+            <div class="console-error-text">{{ form.username_or_email.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <div class="console-form-group" style="margin-bottom: 2rem;">
+          <label class="console-label" style="color: #CBD5E1;" for="consolePassword">Password</label>
+          {{ form.password }}
+          {% if form.password.errors %}
+            <div class="console-error-text">{{ form.password.errors.0 }}</div>
+          {% endif %}
+        </div>
+
+        <button type="submit" class="console-btn console-btn-primary" style="width: 100%; padding: 0.75rem 1rem; font-size: 0.95rem;">
+          <i class="bi bi-shield-lock-fill me-1"></i> Sign In to Console
+        </button>
+      </form>
+
+      <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid rgba(255, 255, 255, 0.1); text-align: center; font-size: 0.75rem; color: #64748B;">
+        Fitmeezo • SHOP SMART • LIVE BETTER &bull; Authorized Personnel Only
+      </div>
+    </div>
+  </div>
+</body>
+</html>

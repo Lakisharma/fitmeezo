@@ -1,0 +1,29 @@
+{% extends "management_console/base.html" %}
+
+{% block title %}Access Denied (403){% endblock %}
+
+{% block breadcrumbs %}
+  <span class="separator">/</span>
+  <span class="current">403 Forbidden</span>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 600px; margin: 4rem auto; text-align: center;">
+  <div style="width: 72px; height: 72px; border-radius: 50%; background-color: var(--mc-danger-bg); color: var(--mc-danger); display: flex; align-items: center; justify-content: center; font-size: 2rem; margin: 0 auto 1.5rem auto;">
+    <i class="bi bi-shield-x"></i>
+  </div>
+  <h1 style="font-size: 1.8rem; font-weight: 800; color: var(--mc-text-main);">{{ error_title|default:"Access Denied" }}</h1>
+  <p style="color: var(--mc-text-muted); margin-top: 0.75rem; font-size: 0.95rem; line-height: 1.6;">
+    {{ error_message|default:"Your administrative account does not possess sufficient privileges to view or perform operations on this section." }}
+  </p>
+
+  <div style="margin-top: 2rem; display: flex; align-items: center; justify-content: center; gap: 1rem;">
+    <a href="{% url 'management_console:dashboard' %}" class="console-btn console-btn-primary">
+      <i class="bi bi-house me-1"></i> Return to Dashboard
+    </a>
+    <a href="{% url 'management_console:logout' %}" class="console-btn console-btn-secondary">
+      <i class="bi bi-box-arrow-right me-1"></i> Switch Account
+    </a>
+  </div>
+</div>
+{% endblock %}

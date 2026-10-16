@@ -1,0 +1,178 @@
+{% extends "management_console/base.html" %}
+
+{% block title %}{% if is_add %}Add {{ verbose_name|title }}{% else %}Edit {{ verbose_name|title }}: {{ instance }}{% endif %}{% endblock %}
+
+{% block breadcrumbs %}
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:dashboard' %}">Dashboard</a>
+  <span class="separator">/</span>
+  <a href="{% url 'management_console:model_list' app_label model_name %}">{{ verbose_name_plural|title }}</a>
+  <span class="separator">/</span>
+  <span class="current">{% if is_add %}Add New{% else %}Edit Record{% endif %}</span>
+{% endblock %}
+
+{% block content %}
+<div class="console-page-header">
+  <div>
+    <h1 class="console-page-title">
+      {% if is_add %}
+        Add {{ verbose_name|title }}
+      {% else %}
+        {{ verbose_name|title }}: <span style="color: var(--mc-brand);">{{ instance }}</span>
+      {% endif %}
+    </h1>
+    <p class="console-page-subtitle">
+      {% if is_add %}
+        Create a new validated {{ verbose_name|lower }} record in the database.
+      {% else %}
+        Modify record attributes, inspect relationships, and review audit trail.
+      {% endif %}
+    </p>
+  </div>
+  <div style="display: flex; gap: 0.75rem;">
+    <a href="{{ back_url }}" class="console-btn console-btn-secondary">
+      <i class="bi bi-arrow-left me-1"></i> Back to List
+    </a>
+    {% if not is_add and can_delete and delete_url %}
+      <a href="{{ delete_url }}" class="console-btn console-btn-danger">
+        <i class="bi bi-trash me-1"></i> Delete
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
+  <!-- FORM CARD -->
+  <div class="console-card">
+    <div class="console-card-header">
+      <div class="console-card-title">
+        <i class="bi bi-pencil-square me-2"></i>Record Details
+      </div>
+      {% if not is_add and not can_change %}
+        <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+          <i class="bi bi-eye me-1"></i> Read Only
+        </span>
+      {% endif %}
+    </div>
+
+    <div class="console-card-body">
+      {% if form.non_field_errors %}
+        <div class="console-alert console-alert-danger">
+          {% for error in form.non_field_errors %}
+            <div><i class="bi bi-exclamation-triangle-fill me-1"></i> {{ error }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.25rem;">
+          {% for field in form %}
+            <div class="console-form-group" style="{% if field.field.widget.input_type == 'textarea' %}grid-column: 1 / -1;{% endif %}">
+              <label class="console-label" for="{{ field.id_for_label }}">
+                {{ field.label }}
+                {% if field.field.required %}<span class="text-danger">*</span>{% endif %}
+                {% if field.name in readonly_fields %}
+                  <span class="badge bg-light text-muted border border-secondary-subtle ms-1" style="font-size: 0.65rem;">Read Only</span>
+                {% endif %}
+              </label>
+
+              {{ field }}
+
+              {% if field.help_text %}
+                <div class="console-help-text">{{ field.help_text|safe }}</div>
+              {% endif %}
+
+              {% if field.errors %}
+                <div class="console-error-text">
+                  <i class="bi bi-exclamation-circle me-1"></i>{{ field.errors.0 }}
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+
+        {% if can_change or is_add %}
+          <div style="margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--mc-border); display: flex; gap: 1rem; justify-content: flex-end;">
+            <a href="{{ back_url }}" class="console-btn console-btn-secondary">Cancel</a>
+            {% if not is_add %}
+              <button type="submit" name="_continue" value="1" class="console-btn console-btn-secondary">
+                <i class="bi bi-save me-1"></i> Save &amp; Continue Editing
+              </button>
+            {% else %}
+              <button type="submit" name="_addanother" value="1" class="console-btn console-btn-secondary">
+                <i class="bi bi-plus-circle me-1"></i> Save &amp; Add Another
+              </button>
+            {% endif %}
+            <button type="submit" class="console-btn console-btn-primary">
+              <i class="bi bi-check2 me-1"></i> Save {{ verbose_name|title }}
+            </button>
+          </div>
+        {% endif %}
+      </form>
+    </div>
+  </div>
+
+  <!-- RIGHT SIDEBAR: METADATA & AUDIT TRAIL -->
+  <div>
+    {% if not is_add and instance %}
+      <div class="console-card" style="margin-bottom: 1.5rem;">
+        <div class="console-card-header">
+          <div class="console-card-title"><i class="bi bi-info-circle me-2"></i>Record Meta</div>
+        </div>
+        <div class="console-card-body" style="font-size: 0.85rem; line-height: 1.8;">
+          <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--mc-border); padding: 0.4rem 0;">
+            <span class="text-muted">ID / Primary Key:</span>
+            <span class="fw-bold font-monospace">{{ instance.pk }}</span>
+          </div>
+          {% if instance.created_at %}
+            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--mc-border); padding: 0.4rem 0;">
+              <span class="text-muted">Created:</span>
+              <span>{{ instance.created_at|date:"d M Y, H:i" }}</span>
+            </div>
+          {% endif %}
+          {% if instance.updated_at %}
+            <div style="display: flex; justify-content: space-between; padding: 0.4rem 0;">
+              <span class="text-muted">Last Updated:</span>
+              <span>{{ instance.updated_at|date:"d M Y, H:i" }}</span>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Audit History -->
+      <div class="console-card">
+        <div class="console-card-header">
+          <div class="console-card-title"><i class="bi bi-clock-history me-2"></i>Change History</div>
+        </div>
+        <div class="console-card-body" style="padding: 1rem 1.25rem;">
+          {% for log in object_history %}
+            <div style="padding: 0.65rem 0; border-bottom: 1px solid var(--mc-border); font-size: 0.825rem;">
+              <div style="display: flex; justify-content: space-between;">
+                <span class="fw-semibold text-dark">{{ log.user.username }}</span>
+                <span class="text-muted small">{{ log.action_time|date:"d M, H:i" }}</span>
+              </div>
+              <div class="text-muted small mt-1">
+                <span class="badge bg-light text-dark border me-1">{{ log.get_action_flag_display }}</span>
+                {{ log.change_message|default:"Action performed" }}
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-center py-3 text-muted small">No audit logs for this record.</div>
+          {% endfor %}
+        </div>
+      </div>
+    {% else %}
+      <div class="console-card">
+        <div class="console-card-header">
+          <div class="console-card-title"><i class="bi bi-lightbulb me-2"></i>Information</div>
+        </div>
+        <div class="console-card-body text-muted small" style="line-height: 1.6;">
+          Fill in all required fields indicated by <span class="text-danger">*</span>. The record will be validated according to Django model validation rules and logged in the enterprise audit log.
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
