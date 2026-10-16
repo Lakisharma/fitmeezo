@@ -122,9 +122,13 @@
           </td>
           <td class="small text-muted">{{ so.created_at|date:"M d, Y" }}</td>
           <td>
-            <a href="{% url 'custom_admin:seller_detail' seller_id=so.seller.pk %}" class="text-decoration-none text-dark fw-semibold">
-              {{ so.seller.store_name }}
-            </a>
+            {% if so.seller %}
+              <a href="{% url 'custom_admin:seller_detail' seller_id=so.seller.pk %}" class="text-decoration-none text-dark fw-semibold">
+                {{ so.seller.store_name }}
+              </a>
+            {% else %}
+              <span class="badge bg-secondary">Fitmeezo Platform</span>
+            {% endif %}
           </td>
           <td class="fw-bold">₹{{ so.total_amount|floatformat:2 }}</td>
           <td class="fw-bold text-primary">+₹{{ so.commission_amount|floatformat:2 }}</td>

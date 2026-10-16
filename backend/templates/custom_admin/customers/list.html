@@ -87,7 +87,7 @@
             <div class="small text-muted font-monospace">@{{ cust.username }}</div>
           </td>
           <td>{{ cust.email|default:"-" }}</td>
-          <td>{{ cust.customerprofile.phone_number|default:"-" }}</td>
+          <td>{{ cust.customer_phone|default:"-" }}</td>
           <td><span class="badge bg-light text-dark border">{{ cust.orders_count }} orders</span></td>
           <td class="fw-bold text-success">₹{{ cust.total_spent|default:0|floatformat:2 }}</td>
           <td class="small text-muted">{{ cust.date_joined|date:"M d, Y" }}</td>

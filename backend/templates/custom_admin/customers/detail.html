@@ -61,7 +61,7 @@
     <div class="fm-card p-3">
       <div class="text-muted small fw-semibold text-uppercase">Contact Info</div>
       <div class="small mt-1"><i class="bi bi-envelope me-1 text-muted"></i>{{ customer.email|default:"No email registered" }}</div>
-      <div class="small text-muted"><i class="bi bi-telephone me-1 text-muted"></i>{{ customer.customerprofile.phone_number|default:"No phone registered" }}</div>
+      <div class="small text-muted"><i class="bi bi-telephone me-1 text-muted"></i>{{ customer.customer_phone|default:"No phone registered" }}</div>
     </div>
   </div>
 </div>

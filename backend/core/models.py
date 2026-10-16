@@ -321,15 +321,22 @@ class Seller(models.Model):
         default="current",
         help_text="Type of business bank account.",
     )
+    BANK_STATUS_UNVERIFIED = "unverified"
+    BANK_STATUS_PENDING = "pending"
+    BANK_STATUS_VERIFIED = "verified"
+    BANK_STATUS_REJECTED = "rejected"
+
+    BANK_STATUS_CHOICES = [
+        (BANK_STATUS_UNVERIFIED, "Not Submitted / Unverified"),
+        (BANK_STATUS_PENDING, "Pending Verification"),
+        (BANK_STATUS_VERIFIED, "Verified & Approved"),
+        (BANK_STATUS_REJECTED, "Verification Rejected"),
+    ]
+
     bank_verification_status = models.CharField(
         max_length=20,
-        choices=[
-            ("unverified", "Not Submitted / Unverified"),
-            ("pending", "Pending Verification"),
-            ("verified", "Verified & Approved"),
-            ("rejected", "Verification Rejected"),
-        ],
-        default="unverified",
+        choices=BANK_STATUS_CHOICES,
+        default=BANK_STATUS_UNVERIFIED,
         db_index=True,
         help_text="Administrative bank verification status.",
     )
@@ -2757,6 +2764,21 @@ class SellerOrder(models.Model):
         """
         return self.customer_shipping_charge
 
+    @property
+    def total_amount(self) -> Decimal:
+        """Alias for subtotal, aligning with financial report and ledger interfaces."""
+        return self.subtotal
+
+    @property
+    def commission_amount(self) -> Decimal:
+        """Alias for total_commission, aligning with ledger / commission analytics."""
+        return self.total_commission
+
+    @property
+    def seller_payout_amount(self) -> Decimal:
+        """Alias for net_seller_payable."""
+        return self.net_seller_payable
+
     def calculate_estimated_seller_payable(self) -> Decimal:
         """
         Accounting formula for seller payable separation:
@@ -4691,6 +4713,24 @@ def create_or_update_user_profile(sender, instance, created, **kwargs):
     """Ensures each User has an associated CustomerProfile instance."""
     if created:
         CustomerProfile.objects.get_or_create(user=instance)
+
+
+# Backward-compatibility alias so user.customerprofile accesses user.profile safely
+try:
+    from django.contrib.auth import get_user_model
+    _User = get_user_model()
+    if not hasattr(_User, "customerprofile"):
+        _User.customerprofile = property(lambda self: getattr(self, "profile", None))
+    if not hasattr(_User, "customer_phone"):
+        def _get_customer_phone(self):
+            try:
+                p = getattr(self, "profile", None)
+                return p.phone_number if p else ""
+            except Exception:
+                return ""
+        _User.customer_phone = property(_get_customer_phone)
+except Exception:
+    pass
 
 
 

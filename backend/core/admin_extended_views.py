@@ -167,11 +167,11 @@ def admin_seller_detail_view(request, seller_id):
     seller_orders = SellerOrder.objects.filter(seller=seller).select_related("order").order_by("-created_at")
 
     total_sales_revenue = (
-        seller_orders.exclude(status="cancelled").aggregate(total=Sum("total_amount"))["total"]
+        seller_orders.exclude(status="cancelled").aggregate(total=Sum("subtotal"))["total"]
         or Decimal("0.00")
     )
     total_commission_earned = (
-        seller_orders.exclude(status="cancelled").aggregate(total=Sum("commission_amount"))["total"]
+        seller_orders.exclude(status="cancelled").aggregate(total=Sum("total_commission"))["total"]
         or Decimal("0.00")
     )
 
@@ -484,7 +484,7 @@ def admin_customer_list_view(request):
 
     customers_qs = (
         User.objects.filter(is_staff=False, is_superuser=False)
-        .select_related("customerprofile")
+        .select_related("profile")
         .annotate(
             orders_count=Count("orders", distinct=True),
             total_spent=Sum("orders__total_amount", filter=~Q(orders__status="cancelled")),
@@ -503,7 +503,7 @@ def admin_customer_list_view(request):
             | Q(email__icontains=query)
             | Q(first_name__icontains=query)
             | Q(last_name__icontains=query)
-            | Q(customerprofile__phone_number__icontains=query)
+            | Q(profile__phone_number__icontains=query)
         )
 
     total_customers_count = User.objects.filter(is_staff=False, is_superuser=False).count()
@@ -530,7 +530,7 @@ def admin_customer_detail_view(request, user_id):
     Customer profile view with order history, shipping addresses, and support details.
     """
     customer = get_object_or_404(
-        User.objects.filter(is_staff=False, is_superuser=False).select_related("customerprofile"),
+        User.objects.filter(is_staff=False, is_superuser=False).select_related("profile"),
         pk=user_id,
     )
 
@@ -591,7 +591,7 @@ def admin_commissions_view(request):
         commission_orders_qs = commission_orders_qs.filter(seller_id=int(seller_id))
 
     total_commission_all_time = (
-        SellerOrder.objects.exclude(status="cancelled").aggregate(total=Sum("commission_amount"))["total"]
+        SellerOrder.objects.exclude(status="cancelled").aggregate(total=Sum("total_commission"))["total"]
         or Decimal("0.00")
     )
 
@@ -601,15 +601,15 @@ def admin_commissions_view(request):
     month_commission = (
         SellerOrder.objects.exclude(status="cancelled")
         .filter(created_at__gte=month_start)
-        .aggregate(total=Sum("commission_amount"))["total"]
+        .aggregate(total=Sum("total_commission"))["total"]
         or Decimal("0.00")
     )
 
     # Top sellers by commission generated
     top_sellers = (
         Seller.objects.annotate(
-            total_comm=Sum("seller_orders__commission_amount", filter=~Q(seller_orders__status="cancelled")),
-            total_gmv=Sum("seller_orders__total_amount", filter=~Q(seller_orders__status="cancelled")),
+            total_comm=Sum("seller_orders__total_commission", filter=~Q(seller_orders__status="cancelled")),
+            total_gmv=Sum("seller_orders__subtotal", filter=~Q(seller_orders__status="cancelled")),
         )
         .filter(total_comm__gt=0)
         .order_by("-total_comm")[:10]
@@ -716,8 +716,8 @@ def admin_reports_view(request):
         seller_orders_qs.values("seller__id", "seller__store_name")
         .annotate(
             orders_count=Count("id"),
-            total_revenue=Sum("total_amount"),
-            total_commission=Sum("commission_amount"),
+            total_revenue=Sum("subtotal"),
+            total_commission=Sum("total_commission"),
         )
         .order_by("-total_revenue")[:10]
     )
@@ -730,10 +730,10 @@ def admin_reports_view(request):
         order_items_qs = order_items_qs.filter(order__created_at__lte=end_date)
 
     top_products = (
-        order_items_qs.values("product__id", "product_name", "product_sku")
+        order_items_qs.values("product__id", "product_name", product_sku=F("sku"))
         .annotate(
             units_sold=Sum("quantity"),
-            total_revenue=Sum("total_price"),
+            total_revenue=Sum("line_total"),
         )
         .order_by("-units_sold")[:10]
     )
