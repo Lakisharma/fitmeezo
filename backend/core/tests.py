@@ -2237,8 +2237,9 @@ class CustomerRegistrationTest(TestCase):
 
 class CustomerAuthenticationAndLogoutTest(TestCase):
     """
-    Test suite for customer login (email or username), invalid credentials,
-    safe redirect handling, and secure POST-only logout.
+    Test suite for customer login (mobile number or email), invalid credentials,
+    country-code normalization, inactive accounts, safe redirect handling,
+    and secure POST-only logout.
     """
 
     def setUp(self):
@@ -2251,6 +2252,20 @@ class CustomerAuthenticationAndLogoutTest(TestCase):
             first_name="Priya",
             last_name="Patel",
         )
+        self.profile = CustomerProfile.objects.get(user=self.user)
+        self.profile.phone_number = "9876543210"
+        self.profile.save()
+
+        self.inactive_user = User.objects.create_user(
+            username="inactive_customer",
+            email="inactive@example.com",
+            password="Password@Secure123",
+            is_active=False,
+        )
+        inactive_profile = CustomerProfile.objects.get(user=self.inactive_user)
+        inactive_profile.phone_number = "9123456780"
+        inactive_profile.save()
+
         self.admin = User.objects.create_superuser(
             username="admin_super",
             email="admin@fitmeezo.com",
@@ -2260,27 +2275,106 @@ class CustomerAuthenticationAndLogoutTest(TestCase):
         self.logout_url = reverse("core:account_logout")
 
     def test_login_page_loads_200(self):
-        """Verify login page renders HTTP 200 with credentials form."""
+        """Verify login page renders HTTP 200 with credentials form and updated labels."""
         response = self.client.get(self.login_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Customer Sign In")
-        self.assertContains(response, 'name="username_or_email"')
+        self.assertContains(response, "Mobile Number or Email Address")
+        self.assertContains(response, 'name="mobile_or_email"')
+        self.assertContains(response, 'placeholder="Enter your registered mobile number or email"')
         self.assertContains(response, 'name="password"')
+        self.assertContains(response, "Forgot password?")
+        self.assertContains(response, "Keep me signed in")
+        self.assertContains(response, "fmGoogleLoginBtn")
+        self.assertContains(response, "Continue with Google")
+        self.assertNotContains(response, "fmFacebookLoginBtn")
+        self.assertNotContains(response, "Continue with Facebook")
 
     def test_login_success_with_email(self):
-        """Verify customer can log in using their email address (case-insensitive)."""
+        """Verify customer can log in using their registered email address (case-insensitive)."""
         data = {
-            "username_or_email": "PRIYA.PATEL@EXAMPLE.COM",
+            "mobile_or_email": "PRIYA.PATEL@EXAMPLE.COM",
             "password": "Password@Secure123",
         }
         response = self.client.post(self.login_url, data, follow=True)
         self.assertRedirects(response, reverse("core:account_dashboard"))
         self.assertEqual(self.client.session["_auth_user_id"], str(self.user.pk))
 
-    def test_login_success_with_username(self):
-        """Verify customer can log in using their username."""
+    def test_login_success_with_mobile_10_digits(self):
+        """Verify customer can log in using their 10-digit registered mobile number."""
         data = {
-            "username_or_email": "priya_patel",
+            "mobile_or_email": "9876543210",
+            "password": "Password@Secure123",
+        }
+        response = self.client.post(self.login_url, data, follow=True)
+        self.assertRedirects(response, reverse("core:account_dashboard"))
+        self.assertEqual(self.client.session["_auth_user_id"], str(self.user.pk))
+
+    def test_login_success_with_mobile_country_code_plus_91(self):
+        """Verify mobile login handles country code +91 prefix and formatting safely."""
+        formats = [
+            "+91 9876543210",
+            "+919876543210",
+            "+91-9876543210",
+            "09876543210",
+        ]
+        for num_format in formats:
+            self.client.logout()
+            data = {
+                "mobile_or_email": num_format,
+                "password": "Password@Secure123",
+            }
+            response = self.client.post(self.login_url, data, follow=True)
+            self.assertRedirects(response, reverse("core:account_dashboard"))
+            self.assertEqual(self.client.session["_auth_user_id"], str(self.user.pk))
+
+    def test_login_failure_incorrect_password(self):
+        """Verify incorrect password is rejected with a safe generic error message."""
+        data = {
+            "mobile_or_email": "9876543210",
+            "password": "WrongPassword!",
+        }
+        response = self.client.post(self.login_url, data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Invalid mobile number/email or password")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_login_failure_unregistered_email(self):
+        """Verify unregistered email is rejected without revealing account existence."""
+        data = {
+            "mobile_or_email": "unregistered@example.com",
+            "password": "Password@Secure123",
+        }
+        response = self.client.post(self.login_url, data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Invalid mobile number/email or password")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_login_failure_unregistered_mobile(self):
+        """Verify unregistered mobile number is rejected without revealing account existence."""
+        data = {
+            "mobile_or_email": "9999999999",
+            "password": "Password@Secure123",
+        }
+        response = self.client.post(self.login_url, data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Invalid mobile number/email or password")
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_login_failure_inactive_account(self):
+        """Verify inactive/disabled accounts cannot log in."""
+        data = {
+            "mobile_or_email": "9123456780",
+            "password": "Password@Secure123",
+        }
+        response = self.client.post(self.login_url, data)
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("_auth_user_id", self.client.session)
+
+    def test_login_legacy_username_or_email_payload_compatibility(self):
+        """Verify backward compatibility when older callers send 'username_or_email' key."""
+        data = {
+            "username_or_email": "priya.patel@example.com",
             "password": "Password@Secure123",
         }
         response = self.client.post(self.login_url, data, follow=True)
@@ -2290,22 +2384,12 @@ class CustomerAuthenticationAndLogoutTest(TestCase):
     def test_django_admin_login_works(self):
         """Verify superuser can authenticate using username, keeping Django Admin working."""
         data = {
-            "username_or_email": "admin_super",
+            "mobile_or_email": "admin_super",
             "password": "AdminPassword@123",
         }
         response = self.client.post(self.login_url, data, follow=True)
         self.assertRedirects(response, reverse("core:account_dashboard"))
         self.assertEqual(self.client.session["_auth_user_id"], str(self.admin.pk))
-
-    def test_login_failure_invalid_credentials(self):
-        """Verify invalid credentials render error message and keep user unauthenticated."""
-        data = {
-            "username_or_email": "priya.patel@example.com",
-            "password": "WrongPassword!",
-        }
-        response = self.client.post(self.login_url, data)
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Invalid email/username or password")
 
     def test_safe_redirect_on_login(self):
         """Verify valid internal redirect URLs are honored and unsafe external ones are rejected."""
@@ -2313,7 +2397,7 @@ class CustomerAuthenticationAndLogoutTest(TestCase):
         cart_url = reverse("core:cart_detail")
         login_with_next = f"{self.login_url}?next={cart_url}"
         response = self.client.post(login_with_next, {
-            "username_or_email": "priya.patel@example.com",
+            "mobile_or_email": "priya.patel@example.com",
             "password": "Password@Secure123",
         })
         self.assertRedirects(response, cart_url)
@@ -2324,7 +2408,7 @@ class CustomerAuthenticationAndLogoutTest(TestCase):
         # Unsafe external redirect should redirect to dashboard
         evil_url = f"{self.login_url}?next=https://malicious-site.com/steal"
         response2 = self.client.post(evil_url, {
-            "username_or_email": "priya.patel@example.com",
+            "mobile_or_email": "priya.patel@example.com",
             "password": "Password@Secure123",
         })
         self.assertRedirects(response2, reverse("core:account_dashboard"))
@@ -2344,6 +2428,13 @@ class CustomerAuthenticationAndLogoutTest(TestCase):
         self.client.force_login(self.user)
         response = self.client.get(self.logout_url)
         self.assertEqual(response.status_code, 405)
+
+    def test_preservation_of_customer_account_and_profile_data(self):
+        """Verify customer accounts, profiles, passwords, and data integrity remain preserved."""
+        self.assertEqual(self.user.email, "priya.patel@example.com")
+        self.assertEqual(self.profile.phone_number, "9876543210")
+        self.assertEqual(self.profile.mobile_number, "9876543210")
+        self.assertTrue(self.user.check_password("Password@Secure123"))
 
 
 class CustomerProfileManagementTest(TestCase):
@@ -3699,18 +3790,28 @@ class OAuthSocialLoginTest(TestCase):
         self.profile = CustomerProfile.objects.get(user=self.user)
 
     def test_oauth_buttons_rendered_on_login_and_register_pages(self):
-        """Verify Google & Facebook buttons and setup badges are properly rendered on login and register pages."""
+        """Verify Google button is rendered and Facebook button is completely removed."""
         login_resp = self.client.get(reverse("core:account_login"))
         self.assertEqual(login_resp.status_code, 200)
         self.assertContains(login_resp, "Continue with Google")
-        self.assertContains(login_resp, "Continue with Facebook")
         self.assertContains(login_resp, "fmGoogleLoginBtn")
-        self.assertContains(login_resp, "fmFacebookLoginBtn")
+        self.assertNotContains(login_resp, "Continue with Facebook")
+        self.assertNotContains(login_resp, "fmFacebookLoginBtn")
 
         register_resp = self.client.get(reverse("core:account_register"))
         self.assertEqual(register_resp.status_code, 200)
         self.assertContains(register_resp, "fmGoogleRegisterBtn")
-        self.assertContains(register_resp, "fmFacebookRegisterBtn")
+        self.assertNotContains(register_resp, "fmFacebookRegisterBtn")
+
+    def test_facebook_login_route_and_ui_completely_removed(self):
+        """Verify Facebook OAuth route is removed from URLconf and not present in login UI."""
+        from django.urls import NoReverseMatch
+        with self.assertRaises(NoReverseMatch):
+            reverse("core:oauth_facebook")
+
+        login_resp = self.client.get(reverse("core:account_login"))
+        self.assertNotContains(login_resp, "oauth_facebook")
+        self.assertNotContains(login_resp, "Continue with Facebook")
 
     def test_oauth_context_processor_flags(self):
         """Verify oauth_context processor injects boolean flags for template rendering."""
@@ -3721,7 +3822,6 @@ class OAuthSocialLoginTest(TestCase):
         req = rf.get("/")
         ctx = oauth_context(req)
         self.assertIn("google_oauth_enabled", ctx)
-        self.assertIn("facebook_oauth_enabled", ctx)
 
     def test_missing_oauth_credentials_graceful_redirect(self):
         """When OAuth client IDs are empty, custom views display notice and safely redirect."""
@@ -3732,24 +3832,12 @@ class OAuthSocialLoginTest(TestCase):
             messages_list = list(resp_g.context["messages"])
             self.assertTrue(any("Google Sign-In is not configured yet" in m.message for m in messages_list))
 
-        with self.settings(FACEBOOK_CLIENT_ID="", FACEBOOK_CLIENT_SECRET=""):
-            resp_fb = self.client.get(reverse("core:oauth_facebook"), follow=True)
-            self.assertEqual(resp_fb.status_code, 200)
-            self.assertRedirects(resp_fb, reverse("core:account_login"))
-            messages_list = list(resp_fb.context["messages"])
-            self.assertTrue(any("Facebook Login is not configured yet" in m.message for m in messages_list))
-
     def test_oauth_redirect_to_allauth_provider_when_configured(self):
         """When credentials exist, custom views route customer to allauth provider initiation URL."""
         with self.settings(GOOGLE_CLIENT_ID="dummy-client-id", GOOGLE_CLIENT_SECRET="dummy-secret"):
             resp_g = self.client.get(reverse("core:oauth_google"))
             self.assertEqual(resp_g.status_code, 302)
             self.assertEqual(resp_g["Location"], reverse("google_login"))
-
-        with self.settings(FACEBOOK_CLIENT_ID="dummy-fb-id", FACEBOOK_CLIENT_SECRET="dummy-secret"):
-            resp_fb = self.client.get(reverse("core:oauth_facebook"))
-            self.assertEqual(resp_fb.status_code, 302)
-            self.assertEqual(resp_fb["Location"], reverse("facebook_login"))
 
     def test_google_login_flow_redirects_to_accounts_google_com(self):
         """When credentials are configured, the full flow redirects to Google's OAuth endpoint."""
@@ -3834,34 +3922,6 @@ class OAuthSocialLoginTest(TestCase):
             provider="google",
             uid="google-uid-unverified",
             extra_data={"email": self.user.email, "email_verified": False},
-        )
-        sl = SocialLogin(account=sa)
-        adapter = FitmeezoSocialAccountAdapter()
-
-        with self.assertRaises(ImmediateHttpResponse):
-            adapter.pre_social_login(req, sl)
-
-    def test_social_account_adapter_facebook_existing_email_requires_password_login(self):
-        """Facebook login matching existing user requires password sign-in first (no automatic link)."""
-        from django.test import RequestFactory
-        from django.contrib.auth.models import AnonymousUser
-        from django.contrib.messages.storage.fallback import FallbackStorage
-        from django.contrib.sessions.middleware import SessionMiddleware
-        from allauth.socialaccount.models import SocialAccount, SocialLogin
-        from allauth.core.exceptions import ImmediateHttpResponse
-        from core.adapters import FitmeezoSocialAccountAdapter
-
-        rf = RequestFactory()
-        req = rf.get("/")
-        SessionMiddleware(lambda r: None).process_request(req)
-        req.session.save()
-        req._messages = FallbackStorage(req)
-        req.user = AnonymousUser()
-
-        sa = SocialAccount(
-            provider="facebook",
-            uid="fb-uid-12345",
-            extra_data={"email": self.user.email, "name": "Existing User"},
         )
         sl = SocialLogin(account=sa)
         adapter = FitmeezoSocialAccountAdapter()

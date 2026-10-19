@@ -23,7 +23,6 @@ from .views import (
     checkout_view,
     health_check,
     home,
-    oauth_facebook_login,
     oauth_google_login,
     order_confirmation_view,
     order_detail_view,
@@ -195,7 +194,6 @@ urlpatterns = [
 
     # Social OAuth routes (Prompt 11)
     path("account/social/google/", oauth_google_login, name="oauth_google"),
-    path("account/social/facebook/", oauth_facebook_login, name="oauth_facebook"),
 
     # Third-Party Seller Onboarding, Authentication & Profile routes (Phase 1 & Phase 3)
     path("seller/register/", seller_register_view, name="seller_register"),

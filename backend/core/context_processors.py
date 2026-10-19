@@ -145,11 +145,9 @@ def oauth_context(request):
     """
     google_client_id = getattr(settings, "GOOGLE_CLIENT_ID", "")
     google_secret = getattr(settings, "GOOGLE_CLIENT_SECRET", "")
-    facebook_client_id = getattr(settings, "FACEBOOK_CLIENT_ID", "")
-    facebook_secret = getattr(settings, "FACEBOOK_CLIENT_SECRET", "")
 
     return {
         "google_oauth_enabled": bool(google_client_id and google_secret),
-        "facebook_oauth_enabled": bool(facebook_client_id and facebook_secret),
+        "facebook_oauth_enabled": False,
     }
 

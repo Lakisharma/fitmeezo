@@ -160,7 +160,6 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
-    "allauth.socialaccount.providers.facebook",
 
     # Fitmeezo local apps
     "core.apps.CoreConfig",
@@ -413,11 +412,9 @@ SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_STORE_TOKENS = False
 SOCIALACCOUNT_AUTO_SIGNUP = True
 
-# Read OAuth client IDs and secrets strictly from environment variables
+# Read Google OAuth client ID and secret strictly from environment variables
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
-FACEBOOK_CLIENT_ID = os.getenv("FACEBOOK_CLIENT_ID", "").strip()
-FACEBOOK_CLIENT_SECRET = os.getenv("FACEBOOK_CLIENT_SECRET", "").strip()
 
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
@@ -434,28 +431,6 @@ SOCIALACCOUNT_PROVIDERS = {
             "access_type": "online",
         },
         "VERIFIED_EMAIL": True,
-    },
-    "facebook": {
-        "APP": {
-            "client_id": FACEBOOK_CLIENT_ID,
-            "secret": FACEBOOK_CLIENT_SECRET,
-            "key": "",
-        },
-        "METHOD": "oauth2",
-        "SCOPE": [
-            "email",
-            "public_profile",
-        ],
-        "FIELDS": [
-            "id",
-            "name",
-            "first_name",
-            "last_name",
-            "email",
-            "picture",
-        ],
-        "EXCHANGE_TOKEN": True,
-        "VERIFIED_EMAIL": False,
     },
 }
 

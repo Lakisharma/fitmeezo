@@ -1,7 +1,7 @@
 """
 Fitmeezo Social Account Adapter for django-allauth.
 Handles OAuth account linking, verification checks, profile synchronization,
-and cart merging for Google and Facebook login.
+and cart merging for Google login.
 """
 
 from urllib.parse import quote
@@ -90,18 +90,6 @@ class FitmeezoSocialAccountAdapter(DefaultSocialAccountAdapter):
                 login_url = reverse("core:account_login")
                 raise ImmediateHttpResponse(redirect(login_url))
 
-        elif provider == "facebook":
-            # Facebook emails are not strictly verified like Google OIDC
-            # Requirement: Do not automatically link accounts solely because an unverified or untrusted email matches.
-            # Require customer to log in with password first to link Facebook
-            messages.warning(
-                request,
-                f"An account with email '{email}' already exists. For your security, "
-                "please sign in with your email and password first to link your Facebook account."
-            )
-            login_url = f"{reverse('core:account_login')}?next={quote(reverse('core:account_profile'))}"
-            raise ImmediateHttpResponse(redirect(login_url))
-
     def populate_user(self, request, sociallogin, data):
         """
         Hook called when a new user is created from social login data.
@@ -167,7 +155,7 @@ class FitmeezoSocialAccountAdapter(DefaultSocialAccountAdapter):
         by redirecting to login with a friendly notification.
         """
         provider_id = getattr(provider, "id", str(provider)) if provider else "social"
-        provider_title = "Google" if provider_id == "google" else ("Facebook" if provider_id == "facebook" else "Social")
+        provider_title = "Google" if provider_id == "google" else "Social"
         messages.info(
             request,
             f"{provider_title} sign-in session expired or was cancelled. Please try signing in again."

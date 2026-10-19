@@ -25,6 +25,7 @@ from .models import (
     WishlistItem,
     Order,
     OrderItem,
+    OrderStatusHistory,
     RefundRecord,
     ReturnAuditLog,
     ReturnRequest,
@@ -487,8 +488,8 @@ class CartAdmin(admin.ModelAdmin):
 @admin.register(CustomerProfile)
 class CustomerProfileAdmin(admin.ModelAdmin):
     """Admin configuration for customer profiles."""
-    list_display = ("id", "user", "phone_number", "created_at", "updated_at")
-    search_fields = ("user__username", "user__email", "user__first_name", "user__last_name", "phone_number")
+    list_display = ("id", "user", "phone_number", "mobile_number", "created_at", "updated_at")
+    search_fields = ("user__username", "user__email", "user__first_name", "user__last_name", "phone_number", "mobile_number")
     readonly_fields = ("created_at", "updated_at")
 
 
@@ -896,6 +897,21 @@ class SellerOrderAdmin(admin.ModelAdmin):
 
 
 
+class OrderStatusHistoryInline(admin.TabularInline):
+    model = OrderStatusHistory
+    extra = 0
+    can_delete = False
+    readonly_fields = ("from_status", "to_status", "changed_by", "notes", "created_at")
+
+
+@admin.register(OrderStatusHistory)
+class OrderStatusHistoryAdmin(admin.ModelAdmin):
+    list_display = ("order", "from_status", "to_status", "changed_by", "created_at")
+    list_filter = ("to_status", "created_at")
+    search_fields = ("order__order_number", "notes", "changed_by__username")
+    readonly_fields = ("order", "from_status", "to_status", "changed_by", "notes", "created_at")
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     """
@@ -950,8 +966,12 @@ class OrderAdmin(admin.ModelAdmin):
         "razorpay_payment_id",
         "razorpay_signature",
         "paid_at",
+        "confirmed_at",
+        "packed_at",
+        "shipped_at",
+        "delivered_at",
     )
-    inlines = [SellerOrderInline, OrderItemInline]
+    inlines = [SellerOrderInline, OrderItemInline, OrderStatusHistoryInline]
     actions = [
         "mark_processing",
         "mark_shipped",

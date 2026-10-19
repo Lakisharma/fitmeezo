@@ -1816,6 +1816,13 @@ class CustomerProfile(models.Model):
         default="",
         help_text="Primary customer contact phone number.",
     )
+    mobile_number = models.CharField(
+        max_length=15,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Normalized 10-digit Indian mobile number for customer authentication.",
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         help_text="Timestamp when customer profile was created.",
@@ -1829,6 +1836,34 @@ class CustomerProfile(models.Model):
         ordering = ["-created_at"]
         verbose_name = "Customer Profile"
         verbose_name_plural = "Customer Profiles"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["mobile_number"],
+                condition=~models.Q(mobile_number=""),
+                name="unique_customer_profile_mobile_non_empty",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["mobile_number"], name="core_cust_mobile_idx"),
+            models.Index(fields=["phone_number"], name="core_cust_phone_idx"),
+        ]
+
+    def save(self, *args, **kwargs):
+        from .otp_services import normalize_mobile_number
+        if self.phone_number:
+            normalized = normalize_mobile_number(self.phone_number)
+            self.mobile_number = normalized or ""
+        else:
+            self.mobile_number = ""
+
+        update_fields = kwargs.get("update_fields")
+        if update_fields is not None:
+            update_fields = list(update_fields)
+            if "phone_number" in update_fields and "mobile_number" not in update_fields:
+                update_fields.append("mobile_number")
+            kwargs["update_fields"] = update_fields
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Profile for {self.user.username}"
@@ -2133,17 +2168,25 @@ class Order(models.Model):
     """
 
     STATUS_PENDING = "pending"
+    STATUS_CONFIRMED = "confirmed"
     STATUS_PROCESSING = "processing"
+    STATUS_PACKED = "packed"
     STATUS_SHIPPED = "shipped"
     STATUS_DELIVERED = "delivered"
     STATUS_CANCELLED = "cancelled"
+    STATUS_RETURN_REQUESTED = "return_requested"
+    STATUS_RETURNED = "returned"
 
     STATUS_CHOICES = [
         (STATUS_PENDING, "Pending"),
+        (STATUS_CONFIRMED, "Confirmed"),
         (STATUS_PROCESSING, "Processing"),
+        (STATUS_PACKED, "Packed"),
         (STATUS_SHIPPED, "Shipped"),
         (STATUS_DELIVERED, "Delivered"),
         (STATUS_CANCELLED, "Cancelled"),
+        (STATUS_RETURN_REQUESTED, "Return Requested"),
+        (STATUS_RETURNED, "Returned"),
     ]
 
     PAYMENT_METHOD_COD = "cod"
@@ -2269,7 +2312,7 @@ class Order(models.Model):
 
     # Order & Payment state
     status = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=STATUS_CHOICES,
         default=STATUS_PENDING,
         db_index=True,
@@ -2329,6 +2372,54 @@ class Order(models.Model):
         blank=True,
         default="",
         help_text="Optional delivery instructions or notes from customer.",
+    )
+
+    # Internal Staff Notes & Fulfillment Shipping Details
+    admin_notes = models.TextField(
+        blank=True,
+        default="",
+        help_text="Internal staff notes regarding order fulfillment.",
+    )
+    shipping_carrier = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Courier partner name handling delivery (e.g. BlueDart, Delhivery, Shadowfax).",
+    )
+    tracking_number = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="AWB or parcel tracking number.",
+    )
+    tracking_url = models.URLField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Direct public tracking URL for the customer.",
+    )
+
+    # Fulfillment State Timestamps
+    confirmed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when order was confirmed.",
+    )
+    packed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when order was packed.",
+    )
+    shipped_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when order was handed over to courier.",
+    )
+    delivered_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when order was delivered to customer.",
     )
 
     # Order Cancellation & Stock Tracking
@@ -2457,6 +2548,60 @@ class Order(models.Model):
     def return_requests_list(self):
         """Returns all return requests associated with this order."""
         return self.return_requests.select_related("seller_order", "seller").all().order_by("-created_at")
+
+
+class OrderStatusHistory(models.Model):
+    """
+    Fitmeezo Order Status History and Audit Trail model.
+    Records timestamped state transitions, responsible user/staff member,
+    and contextual notes for end-to-end fulfillment observability.
+    """
+
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="status_history",
+        help_text="Parent customer order.",
+    )
+    from_status = models.CharField(
+        max_length=30,
+        blank=True,
+        default="",
+        help_text="Previous fulfillment status.",
+    )
+    to_status = models.CharField(
+        max_length=30,
+        help_text="New fulfillment status.",
+    )
+    changed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="order_status_changes",
+        help_text="User or staff member who initiated this status transition.",
+    )
+    notes = models.TextField(
+        blank=True,
+        default="",
+        help_text="Transition notes, cancellation reason, or courier updates.",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text="Timestamp when this status transition occurred.",
+    )
+
+    class Meta:
+        ordering = ["created_at"]
+        verbose_name = "Order Status History"
+        verbose_name_plural = "Order Status Histories"
+        indexes = [
+            models.Index(fields=["order", "created_at"], name="order_hist_order_created_idx"),
+        ]
+
+    def __str__(self):
+        return f"Order #{self.order.order_number}: {self.from_status or 'Initial'} -> {self.to_status} at {self.created_at}"
 
 
 class SellerOrder(models.Model):

@@ -12,6 +12,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
+from .otp_services import normalize_mobile_number
 from .models import (
     Address,
     Category,
@@ -165,15 +167,15 @@ class CustomerRegistrationForm(forms.Form):
 class CustomerLoginForm(forms.Form):
     """
     Customer storefront login form.
-    Supports email or username authentication.
+    Supports authentication via registered mobile number or email address with mandatory password.
     """
 
-    username_or_email = forms.CharField(
-        label="Email Address or Username",
+    mobile_or_email = forms.CharField(
+        label="Mobile Number or Email Address",
         widget=forms.TextInput(
             attrs={
                 "class": "form-control fm-input",
-                "placeholder": "Enter your registered email or username",
+                "placeholder": "Enter your registered mobile number or email",
                 "autocomplete": "username",
                 "required": True,
                 "autofocus": True,
@@ -193,9 +195,28 @@ class CustomerLoginForm(forms.Form):
     )
     remember_me = forms.BooleanField(
         required=False,
-        label="Keep me signed in on this device",
+        label="Keep me signed in",
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Backward compatibility for legacy callers/tests passing 'username_or_email'
+        if self.data and "username_or_email" in self.data and "mobile_or_email" not in self.data:
+            self.data = self.data.copy()
+            self.data["mobile_or_email"] = self.data["username_or_email"]
+
+    def clean_mobile_or_email(self):
+        val = self.cleaned_data.get("mobile_or_email", "").strip()
+        if not val:
+            raise ValidationError("Please enter your registered mobile number or email address.")
+        return val
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if "mobile_or_email" in cleaned_data:
+            cleaned_data["username_or_email"] = cleaned_data["mobile_or_email"]
+        return cleaned_data
 
 
 class CustomerProfileForm(forms.Form):
@@ -259,6 +280,24 @@ class CustomerProfileForm(forms.Form):
             if duplicate.exists():
                 raise ValidationError("This email address is already in use by another account.")
         return email
+
+    def clean_phone_number(self):
+        phone = self.cleaned_data.get("phone_number", "").strip()
+        if not phone:
+            return ""
+        clean_mobile = normalize_mobile_number(phone)
+        if not clean_mobile:
+            raise ValidationError(
+                "Please enter a valid 10-digit Indian mobile number (e.g. +91 9876543210 or 9876543210)."
+            )
+        existing = CustomerProfile.objects.filter(
+            Q(mobile_number=clean_mobile) | Q(phone_number__endswith=clean_mobile)
+        )
+        if self.user:
+            existing = existing.exclude(user=self.user)
+        if existing.exists():
+            raise ValidationError("This mobile number is already registered to another account.")
+        return phone
 
     def save(self):
         if not self.user:

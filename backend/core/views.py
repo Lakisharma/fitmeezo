@@ -1048,7 +1048,7 @@ def account_register(request):
 def account_login(request):
     """
     Customer storefront login view.
-    Supports email or username authentication.
+    Supports registered mobile number or email address authentication.
     Merges session cart into user's persistent cart upon successful login.
     """
     if request.user.is_authenticated:
@@ -1059,11 +1059,11 @@ def account_login(request):
     if request.method == "POST":
         form = CustomerLoginForm(request.POST)
         if form.is_valid():
-            username_or_email = form.cleaned_data["username_or_email"]
+            login_identifier = form.cleaned_data.get("mobile_or_email") or form.cleaned_data.get("username_or_email")
             password = form.cleaned_data["password"]
             remember_me = form.cleaned_data.get("remember_me")
 
-            user = authenticate(request, username=username_or_email, password=password)
+            user = authenticate(request, username=login_identifier, password=password)
             if user is not None and user.is_active:
                 login(request, user)
 
@@ -1083,7 +1083,7 @@ def account_login(request):
                     return redirect(next_url)
                 return redirect("core:account_dashboard")
             else:
-                messages.error(request, "Invalid email/username or password. Please check your credentials and try again.")
+                messages.error(request, "Invalid mobile number/email or password. Please check your credentials and try again.")
     else:
         form = CustomerLoginForm()
 
@@ -1646,9 +1646,9 @@ def oauth_google_login(request):
     If Google credentials are not configured in environment, displays
     a safe setup notice and redirects to the login page.
     """
-    client_id = getattr(settings, "GOOGLE_CLIENT_ID", "")
-    secret = getattr(settings, "GOOGLE_CLIENT_SECRET", "")
-    if not client_id or not secret:
+    client_id = getattr(settings, "GOOGLE_CLIENT_ID", "").strip()
+    secret = getattr(settings, "GOOGLE_CLIENT_SECRET", "").strip()
+    if not client_id or not secret or client_id.lower().startswith(("replace_", "your_", "todo")):
         messages.info(
             request,
             "Google Sign-In is not configured yet. "
@@ -1661,29 +1661,6 @@ def oauth_google_login(request):
         request.session["socialaccount_next"] = next_url
 
     return redirect(reverse("google_login"))
-
-
-def oauth_facebook_login(request):
-    """
-    Initiates Facebook OAuth login via allauth.
-    If Facebook credentials are not configured in environment, displays
-    a safe setup notice and redirects to the login page.
-    """
-    client_id = getattr(settings, "FACEBOOK_CLIENT_ID", "")
-    secret = getattr(settings, "FACEBOOK_CLIENT_SECRET", "")
-    if not client_id or not secret:
-        messages.info(
-            request,
-            "Facebook Login is not configured yet. "
-            "Please configure FACEBOOK_CLIENT_ID and FACEBOOK_CLIENT_SECRET in your .env file."
-        )
-        return redirect("core:account_login")
-
-    next_url = request.GET.get("next") or request.POST.get("next") or ""
-    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
-        request.session["socialaccount_next"] = next_url
-
-    return redirect(reverse("facebook_login"))
 
 
 # ==============================================================================
