@@ -50,13 +50,14 @@ elif not DEBUG and SECRET_KEY == DEV_SECRET_KEY:
         "Please generate a unique, cryptographically secure SECRET_KEY."
     )
 
-_default_hosts = "127.0.0.1,localhost,testserver,fitmeezo-website.onrender.com" if DEBUG else "fitmeezo-website.onrender.com"
+_default_hosts = "127.0.0.1,localhost,testserver,fitmeezo.com,www.fitmeezo.com,fitmeezo-website.onrender.com" if DEBUG else "fitmeezo.com,www.fitmeezo.com,fitmeezo-website.onrender.com"
 _allowed_hosts_raw = os.getenv("ALLOWED_HOSTS", _default_hosts)
 ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_raw.split(",") if host.strip()]
 
-# Explicitly ensure Render domain is always permitted
-if "fitmeezo-website.onrender.com" not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append("fitmeezo-website.onrender.com")
+# Explicitly ensure custom domain and Render domain are always permitted
+for host in ("fitmeezo.com", "www.fitmeezo.com", "fitmeezo-website.onrender.com"):
+    if host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(host)
 
 # Automatically permit Render external hostname if set by platform
 _render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
@@ -74,12 +75,24 @@ if not DEBUG and not ALLOWED_HOSTS:
 
 _csrf_trusted_raw = os.getenv("CSRF_TRUSTED_ORIGINS", "")
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in _csrf_trusted_raw.split(",") if origin.strip()]
-if "https://fitmeezo-website.onrender.com" not in CSRF_TRUSTED_ORIGINS:
-    CSRF_TRUSTED_ORIGINS.append("https://fitmeezo-website.onrender.com")
+for origin in (
+    "https://fitmeezo.com",
+    "https://www.fitmeezo.com",
+    "http://fitmeezo.com",
+    "http://www.fitmeezo.com",
+    "https://fitmeezo-website.onrender.com",
+):
+    if origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(origin)
+
 if _render_host:
     _render_origin = f"https://{_render_host}"
     if _render_origin not in CSRF_TRUSTED_ORIGINS:
         CSRF_TRUSTED_ORIGINS.append(_render_origin)
+
+# Trust forwarded host headers from reverse proxies (Render, Cloudflare, Nginx)
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
 
 # ==============================================================================
 # HTTPS & PRODUCTION SECURITY HEADERS
@@ -437,19 +450,26 @@ SOCIALACCOUNT_PROVIDERS = {
 # ==============================================================================
 # EMAIL CONFIGURATION (PASSWORD RESET, ORDER CONFIRMATIONS & NOTIFICATIONS)
 # ==============================================================================
-# Default to console backend during local development (DEBUG=True), and smtp in production (DEBUG=False).
-EMAIL_BACKEND = os.getenv(
-    "EMAIL_BACKEND",
-    "django.core.mail.backends.console.EmailBackend" if DEBUG else "django.core.mail.backends.smtp.EmailBackend",
-)
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "").strip()
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "").strip()
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in ("true", "1", "t", "yes")
 EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False").lower() in ("true", "1", "t", "yes")
-DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Fitmeezo <support@fitmeezo.com>")
-SERVER_EMAIL = os.getenv("SERVER_EMAIL", "Fitmeezo Alerts <support@fitmeezo.com>")
+
+# Auto-switch to smtp backend whenever host user & password are provided (both locally and production)
+# Otherwise fall back to console backend when DEBUG=True
+_has_smtp_credentials = bool(EMAIL_HOST_USER and EMAIL_HOST_PASSWORD)
+_default_email_backend = (
+    "django.core.mail.backends.smtp.EmailBackend"
+    if (_has_smtp_credentials or not DEBUG)
+    else "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", _default_email_backend)
+
+_default_from = f"Fitmeezo <{EMAIL_HOST_USER}>" if EMAIL_HOST_USER else "Fitmeezo <support@fitmeezo.com>"
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", _default_from)
+SERVER_EMAIL = os.getenv("SERVER_EMAIL", DEFAULT_FROM_EMAIL)
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "support@fitmeezo.com")
 SUPPORT_PHONE = os.getenv("SUPPORT_PHONE", "+91 940885323")
 

@@ -87,3 +87,20 @@ class Command(BaseCommand):
                 self.style.ERROR(f"[ensure_admin] Error ensuring admin user: {e}")
             )
             raise SystemExit(1)
+
+        # Ensure Site 1 is configured for proper password reset links and emails
+        try:
+            from django.contrib.sites.models import Site
+            site_domain = os.environ.get("SITE_DOMAIN", "fitmeezo.com").strip() or "fitmeezo.com"
+            site = Site.objects.filter(id=1).first()
+            if site:
+                site.domain = site_domain
+                site.name = "Fitmeezo"
+                site.save(update_fields=["domain", "name"])
+            else:
+                Site.objects.create(id=1, domain=site_domain, name="Fitmeezo")
+            self.stdout.write(
+                self.style.SUCCESS(f"[ensure_admin] Successfully verified Site 1 domain: {site_domain}")
+            )
+        except Exception as e:
+            self.stdout.write(f"[ensure_admin] Note: Site model configuration skipped: {e}")

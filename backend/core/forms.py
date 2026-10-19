@@ -5,14 +5,22 @@ input normalization, and accessible Bootstrap widget attributes.
 """
 
 from decimal import Decimal
+import logging
 import os
 import re
 from django import forms
+from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import PasswordResetForm
 from django.contrib.auth.password_validation import validate_password
+from django.contrib.auth.tokens import default_token_generator
+from django.contrib.sites.shortcuts import get_current_site
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
+from django.utils.encoding import force_bytes
+from django.utils.http import urlsafe_base64_encode
+
 from .otp_services import normalize_mobile_number
 from .models import (
     Address,
@@ -27,6 +35,8 @@ from .models import (
     GSTIN_REGEX,
     PAN_REGEX,
 )
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -52,7 +62,7 @@ def validate_image_file(file):
 class CustomerRegistrationForm(forms.Form):
     """
     Customer account registration form.
-    Captures full name, email, and password with confirmation and policy acceptance.
+    Captures full name, mobile number, email, and password with confirmation and policy acceptance.
     """
 
     full_name = forms.CharField(
@@ -64,6 +74,19 @@ class CustomerRegistrationForm(forms.Form):
                 "placeholder": "Enter your full name (e.g. Aarav Patel)",
                 "autocomplete": "name",
                 "required": True,
+            }
+        ),
+    )
+    mobile_number = forms.CharField(
+        max_length=15,
+        label="Mobile Number",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control fm-input",
+                "placeholder": "Enter 10-digit mobile number",
+                "autocomplete": "tel",
+                "required": True,
+                "inputmode": "numeric",
             }
         ),
     )
@@ -107,6 +130,22 @@ class CustomerRegistrationForm(forms.Form):
         widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
     )
 
+    def clean_mobile_number(self):
+        raw = self.cleaned_data.get("mobile_number", "").strip()
+        if not raw:
+            raise ValidationError("Mobile number is required.")
+        clean_mobile = normalize_mobile_number(raw)
+        if not clean_mobile:
+            raise ValidationError(
+                "Please enter a valid 10-digit Indian mobile number (e.g. 9876543210 or +91 9876543210)."
+            )
+        existing = CustomerProfile.objects.filter(
+            Q(mobile_number=clean_mobile) | Q(phone_number__endswith=clean_mobile)
+        )
+        if existing.exists():
+            raise ValidationError("An account with this mobile number already exists. Please sign in.")
+        return clean_mobile
+
     def clean_email(self):
         email = self.cleaned_data.get("email", "").strip().lower()
         if not email:
@@ -137,6 +176,7 @@ class CustomerRegistrationForm(forms.Form):
     def save(self):
         email = self.cleaned_data["email"]
         full_name = self.cleaned_data["full_name"].strip()
+        mobile_number = self.cleaned_data["mobile_number"]
         password = self.cleaned_data["password"]
 
         parts = full_name.split(" ", 1)
@@ -152,16 +192,123 @@ class CustomerRegistrationForm(forms.Form):
                 counter += 1
             username = f"{base_user}_{counter}"
 
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            password=password,
-            first_name=first_name,
-            last_name=last_name,
-        )
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=username,
+                email=email,
+                password=password,
+                first_name=first_name,
+                last_name=last_name,
+            )
 
-        CustomerProfile.objects.get_or_create(user=user)
+            profile, _ = CustomerProfile.objects.get_or_create(user=user)
+            profile.mobile_number = mobile_number
+            profile.phone_number = mobile_number
+            profile.save(update_fields=["mobile_number", "phone_number"])
+
         return user
+
+
+class CustomerPasswordResetForm(PasswordResetForm):
+    """
+    Enhanced password reset form allowing customers to enter either
+    their registered email address OR their registered mobile number.
+    If a mobile number is entered, locates the linked customer's email address
+    and securely dispatches the reset link to that email.
+    """
+    email_or_mobile = forms.CharField(
+        label="Mobile Number or Email Address",
+        max_length=254,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control fm-input",
+                "placeholder": "Enter registered mobile number or email",
+                "autocomplete": "username",
+                "required": True,
+                "autofocus": True,
+            }
+        ),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if "email" in self.fields:
+            del self.fields["email"]
+
+    def clean_email_or_mobile(self):
+        val = self.cleaned_data.get("email_or_mobile", "").strip()
+        if not val:
+            raise ValidationError("Please enter your registered email address or mobile number.")
+        return val
+
+    def get_users(self, email_or_mobile):
+        UserModel = get_user_model()
+        val = str(email_or_mobile).strip()
+        if "@" in val:
+            clean_email = val.lower()
+            active_users = UserModel._default_manager.filter(
+                Q(email__iexact=clean_email) | Q(username__iexact=clean_email),
+                is_active=True,
+            )
+            return [u for u in active_users if u.has_usable_password() and u.email]
+        else:
+            clean_mobile = normalize_mobile_number(val)
+            if clean_mobile:
+                active_users = UserModel._default_manager.filter(
+                    Q(profile__mobile_number=clean_mobile)
+                    | Q(profile__phone_number=clean_mobile)
+                    | Q(profile__phone_number__endswith=clean_mobile)
+                    | Q(seller_profile__registered_mobile=clean_mobile),
+                    is_active=True,
+                ).distinct()
+                return [u for u in active_users if u.has_usable_password() and u.email]
+        return []
+
+    def save(
+        self,
+        domain_override=None,
+        subject_template_name="account/password_reset_subject.txt",
+        email_template_name="account/password_reset_email.html",
+        use_https=False,
+        token_generator=default_token_generator,
+        from_email=None,
+        request=None,
+        html_email_template_name=None,
+        extra_email_context=None,
+    ):
+        email_or_mobile = self.cleaned_data["email_or_mobile"]
+        from_email = from_email or getattr(settings, "DEFAULT_FROM_EMAIL", None)
+
+        if not domain_override and request:
+            domain_override = request.get_host()
+            use_https = request.is_secure()
+
+        users = self.get_users(email_or_mobile)
+        for user in users:
+            current_site = get_current_site(request) if request else None
+            site_name = getattr(settings, "BRAND_NAME", "Fitmeezo")
+            domain = domain_override or (current_site.domain if current_site else "fitmeezo.com")
+            context = {
+                "email": user.email,
+                "domain": domain,
+                "site_name": site_name,
+                "uid": urlsafe_base64_encode(force_bytes(user.pk)),
+                "user": user,
+                "token": token_generator.make_token(user),
+                "protocol": "https" if use_https or not getattr(settings, "DEBUG", True) else "http",
+                **(extra_email_context or {}),
+            }
+            try:
+                self.send_mail(
+                    subject_template_name,
+                    email_template_name,
+                    context,
+                    from_email,
+                    user.email,
+                    html_email_template_name=html_email_template_name,
+                )
+            except Exception as e:
+                logger.exception(f"Failed to dispatch password reset email to {user.email}: {e}")
 
 
 class CustomerLoginForm(forms.Form):

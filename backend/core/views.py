@@ -1012,7 +1012,7 @@ def cart_clear(request):
 def account_register(request):
     """
     Customer registration view.
-    Validates name, normalized email, password strength, and terms agreement.
+    Validates name, registered mobile number, normalized email, password strength, and terms agreement.
     Signs customer in automatically and merges guest session cart.
     """
     if request.user.is_authenticated:
@@ -1023,12 +1023,44 @@ def account_register(request):
     if request.method == "POST":
         form = CustomerRegistrationForm(request.POST)
         if form.is_valid():
-            user = form.save()
-            login(request, user, backend="core.backends.EmailOrUsernameModelBackend")
+            try:
+                user = form.save()
+            except IntegrityError as e:
+                logger.warning(f"IntegrityError during customer registration: {e}")
+                messages.error(
+                    request,
+                    "An account with this email address or mobile number already exists. Please try signing in."
+                )
+                return render(request, "account/register.html", {
+                    "form": form,
+                    "next": next_url,
+                })
+            except Exception as e:
+                logger.exception("Unexpected error saving new customer during registration")
+                messages.error(
+                    request,
+                    "An unexpected error occurred while creating your account. Please try again or contact support."
+                )
+                return render(request, "account/register.html", {
+                    "form": form,
+                    "next": next_url,
+                })
+
+            try:
+                login(request, user, backend="core.backends.EmailOrUsernameModelBackend")
+            except Exception as e:
+                logger.warning(f"Backend-specific login failed after registration, falling back to standard login: {e}")
+                try:
+                    login(request, user)
+                except Exception:
+                    pass
 
             # Merge any anonymous cart items created before registration
-            cart = Cart(request)
-            cart.merge_session_cart()
+            try:
+                cart = Cart(request)
+                cart.merge_session_cart()
+            except Exception as e:
+                logger.warning(f"Guest cart merge failed during registration: {e}")
 
             name = user.first_name or user.username
             messages.success(request, f"Welcome to Fitmeezo, {name}! Your account has been created successfully.")

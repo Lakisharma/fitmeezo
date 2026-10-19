@@ -2149,16 +2149,18 @@ class CustomerRegistrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Create Account")
         self.assertContains(response, 'name="full_name"')
+        self.assertContains(response, 'name="mobile_number"')
         self.assertContains(response, 'name="email"')
         self.assertContains(response, 'name="password"')
         self.assertContains(response, 'name="confirm_password"')
         self.assertContains(response, 'name="terms"')
 
     def test_successful_registration(self):
-        """Verify valid registration creates user, profile, hashes password, and logs in."""
+        """Verify valid registration creates user, profile with mobile number, hashes password, and logs in."""
         User = get_user_model()
         data = {
             "full_name": "Aarav Sharma",
+            "mobile_number": "+91 9876543210",
             "email": "Aarav.Sharma@Example.COM",
             "password": "SecurePassword#2026",
             "confirm_password": "SecurePassword#2026",
@@ -2174,8 +2176,9 @@ class CustomerRegistrationTest(TestCase):
         self.assertTrue(user.check_password("SecurePassword#2026"))
         self.assertNotEqual(user.password, "SecurePassword#2026")  # Never plaintext
 
-        # Verify profile auto-created
-        self.assertTrue(CustomerProfile.objects.filter(user=user).exists())
+        # Verify profile auto-created with normalized mobile
+        profile = CustomerProfile.objects.get(user=user)
+        self.assertEqual(profile.mobile_number, "9876543210")
 
         # Verify logged in
         self.assertEqual(self.client.session["_auth_user_id"], str(user.pk))
@@ -2191,6 +2194,7 @@ class CustomerRegistrationTest(TestCase):
 
         data = {
             "full_name": "Duplicate User",
+            "mobile_number": "9876543211",
             "email": "EXISTING@Fitmeezo.com",  # case-insensitive duplicate
             "password": "SecurePassword#2026",
             "confirm_password": "SecurePassword#2026",
@@ -2200,10 +2204,49 @@ class CustomerRegistrationTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "An account with this email address already exists.")
 
+    def test_duplicate_mobile_registration_rejected(self):
+        """Verify registering with an already registered mobile number is rejected."""
+        User = get_user_model()
+        existing_user = User.objects.create_user(
+            username="mobile_owner@fitmeezo.com",
+            email="mobile_owner@fitmeezo.com",
+            password="StrongPass1234!",
+        )
+        profile, _ = CustomerProfile.objects.get_or_create(user=existing_user)
+        profile.mobile_number = "9876543215"
+        profile.save()
+
+        data = {
+            "full_name": "Duplicate Mobile User",
+            "mobile_number": "+91 9876543215",
+            "email": "another_email@fitmeezo.com",
+            "password": "SecurePassword#2026",
+            "confirm_password": "SecurePassword#2026",
+            "terms": True,
+        }
+        response = self.client.post(self.register_url, data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "An account with this mobile number already exists.")
+
+    def test_invalid_mobile_registration_rejected(self):
+        """Verify non-10-digit or invalid mobile numbers are rejected."""
+        data = {
+            "full_name": "Invalid Mobile User",
+            "mobile_number": "12345",
+            "email": "invalid_mobile@fitmeezo.com",
+            "password": "SecurePassword#2026",
+            "confirm_password": "SecurePassword#2026",
+            "terms": True,
+        }
+        response = self.client.post(self.register_url, data)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Please enter a valid 10-digit Indian mobile number")
+
     def test_password_mismatch_rejected(self):
         """Verify registration fails when password and confirm_password do not match."""
         data = {
             "full_name": "Mismatch Tester",
+            "mobile_number": "9876543212",
             "email": "mismatch@example.com",
             "password": "SecurePassword#2026",
             "confirm_password": "DifferentPassword#2026",
@@ -2217,6 +2260,7 @@ class CustomerRegistrationTest(TestCase):
         """Verify registration rejects passwords failing Django password validators."""
         data = {
             "full_name": "Weak Tester",
+            "mobile_number": "9876543213",
             "email": "weak@example.com",
             "password": "123",  # Too short / entirely numeric
             "confirm_password": "123",
@@ -2233,6 +2277,41 @@ class CustomerRegistrationTest(TestCase):
         response = self.client.get(terms_url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Terms of Service")
+
+    def test_password_reset_dispatch_by_email(self):
+        """Verify password reset request via email sends reset email to mailbox."""
+        from django.core import mail
+        User = get_user_model()
+        user = User.objects.create_user(
+            username="reset_target@fitmeezo.com",
+            email="reset_target@fitmeezo.com",
+            password="StrongPassword#2026",
+        )
+        reset_url = reverse("core:password_reset")
+        response = self.client.post(reset_url, {"email_or_mobile": "reset_target@fitmeezo.com"}, follow=True)
+        self.assertRedirects(response, reverse("core:password_reset_done"))
+        self.assertGreaterEqual(len(mail.outbox), 1)
+        self.assertIn("reset_target@fitmeezo.com", mail.outbox[0].to)
+
+    def test_password_reset_dispatch_by_mobile(self):
+        """Verify password reset request via mobile number sends reset link to linked email."""
+        from django.core import mail
+        User = get_user_model()
+        user = User.objects.create_user(
+            username="mobile_reset@fitmeezo.com",
+            email="mobile_reset@fitmeezo.com",
+            password="StrongPassword#2026",
+        )
+        profile, _ = CustomerProfile.objects.get_or_create(user=user)
+        profile.mobile_number = "9876543299"
+        profile.save()
+
+        mail.outbox = []
+        reset_url = reverse("core:password_reset")
+        response = self.client.post(reset_url, {"email_or_mobile": "+91 9876543299"}, follow=True)
+        self.assertRedirects(response, reverse("core:password_reset_done"))
+        self.assertGreaterEqual(len(mail.outbox), 1)
+        self.assertIn("mobile_reset@fitmeezo.com", mail.outbox[0].to)
 
 
 class CustomerAuthenticationAndLogoutTest(TestCase):
@@ -4044,6 +4123,7 @@ class OAuthSocialLoginTest(TestCase):
             reverse("core:account_register"),
             {
                 "full_name": "Rohan Mehra",
+                "mobile_number": "+91 9876543220",
                 "email": "rohan.mehra@example.com",
                 "password": "ValidPassword987!",
                 "confirm_password": "ValidPassword987!",

@@ -1850,9 +1850,17 @@ class CustomerProfile(models.Model):
 
     def save(self, *args, **kwargs):
         from .otp_services import normalize_mobile_number
-        if self.phone_number:
-            normalized = normalize_mobile_number(self.phone_number)
+        if not self.phone_number and self.mobile_number:
+            self.phone_number = self.mobile_number
+        elif self.phone_number and not self.mobile_number:
+            self.mobile_number = self.phone_number
+
+        if self.phone_number or self.mobile_number:
+            raw = self.mobile_number or self.phone_number
+            normalized = normalize_mobile_number(raw)
             self.mobile_number = normalized or ""
+            if not self.phone_number and self.mobile_number:
+                self.phone_number = self.mobile_number
         else:
             self.mobile_number = ""
 
@@ -1861,6 +1869,8 @@ class CustomerProfile(models.Model):
             update_fields = list(update_fields)
             if "phone_number" in update_fields and "mobile_number" not in update_fields:
                 update_fields.append("mobile_number")
+            elif "mobile_number" in update_fields and "phone_number" not in update_fields:
+                update_fields.append("phone_number")
             kwargs["update_fields"] = update_fields
 
         super().save(*args, **kwargs)
