@@ -9,7 +9,7 @@ We were unable to complete your online payment for Order #{{ order.order_number 
 No amount has been collected for this order. If your bank account was debited, it will be refunded by your bank within 3-5 business days.
 
 You can visit https://fitmeezo.com to place a new order using Cash on Delivery (COD).
-Need help? Contact our customer support team at support@fitmeezo.com.
+Need help? Contact our customer support team at support@fitmeezo.com or call +91 940885323.
 
 Thank you,
 Team Fitmeezo

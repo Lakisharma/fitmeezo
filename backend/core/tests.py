@@ -168,7 +168,7 @@ class SharedLayoutAndDesignSystemTest(TestCase):
             "Return &amp; Refund Policy",
             "Privacy Policy",
             "Terms &amp; Conditions",
-            "1800-123-456",
+            "940885323",
             "support@fitmeezo.com",
         ]
         for item in footer_items:

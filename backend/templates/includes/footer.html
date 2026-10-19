@@ -20,14 +20,14 @@
           <!-- Support Contact Card -->
           <div class="fm-support-card">
             <p class="fm-support-title">Customer Care Helpline</p>
-            <a href="tel:+911800123456" class="fm-support-contact" aria-label="Customer Care Phone: 1800-123-456">
+            <a href="tel:{{ SUPPORT_PHONE_TEL|default:'+91940885323' }}" class="fm-support-contact" aria-label="Customer Care Phone: {{ SUPPORT_PHONE|default:'+91 940885323' }}">
               <i class="bi bi-telephone-inbound-fill text-warning" aria-hidden="true"></i>
-              <span>1800-123-456 (Toll Free)</span>
+              <span>{{ SUPPORT_PHONE|default:'+91 940885323' }}</span>
             </a>
             <p class="fm-support-timing">Monday to Saturday: 9:00 AM – 9:00 PM IST</p>
             <div style="font-size: 12px; color: #BBBBBB;">
-              <a href="mailto:support@fitmeezo.com" style="color: #BBBBBB; text-decoration: none;">
-                <i class="bi bi-envelope me-1" aria-hidden="true"></i> support@fitmeezo.com
+              <a href="mailto:{{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}" style="color: #BBBBBB; text-decoration: none;">
+                <i class="bi bi-envelope me-1" aria-hidden="true"></i> {{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}
               </a>
             </div>
           </div>

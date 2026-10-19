@@ -15,3 +15,5 @@ razorpay>=2.0.0
 reportlab>=5.0.0
 gunicorn>=22.0.0
 whitenoise>=6.7.0
+cloudinary>=1.40.0
+django-cloudinary-storage>=0.3.0

@@ -13,7 +13,7 @@ Date: {{ order.paid_at|date:"d M Y, h:i A"|default:"Just now" }}
 Status: Paid / Processing
 
 We are now preparing your order for shipment.
-If you have any questions, reach our customer care at support@fitmeezo.com.
+If you have any questions, reach our customer care at support@fitmeezo.com or call +91 940885323.
 
 Thank you for shopping with Fitmeezo!
 Team Fitmeezo

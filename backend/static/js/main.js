@@ -251,13 +251,7 @@ function getCookie(name) {
       .then(data => {
         addCartBtn.disabled = false;
         if (data.success) {
-          document.querySelectorAll('#fmHeaderCartBadge, #fmBottomCartBadge, #fmDrawerCartBadge, .fm-bottom-cart-badge')
-            .forEach(b => { b.textContent = data.cart_total_units; });
-          const headerPrice = document.getElementById('fmHeaderCartPrice');
-          if (headerPrice && data.cart_subtotal) {
-            headerPrice.textContent = '₹' + parseFloat(data.cart_subtotal).toFixed(2);
-          }
-          showToast(data.message, 'Added to Cart');
+          window.location.href = data.redirect_url || '/cart/';
         } else {
           showToast(data.message, 'Notice');
         }

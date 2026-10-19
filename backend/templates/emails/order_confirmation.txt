@@ -38,6 +38,6 @@ Please keep ₹{{ order.total_amount }} ready in cash or UPI when your delivery 
 {% endif %}
 
 Thank you for choosing Fitmeezo!
-Need help? Contact our customer support team at support@fitmeezo.com.
+Need help? Contact our customer support team at support@fitmeezo.com or call +91 940885323.
 Team Fitmeezo
 https://fitmeezo.com

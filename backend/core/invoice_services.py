@@ -694,7 +694,7 @@ def generate_customer_invoice_pdf(invoice: Invoice) -> bytes:
         ),
         Paragraph(
             f"3. Inquiries & Grievances: Email {getattr(settings, 'FITMEEZO_SUPPORT_EMAIL', 'support@fitmeezo.com')} | "
-            f"Helpline: {getattr(settings, 'FITMEEZO_SUPPORT_PHONE', '+91 98765 43210')} ({getattr(settings, 'FITMEEZO_SUPPORT_HOURS', 'Mon-Sat 10am-7pm IST')}).",
+            f"Helpline: {getattr(settings, 'FITMEEZO_SUPPORT_PHONE', '+91 940885323')} ({getattr(settings, 'FITMEEZO_SUPPORT_HOURS', 'Mon-Sat 10am-7pm IST')}).",
             note_style,
         ),
     ]

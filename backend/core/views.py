@@ -888,6 +888,11 @@ def cart_add(request):
     # 4. Perform cart addition
     success, message, item_key = cart.add(product, variant=variant, quantity=quantity)
 
+    if success:
+        messages.success(request, message)
+    else:
+        messages.error(request, message)
+
     if _is_ajax(request):
         status_code = 200 if success else 400
         return JsonResponse({
@@ -896,12 +901,8 @@ def cart_add(request):
             "cart_total_units": cart.total_units,
             "cart_subtotal": str(cart.subtotal),
             "item_key": item_key,
+            "redirect_url": reverse("core:cart_detail"),
         }, status=status_code)
-
-    if success:
-        messages.success(request, message)
-    else:
-        messages.error(request, message)
 
     return redirect("core:cart_detail")
 

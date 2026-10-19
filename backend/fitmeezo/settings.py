@@ -117,6 +117,32 @@ SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # ==============================================================================
 # APPLICATION DEFINITION
 # ==============================================================================
+# ==============================================================================
+# CLOUDINARY PERSISTENT MEDIA STORAGE CONFIGURATION
+# ==============================================================================
+# Provides durable, persistent media storage for product photographs, gallery images,
+# category banners, and return condition photos when deployed to ephemeral hosting (Render).
+# In local development without Cloudinary, zero-config FileSystemStorage is used automatically.
+CLOUDINARY_URL = os.getenv("CLOUDINARY_URL", "").strip()
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME", "").strip()
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY", "").strip()
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET", "").strip()
+CLOUDINARY_SECURE = os.getenv("CLOUDINARY_SECURE", "True").strip().lower() in ("true", "1", "yes")
+CLOUDINARY_MEDIA_TAG = os.getenv("CLOUDINARY_MEDIA_TAG", "media").strip()
+
+def _is_valid_cloudinary_credential(val: str) -> bool:
+    cleaned = (val or "").strip().lower()
+    return bool(cleaned and not cleaned.startswith(("replace_", "your_", "todo", "none")))
+
+CLOUDINARY_ENABLED = bool(
+    _is_valid_cloudinary_credential(CLOUDINARY_URL)
+    or (
+        _is_valid_cloudinary_credential(CLOUDINARY_CLOUD_NAME)
+        and _is_valid_cloudinary_credential(CLOUDINARY_API_KEY)
+        and _is_valid_cloudinary_credential(CLOUDINARY_API_SECRET)
+    )
+)
+
 INSTALLED_APPS = [
     # Core Django apps
     "django.contrib.admin",
@@ -140,6 +166,16 @@ INSTALLED_APPS = [
     "core.apps.CoreConfig",
     "management_console.apps.ManagementConsoleConfig",
 ]
+
+if CLOUDINARY_ENABLED:
+    # 'cloudinary_storage' must be placed before 'django.contrib.staticfiles' per docs
+    _staticfiles_idx = (
+        INSTALLED_APPS.index("django.contrib.staticfiles")
+        if "django.contrib.staticfiles" in INSTALLED_APPS
+        else 0
+    )
+    INSTALLED_APPS.insert(_staticfiles_idx, "cloudinary_storage")
+    INSTALLED_APPS.append("cloudinary")
 
 SITE_ID = 1
 
@@ -285,15 +321,49 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # ==============================================================================
-# WHITENOISE STATIC FILE SERVING CONFIGURATION
+# STORAGE ENGINES (CLOUDINARY PERSISTENT MEDIA & WHITENOISE COMPRESSED STATIC)
 # ==============================================================================
-# WhiteNoise serves compressed, cached static files from STATIC_ROOT in production.
-# CompressedManifestStaticFilesStorage adds cache-busting hashes to filenames.
-STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": CLOUDINARY_CLOUD_NAME,
+    "API_KEY": CLOUDINARY_API_KEY,
+    "API_SECRET": CLOUDINARY_API_SECRET,
+    "SECURE": CLOUDINARY_SECURE,
+    "MEDIA_TAG": CLOUDINARY_MEDIA_TAG,
+}
+if CLOUDINARY_URL:
+    CLOUDINARY_STORAGE["CLOUDINARY_URL"] = CLOUDINARY_URL
 
-# WhiteNoise also serves the media directory at /media/ in production.
-# This works for files committed to Git (product images, category images).
-# For user-uploaded files in a real production environment, use cloud storage (S3/Cloudinary).
+_staticfiles_backend = (
+    "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    if not DEBUG
+    else "django.contrib.staticfiles.storage.StaticFilesStorage"
+)
+
+if CLOUDINARY_ENABLED:
+    DEFAULT_FILE_STORAGE = "cloudinary_storage.storage.MediaCloudinaryStorage"
+    STORAGES = {
+        "default": {
+            "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        },
+        "staticfiles": {
+            "BACKEND": _staticfiles_backend,
+        },
+    }
+else:
+    DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": _staticfiles_backend,
+        },
+    }
+
+# WhiteNoise serves compressed, cached static files from STATIC_ROOT in production.
+STATICFILES_STORAGE = _staticfiles_backend
+
+# WhiteNoise also serves local media directory at /media/ in local development / fallback
 WHITENOISE_ROOT = BASE_DIR / "media"
 WHITENOISE_AUTOREFRESH = DEBUG  # Autorefresh in dev, cached manifest in production
 
@@ -406,6 +476,7 @@ EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False").lower() in ("true", "1", "t"
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "Fitmeezo <support@fitmeezo.com>")
 SERVER_EMAIL = os.getenv("SERVER_EMAIL", "Fitmeezo Alerts <support@fitmeezo.com>")
 SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "support@fitmeezo.com")
+SUPPORT_PHONE = os.getenv("SUPPORT_PHONE", "+91 940885323")
 
 # ==============================================================================
 # RAZORPAY PAYMENT GATEWAY CONFIGURATION
@@ -471,7 +542,7 @@ SHIPROCKET_VOLUMETRIC_DIVISOR = Decimal(os.getenv("SHIPROCKET_VOLUMETRIC_DIVISOR
 FITMEEZO_PLATFORM_WAREHOUSE = {
     "facility_name": os.getenv("PLATFORM_WAREHOUSE_NAME", "Fitmeezo Central Fulfillment Center"),
     "contact_name": os.getenv("PLATFORM_WAREHOUSE_CONTACT", "Fitmeezo Operations"),
-    "contact_phone": os.getenv("PLATFORM_WAREHOUSE_PHONE", "9876543210"),
+    "contact_phone": os.getenv("PLATFORM_WAREHOUSE_PHONE", "940885323"),
     "contact_email": os.getenv("PLATFORM_WAREHOUSE_EMAIL", "support@fitmeezo.com"),
     "address_line1": os.getenv("PLATFORM_WAREHOUSE_ADDRESS1", "Plot 42, Industrial Area Phase II"),
     "address_line2": os.getenv("PLATFORM_WAREHOUSE_ADDRESS2", ""),
@@ -538,7 +609,7 @@ FITMEEZO_REGISTERED_OFFICE_ADDRESS = os.getenv(
 
 # Customer support and grievance details for invoice documents
 FITMEEZO_SUPPORT_EMAIL = os.getenv("SUPPORT_EMAIL", "support@fitmeezo.com")
-FITMEEZO_SUPPORT_PHONE = os.getenv("SUPPORT_PHONE", "+91 98765 43210")
+FITMEEZO_SUPPORT_PHONE = os.getenv("SUPPORT_PHONE", "+91 940885323")
 FITMEEZO_SUPPORT_HOURS = os.getenv("SUPPORT_HOURS", "Mon - Sat, 10:00 AM - 7:00 PM IST")
 
 # ==============================================================================

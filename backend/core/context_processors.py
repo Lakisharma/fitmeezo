@@ -69,6 +69,8 @@ def brand_context(request):
         "BRAND_NAME": getattr(settings, "BRAND_NAME", "Fitmeezo"),
         "BRAND_TAGLINE": getattr(settings, "BRAND_TAGLINE", "SHOP SMART • LIVE BETTER"),
         "SUPPORT_EMAIL": getattr(settings, "SUPPORT_EMAIL", "support@fitmeezo.com"),
+        "SUPPORT_PHONE": getattr(settings, "FITMEEZO_SUPPORT_PHONE", getattr(settings, "SUPPORT_PHONE", "+91 940885323")),
+        "SUPPORT_PHONE_TEL": getattr(settings, "FITMEEZO_SUPPORT_PHONE", getattr(settings, "SUPPORT_PHONE", "+91 940885323")).replace(" ", "").replace("-", ""),
         "CURRENCY": getattr(settings, "CURRENCY", "INR"),
         "CURRENCY_SYMBOL": getattr(settings, "CURRENCY_SYMBOL", "₹"),
         "nav_categories": nav_categories,

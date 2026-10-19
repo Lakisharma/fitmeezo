@@ -981,24 +981,7 @@
           .then(data => {
             if (submitBtn) submitBtn.disabled = false;
             if (data.success) {
-              // Update badge counts in header and bottom nav
-              const headerBadge = document.getElementById('fmHeaderCartBadge');
-              if (headerBadge) headerBadge.textContent = data.cart_total_units;
-              const bottomBadge = document.getElementById('fmBottomCartBadge');
-              if (bottomBadge) bottomBadge.textContent = data.cart_total_units;
-              const drawerBadge = document.getElementById('fmDrawerCartBadge');
-              if (drawerBadge) drawerBadge.textContent = data.cart_total_units;
-              const headerPrice = document.getElementById('fmHeaderCartPrice');
-              if (headerPrice && data.cart_subtotal) {
-                const currency = '{{ CURRENCY_SYMBOL|default:"₹" }}';
-                headerPrice.textContent = currency + parseFloat(data.cart_subtotal).toFixed(2);
-              }
-
-              if (typeof showToast === 'function') {
-                showToast(data.message, 'Added to Cart');
-              } else {
-                alert(data.message);
-              }
+              window.location.href = data.redirect_url || '/cart/';
             } else {
               if (typeof showToast === 'function') {
                 showToast(data.message, 'Notice');
