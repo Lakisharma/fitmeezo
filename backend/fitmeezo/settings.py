@@ -50,16 +50,16 @@ elif not DEBUG and SECRET_KEY == DEV_SECRET_KEY:
         "Please generate a unique, cryptographically secure SECRET_KEY."
     )
 
-_default_hosts = "127.0.0.1,localhost,testserver,fitmeezo.com,www.fitmeezo.com,fitmeezo-website.onrender.com" if DEBUG else "fitmeezo.com,www.fitmeezo.com,fitmeezo-website.onrender.com"
+_default_hosts = "127.0.0.1,localhost,testserver,fitmeezo.com,www.fitmeezo.com" if DEBUG else "fitmeezo.com,www.fitmeezo.com"
 _allowed_hosts_raw = os.getenv("ALLOWED_HOSTS", _default_hosts)
 ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_raw.split(",") if host.strip()]
 
-# Explicitly ensure custom domain and Render domain are always permitted
-for host in ("fitmeezo.com", "www.fitmeezo.com", "fitmeezo-website.onrender.com"):
+# Explicitly ensure custom production domains are always permitted
+for host in ("fitmeezo.com", "www.fitmeezo.com"):
     if host not in ALLOWED_HOSTS:
         ALLOWED_HOSTS.append(host)
 
-# Automatically permit Render external hostname if set by platform
+# Automatically permit external hostname if set by platform
 _render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
 if _render_host and _render_host not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(_render_host)
@@ -80,7 +80,6 @@ for origin in (
     "https://www.fitmeezo.com",
     "http://fitmeezo.com",
     "http://www.fitmeezo.com",
-    "https://fitmeezo-website.onrender.com",
 ):
     if origin not in CSRF_TRUSTED_ORIGINS:
         CSRF_TRUSTED_ORIGINS.append(origin)
