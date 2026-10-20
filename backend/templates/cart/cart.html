@@ -119,6 +119,12 @@
                             {{ line.variant.option_type }}: <strong>{{ line.variant.option_value }}</strong>
                           </span>
                         </div>
+                      {% elif line.variant_label %}
+                        <div class="small text-secondary mb-1">
+                          <span class="badge bg-light text-dark border me-1">
+                            <strong>{{ line.variant_label }}</strong>
+                          </span>
+                        </div>
                       {% endif %}
 
                       <div class="d-flex align-items-center gap-2 flex-wrap small text-muted">

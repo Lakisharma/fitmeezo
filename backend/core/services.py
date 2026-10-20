@@ -218,6 +218,10 @@ def create_order_from_cart(
                     sku = variant.sku
                     variant_label = f"{variant.option_type}: {variant.option_value}"
                 else:
+                    if product.has_size_variants or product.has_variants:
+                        raise CheckoutValidationError(
+                            f"Please select a size or option for '{product.name}' before completing checkout."
+                        )
                     if product.stock_quantity < qty:
                         raise CheckoutValidationError(
                             f"Insufficient stock for '{product.name}'. Only {product.stock_quantity} left in inventory."
@@ -405,6 +409,10 @@ def create_order_from_cart(
                     if it["variant"]:
                         it["variant"].stock_quantity -= it["quantity"]
                         it["variant"].save(update_fields=["stock_quantity", "updated_at"])
+                        if it["product"].has_variants or it["product"].has_size_variants:
+                            total_var_stock = sum(v.stock_quantity for v in it["product"].variants.filter(is_active=True))
+                            it["product"].stock_quantity = total_var_stock
+                            it["product"].save(update_fields=["stock_quantity", "updated_at"])
                     else:
                         it["product"].stock_quantity -= it["quantity"]
                         it["product"].save(update_fields=["stock_quantity", "updated_at"])
@@ -524,6 +532,10 @@ def cancel_order(order, user=None, cancelled_by="customer", reason="") -> tuple[
                         ProductVariant.objects.filter(pk=item.variant_id).update(
                             stock_quantity=F("stock_quantity") + item.quantity
                         )
+                        if item.product_id:
+                            Product.objects.filter(pk=item.product_id).update(
+                                stock_quantity=F("stock_quantity") + item.quantity
+                            )
                     elif item.product_id:
                         Product.objects.filter(pk=item.product_id).update(
                             stock_quantity=F("stock_quantity") + item.quantity

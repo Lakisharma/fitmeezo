@@ -600,6 +600,11 @@ def product_detail(request, slug):
 
     rating_breakdown = product.get_rating_breakdown()
 
+    has_configured_sizes = product.variants.filter(option_type__iexact="Size").exists()
+    has_in_stock_size = any(
+        v.is_in_stock for v in active_variants if v.option_type.lower() == "size"
+    )
+
     return render(request, "products/product_detail.html", {
         "product": product,
         "category": product.category,
@@ -607,6 +612,8 @@ def product_detail(request, slug):
         "variants_by_type": variants_by_type,
         "variants_json_data": variants_json_data,
         "has_multiple_types": len(variants_by_type) > 1,
+        "has_configured_sizes": has_configured_sizes,
+        "has_in_stock_size": has_in_stock_size,
         "reviews_page": reviews_page,
         "total_approved_reviews": paginator.count,
         "user_review": user_review,
@@ -878,8 +885,30 @@ def cart_add(request):
                 return JsonResponse({"success": False, "message": err_msg}, status=400)
             messages.error(request, err_msg)
             return redirect(product.get_absolute_url())
+
+        if variant.stock_quantity <= 0:
+            if variant.option_type.lower() == "size":
+                err_msg = f"The selected size '{variant.option_value}' is currently out of stock."
+            else:
+                err_msg = f"The selected option '{variant.option_value}' is currently out of stock."
+            if _is_ajax(request):
+                return JsonResponse({"success": False, "message": err_msg}, status=400)
+            messages.error(request, err_msg)
+            return redirect(product.get_absolute_url())
+    elif product.has_size_variants:
+        err_msg = "Please select a size before adding to your cart."
+        if _is_ajax(request):
+            return JsonResponse({"success": False, "message": err_msg}, status=400)
+        messages.error(request, err_msg)
+        return redirect(product.get_absolute_url())
     elif product.has_variants:
         err_msg = "Please select an available option before adding to your cart."
+        if _is_ajax(request):
+            return JsonResponse({"success": False, "message": err_msg}, status=400)
+        messages.error(request, err_msg)
+        return redirect(product.get_absolute_url())
+    elif product.variants.filter(option_type__iexact="Size").exists():
+        err_msg = "Sizes are currently unavailable for this product."
         if _is_ajax(request):
             return JsonResponse({"success": False, "message": err_msg}, status=400)
         messages.error(request, err_msg)
@@ -2194,6 +2223,10 @@ def razorpay_payment_failed(request):
                         ProductVariant.objects.filter(pk=item.variant.pk).update(
                             stock_quantity=F("stock_quantity") + item.quantity
                         )
+                        if item.product:
+                            Product.objects.filter(pk=item.product.pk).update(
+                                stock_quantity=F("stock_quantity") + item.quantity
+                            )
                     elif item.product:
                         Product.objects.filter(pk=item.product.pk).update(
                             stock_quantity=F("stock_quantity") + item.quantity
@@ -2303,10 +2336,6 @@ def order_detail_view(request, order_number):
     Guards customer ownership: customers can only view their own orders.
     """
     order = get_object_or_404(Order, order_number=order_number, user=request.user)
-    if order.items.filter(seller_order__isnull=True).exists():
-        from core.services import ensure_seller_orders_for_order
-        ensure_seller_orders_for_order(order)
-
     items = order.items.select_related("product", "variant", "seller", "seller_order").all()
     seller_orders = order.seller_orders.select_related("seller").prefetch_related("items").all()
 

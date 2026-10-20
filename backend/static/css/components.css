@@ -1106,6 +1106,19 @@
   outline-offset: 2px;
 }
 
+.fm-variant-pill-label.is-disabled:hover {
+  border-color: #E5E7EB !important;
+  color: #9CA3AF !important;
+}
+
+.fm-size-selector-error {
+  border: 1.5px solid #EF4444 !important;
+  border-radius: var(--fm-radius-sm);
+  padding: 10px;
+  background: #FEF2F2;
+  transition: all var(--fm-transition-fast);
+}
+
 /* ==========================================================================
    Shopping Cart Component Styles (Phase 1, Prompt 7)
    ========================================================================== */

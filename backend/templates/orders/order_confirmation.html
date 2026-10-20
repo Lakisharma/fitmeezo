@@ -87,7 +87,11 @@
                             <span class="fw-semibold text-dark">{{ item.product_name }}</span>
                           {% endif %}
                           {% if item.variant_label %}
-                            <div class="text-muted small">Option: {{ item.variant_label }}</div>
+                            <div class="mt-1">
+                              <span class="badge bg-light text-dark border small">
+                                {{ item.variant_label }}
+                              </span>
+                            </div>
                           {% endif %}
                         </div>
                       </div>

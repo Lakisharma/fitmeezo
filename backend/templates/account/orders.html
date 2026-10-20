@@ -130,6 +130,11 @@
                       </div>
                       <div class="min-w-0" style="font-size: 11px;">
                         <div class="fw-semibold text-dark text-truncate">{{ item.product_name }}</div>
+                        {% if item.variant_label %}
+                          <div class="my-1">
+                            <span class="badge bg-light text-dark border" style="font-size: 10px;">{{ item.variant_label }}</span>
+                          </div>
+                        {% endif %}
                         <div class="text-muted">Qty: {{ item.quantity }} • {{ CURRENCY_SYMBOL }}{{ item.line_total }}</div>
                       </div>
                     </div>

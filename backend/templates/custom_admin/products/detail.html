@@ -119,6 +119,9 @@
             <div class="text-muted small mb-3">
               Category: <span class="badge bg-light text-dark border">{{ product.category.name }}</span> • 
               Slug: <code>{{ product.slug }}</code>
+              {% if product.has_size_variants %}
+                • Sizes: <span class="badge bg-primary-subtle text-primary border border-primary-subtle fw-semibold">{{ product.available_sizes_display }}</span>
+              {% endif %}
             </div>
 
             <div class="p-3 bg-light rounded-3 mb-3">

@@ -190,6 +190,7 @@ class ProductAdmin(admin.ModelAdmin):
         "category",
         "seller",
         "formatted_price",
+        "available_sizes_badge",
         "dimensions_summary",
         "stock_status",
         "is_active",
@@ -229,6 +230,7 @@ class ProductAdmin(admin.ModelAdmin):
         "updated_at",
         "calculated_discount",
         "volumetric_weight_display",
+        "available_sizes_display",
     )
     actions = ["approve_products", "reject_products"]
     inlines = [ProductImageInline, ProductVariantInline]
@@ -249,7 +251,7 @@ class ProductAdmin(admin.ModelAdmin):
             "description": "For products with variants, stock and prices are governed by the variants below.",
             "fields": (
                 ("price", "compare_at_price", "calculated_discount"),
-                "stock_quantity",
+                ("stock_quantity", "available_sizes_display"),
             )
         }),
         ("Physical Dimensions & Logistics", {
@@ -273,6 +275,11 @@ class ProductAdmin(admin.ModelAdmin):
             "classes": ("collapse",),
         }),
     )
+
+    @admin.display(description="Available Sizes")
+    def available_sizes_badge(self, obj):
+        sizes = obj.available_sizes_display
+        return sizes if sizes else "—"
 
     @admin.display(description="Dimensions (L×B×H cm, Wt)")
     def dimensions_summary(self, obj):

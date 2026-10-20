@@ -121,6 +121,9 @@ class CartLine:
         elif self.variant and (not self.is_variant_active or not self.is_variant_valid):
             self.is_available = False
             self.warning_message = f"The selected option ({self.variant_label}) is no longer available."
+        elif self.product and (getattr(self.product, "has_size_variants", False) or getattr(self.product, "has_variants", False)) and not self.variant:
+            self.is_available = False
+            self.warning_message = f"Please select an available size/option for '{self.product.name}'."
         elif self.available_stock <= 0:
             self.is_available = False
             self.warning_message = f"'{product.name}' is currently out of stock."
@@ -236,9 +239,9 @@ class Cart:
             return False, "This product is currently inactive, unavailable or pending review and cannot be added to cart.", None
 
         # 2. Variant validation
-        if product.has_variants:
+        if product.has_size_variants or product.has_variants:
             if not variant:
-                return False, "Please select an available option before adding to cart.", None
+                return False, "Please select an available size/option before adding to cart.", None
             if not variant.is_active:
                 return False, "The selected variant is inactive or unavailable.", None
             if variant.product_id != product.id:

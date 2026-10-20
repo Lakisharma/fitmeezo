@@ -1145,6 +1145,105 @@ class Product(models.Model):
         return self.variants.filter(is_active=True).exists()
 
     @property
+    def has_size_variants(self):
+        """Indicates whether product has at least one active variant with option_type='Size'."""
+        return self.variants.filter(option_type__iexact="Size", is_active=True).exists()
+
+    @property
+    def is_size_based(self):
+        """Alias for has_size_variants."""
+        return self.has_size_variants
+
+    @property
+    def size_variants(self):
+        """Returns active size variants queryset ordered by id."""
+        return self.variants.filter(option_type__iexact="Size", is_active=True).order_by("id")
+
+    @property
+    def available_sizes_list(self):
+        """Returns list of active size option values (e.g. ['S', 'M', 'L'])."""
+        return list(
+            self.variants.filter(option_type__iexact="Size", is_active=True)
+            .order_by("id")
+            .values_list("option_value", flat=True)
+        )
+
+    @property
+    def available_sizes_display(self):
+        """Returns comma-separated string of active sizes (e.g. 'S, M, L')."""
+        return ", ".join(self.available_sizes_list)
+
+    def sync_size_variants(self, sizes_list, stock_map=None, default_stock=None):
+        """
+        Safely synchronizes available sizes for this product using existing ProductVariant model.
+        - Preserves existing variants and historical order links (sets is_active=False instead of deleting).
+        - Generates clean, unique SKUs (e.g. {product.sku}-{size}).
+        - Supports individual per-size stock map or default_stock.
+        """
+        if not self.pk:
+            return []
+
+        stock_map = stock_map or {}
+        cleaned_sizes = []
+        seen_upper = set()
+        for s in sizes_list:
+            clean_s = str(s).strip()
+            if clean_s and clean_s.upper() not in seen_upper:
+                seen_upper.add(clean_s.upper())
+                cleaned_sizes.append(clean_s)
+
+        # Existing size variants for this product
+        existing_variants = {
+            v.option_value.strip().upper(): v
+            for v in self.variants.filter(option_type__iexact="Size")
+        }
+
+        active_created_or_updated = []
+
+        for size_val in cleaned_sizes:
+            key = size_val.strip().upper()
+            qty = stock_map.get(size_val, stock_map.get(key, default_stock if default_stock is not None else self.stock_quantity))
+            try:
+                qty = max(0, int(qty))
+            except (TypeError, ValueError):
+                qty = max(0, int(self.stock_quantity or 0))
+
+            if key in existing_variants:
+                v = existing_variants[key]
+                v.is_active = True
+                if size_val in stock_map or key in stock_map or default_stock is not None:
+                    v.stock_quantity = qty
+                v.save(update_fields=["is_active", "stock_quantity", "updated_at"])
+                active_created_or_updated.append(v)
+            else:
+                # Generate unique variant SKU
+                base_sku = f"{self.sku}-{size_val.upper()}".replace(" ", "-")[:50]
+                var_sku = base_sku
+                counter = 1
+                while ProductVariant.objects.filter(sku__iexact=var_sku).exists():
+                    var_sku = f"{base_sku[:45]}-{counter}"
+                    counter += 1
+
+                new_v = ProductVariant.objects.create(
+                    product=self,
+                    option_type="Size",
+                    option_value=size_val,
+                    sku=var_sku,
+                    stock_quantity=qty,
+                    is_active=True,
+                )
+                active_created_or_updated.append(new_v)
+
+        # Deactivate any sizes that were unselected (never delete, preserving order records)
+        active_keys = {s.strip().upper() for s in cleaned_sizes}
+        for key, v in existing_variants.items():
+            if key not in active_keys and v.is_active:
+                v.is_active = False
+                v.save(update_fields=["is_active", "updated_at"])
+
+        return active_created_or_updated
+
+    @property
     def active_variants(self):
         """Returns active variants queryset ordered by option type and value."""
         return self.variants.filter(is_active=True).order_by("option_type", "option_value", "id")

@@ -5,10 +5,12 @@ category administration, and validated order workflows.
 """
 
 from decimal import Decimal
+import json
 import os
 from django import forms
 from django.contrib.auth import authenticate, get_user_model
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils.text import slugify
 
 from .models import (
@@ -217,6 +219,43 @@ class AdminProductForm(forms.ModelForm):
         help_text="Administrative moderation lifecycle status. Defaults to 'approved'.",
     )
 
+    # Size Variants Configuration
+    has_size_variants = forms.BooleanField(
+        required=False,
+        label="Enable Size Variants",
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input", "id": "id_has_size_variants"}),
+        help_text="Enable if this product comes in different sizes (e.g. S, M, L, XL, XXL) with per-size stock.",
+    )
+    available_sizes = forms.CharField(
+        required=False,
+        label="Available Sizes",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "e.g. S, M, L, XL, XXL",
+                "id": "id_available_sizes",
+            }
+        ),
+        help_text="Enter sizes separated by commas, or click the quick-select pills.",
+    )
+    size_stock_data = forms.CharField(
+        required=False,
+        widget=forms.HiddenInput(attrs={"id": "id_size_stock_data"}),
+        help_text="JSON payload storing stock count for each size.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            if "has_size_variants" not in self.initial:
+                self.initial["has_size_variants"] = self.instance.has_size_variants
+            if "available_sizes" not in self.initial:
+                self.initial["available_sizes"] = ", ".join(self.instance.available_sizes_list)
+            if "size_stock_data" not in self.initial:
+                active_variants = self.instance.variants.filter(option_type__iexact="Size", is_active=True)
+                stock_dict = {v.option_value: v.stock_quantity for v in active_variants}
+                self.initial["size_stock_data"] = json.dumps(stock_dict)
+
     def clean_approval_status(self):
         value = self.cleaned_data.get("approval_status", "")
         if not value:
@@ -281,7 +320,119 @@ class AdminProductForm(forms.ModelForm):
                     "Original (Compare-at) price cannot be lower than the selling price.",
                 )
 
+        # Size variant processing
+        has_size_variants = cleaned_data.get("has_size_variants", False)
+        raw_sizes = cleaned_data.get("available_sizes", "")
+        raw_stock_data = self.cleaned_data.get("size_stock_data") or self.data.get("size_stock_data", "")
+
+        parsed_stock = {}
+        if raw_stock_data:
+            try:
+                if isinstance(raw_stock_data, str) and raw_stock_data.strip():
+                    parsed_stock = json.loads(raw_stock_data)
+                elif isinstance(raw_stock_data, dict):
+                    parsed_stock = raw_stock_data
+            except Exception:
+                pass
+
+        if has_size_variants:
+            if isinstance(raw_sizes, list):
+                raw_list = raw_sizes
+            else:
+                raw_list = [s.strip() for s in str(raw_sizes).split(",") if s.strip()]
+
+            cleaned_sizes = []
+            seen_upper = set()
+            for s in raw_list:
+                clean_s = str(s).strip()
+                if clean_s and clean_s.upper() not in seen_upper:
+                    seen_upper.add(clean_s.upper())
+                    cleaned_sizes.append(clean_s)
+
+            if not cleaned_sizes:
+                self.add_error(
+                    "available_sizes",
+                    "Please specify at least one size variant when size variants are enabled (e.g. S, M, L).",
+                )
+
+            stock_map = {}
+            default_stock = stock if stock is not None else 0
+
+            for size_val in cleaned_sizes:
+                key_upper = size_val.upper()
+                # Priority:
+                # 1. individual POST input: size_stock_<size> or size_stock_<KEY>
+                val_from_post = self.data.get(f"size_stock_{size_val}", self.data.get(f"size_stock_{key_upper}"))
+                # 2. JSON stock data: parsed_stock[size_val] or parsed_stock[key_upper]
+                val_from_json = parsed_stock.get(size_val, parsed_stock.get(key_upper))
+
+                qty_val = val_from_post if val_from_post is not None else val_from_json
+                if qty_val is None or str(qty_val).strip() == "":
+                    qty = max(0, int(default_stock))
+                else:
+                    try:
+                        qty = int(qty_val)
+                        if qty < 0:
+                            self.add_error(
+                                "available_sizes",
+                                f"Stock quantity for size '{size_val}' cannot be negative.",
+                            )
+                            qty = 0
+                    except (ValueError, TypeError):
+                        self.add_error(
+                            "available_sizes",
+                            f"Invalid stock quantity '{qty_val}' for size '{size_val}'. Must be an integer.",
+                        )
+                        qty = 0
+
+                stock_map[size_val] = qty
+                stock_map[key_upper] = qty
+
+            cleaned_data["available_sizes_list"] = cleaned_sizes
+            cleaned_data["size_stock_map"] = stock_map
+
+            # If no errors, update total stock_quantity to the sum of variant stocks
+            if cleaned_sizes and not self.errors:
+                total_size_stock = sum(stock_map.get(s, 0) for s in cleaned_sizes)
+                cleaned_data["stock_quantity"] = total_size_stock
+        else:
+            cleaned_data["available_sizes_list"] = []
+            cleaned_data["size_stock_map"] = {}
+
         return cleaned_data
+
+    @transaction.atomic
+    def save(self, commit=True):
+        instance = super().save(commit=commit)
+
+        has_size_variants = self.cleaned_data.get("has_size_variants", False)
+        sizes_list = self.cleaned_data.get("available_sizes_list", [])
+        stock_map = self.cleaned_data.get("size_stock_map", {})
+
+        def sync_sizes():
+            if has_size_variants and sizes_list:
+                instance.sync_size_variants(
+                    sizes_list=sizes_list,
+                    stock_map=stock_map,
+                    default_stock=instance.stock_quantity,
+                )
+            else:
+                # If size variants are disabled or emptied, safely deactivate any active size variants
+                # without deleting records (protecting order historical integrity)
+                if instance.variants.filter(option_type__iexact="Size", is_active=True).exists():
+                    instance.sync_size_variants(sizes_list=[])
+
+        if commit:
+            sync_sizes()
+        else:
+            old_save_m2m = getattr(self, "save_m2m", None)
+            def save_m2m():
+                if old_save_m2m:
+                    old_save_m2m()
+                sync_sizes()
+            self.save_m2m = save_m2m
+
+        return instance
 
 
 class AdminProductVariantForm(forms.ModelForm):

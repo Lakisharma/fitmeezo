@@ -213,6 +213,94 @@
           </div>
         </div>
 
+        <!-- Size Variants Configuration Card -->
+        <div class="card seller-card mb-4">
+          <div class="card-header bg-white border-0 py-3 d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <h2 class="h6 fw-bold mb-0 text-dark">
+              <i class="bi bi-rulers me-1 text-primary"></i> Size Variants Configuration
+            </h2>
+            <span class="badge bg-secondary-subtle text-secondary border" id="size_variants_status_badge">
+              Single Standalone Stock
+            </span>
+          </div>
+          <div class="card-body p-4 pt-0">
+            <div class="form-check form-switch mb-3 p-3 bg-light rounded-3 border">
+              {{ form.has_size_variants }}
+              <label class="form-check-label fw-bold text-dark ms-2" for="{{ form.has_size_variants.id_for_label }}">
+                Enable Size Variants (e.g. S, M, L, XL, XXL)
+              </label>
+              <div class="form-text small mt-1">
+                Toggle on if this item is sold in multiple clothing, footwear, or apparel sizes with separate stock tracking.
+              </div>
+            </div>
+
+            <!-- Collapsible Size Management Panel -->
+            <div id="size_variants_panel" style="display: none;">
+              <!-- Quick Select Size Pills -->
+              <div class="mb-3">
+                <label class="form-label small fw-semibold text-muted text-uppercase mb-2">
+                  <i class="bi bi-lightning-charge-fill text-warning me-1"></i> Quick Select Available Sizes
+                </label>
+                <div class="d-flex flex-wrap gap-2" id="quick_size_pills">
+                  <button type="button" class="btn btn-sm btn-outline-secondary size-pill-btn rounded-pill px-3" data-size="XS">XS</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary size-pill-btn rounded-pill px-3" data-size="S">S</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary size-pill-btn rounded-pill px-3" data-size="M">M</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary size-pill-btn rounded-pill px-3" data-size="L">L</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary size-pill-btn rounded-pill px-3" data-size="XL">XL</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary size-pill-btn rounded-pill px-3" data-size="XXL">XXL</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary size-pill-btn rounded-pill px-3" data-size="3XL">3XL</button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary size-pill-btn rounded-pill px-3" data-size="Free Size">Free Size</button>
+                </div>
+              </div>
+
+              <!-- Available Sizes Comma-Separated Input -->
+              <div class="mb-3">
+                <label for="{{ form.available_sizes.id_for_label }}" class="form-label small fw-semibold">
+                  Available Sizes <span class="text-danger">*</span>
+                </label>
+                {{ form.available_sizes }}
+                <div class="form-text small">Enter sizes separated by commas (e.g. <code>S, M, L, XL</code>) or click the pills above.</div>
+                {% if form.available_sizes.errors %}
+                  <div class="text-danger small mt-1">{{ form.available_sizes.errors.0 }}</div>
+                {% endif %}
+              </div>
+
+              <!-- Hidden JSON field for stock data -->
+              {{ form.size_stock_data }}
+
+              <!-- Stock per Size Table -->
+              <div class="mb-2">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                  <label class="form-label small fw-semibold text-dark mb-0">
+                    <i class="bi bi-boxes me-1 text-primary"></i> Stock per Size
+                  </label>
+                  <button type="button" class="btn btn-sm btn-outline-primary py-1 px-2" id="btn_apply_default_stock" style="font-size: 11px;">
+                    <i class="bi bi-arrow-repeat me-1"></i> Apply Base Stock to All Sizes
+                  </button>
+                </div>
+
+                <div class="table-responsive bg-white rounded border">
+                  <table class="table table-sm table-hover align-middle mb-0" id="size_stock_table">
+                    <thead class="table-light">
+                      <tr>
+                        <th style="width: 140px;">Size</th>
+                        <th style="width: 240px;">Stock Quantity <span class="text-danger">*</span></th>
+                        <th>Inventory Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="size_stock_tbody">
+                      <!-- Populated dynamically via JavaScript -->
+                    </tbody>
+                  </table>
+                </div>
+                <div id="no_sizes_alert" class="alert alert-warning small py-2 mt-2 mb-0" style="display: none;">
+                  <i class="bi bi-exclamation-triangle me-1"></i> Please enter or click at least one size above to configure stock.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Featured Image Card -->
         <div class="card seller-card mb-4">
           <div class="card-header bg-white border-0 py-3">
@@ -365,4 +453,236 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const toggle = document.getElementById('id_has_size_variants');
+  const panel = document.getElementById('size_variants_panel');
+  const badge = document.getElementById('size_variants_status_badge');
+  const sizesInput = document.getElementById('id_available_sizes');
+  const stockDataInput = document.getElementById('id_size_stock_data');
+  const standaloneStockInput = document.getElementById('id_stock_quantity');
+  const pillsContainer = document.getElementById('quick_size_pills');
+  const tbody = document.getElementById('size_stock_tbody');
+  const noSizesAlert = document.getElementById('no_sizes_alert');
+  const btnApplyDefaultStock = document.getElementById('btn_apply_default_stock');
+
+  if (!toggle || !panel || !sizesInput) return;
+
+  // In-memory stock map
+  let currentStockMap = {};
+  try {
+    if (stockDataInput && stockDataInput.value) {
+      currentStockMap = JSON.parse(stockDataInput.value);
+    }
+  } catch (e) {
+    currentStockMap = {};
+  }
+
+  function parseSizes() {
+    const raw = sizesInput.value || '';
+    const parts = raw.split(',');
+    const seen = new Set();
+    const result = [];
+    parts.forEach(p => {
+      const s = p.trim();
+      if (s && !seen.has(s.toUpperCase())) {
+        seen.add(s.toUpperCase());
+        result.push(s);
+      }
+    });
+    return result;
+  }
+
+  function updatePillsState() {
+    const sizes = parseSizes();
+    const upperSet = new Set(sizes.map(s => s.toUpperCase()));
+    if (!pillsContainer) return;
+    pillsContainer.querySelectorAll('.size-pill-btn').forEach(btn => {
+      const pillSize = btn.getAttribute('data-size');
+      if (upperSet.has(pillSize.toUpperCase())) {
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-dark', 'active');
+      } else {
+        btn.classList.remove('btn-dark', 'active');
+        btn.classList.add('btn-outline-secondary');
+      }
+    });
+  }
+
+  function renderStockTable() {
+    const sizes = parseSizes();
+    if (sizes.length === 0) {
+      tbody.innerHTML = '';
+      if (noSizesAlert) noSizesAlert.style.display = 'block';
+      return;
+    }
+    if (noSizesAlert) noSizesAlert.style.display = 'none';
+
+    const defaultQty = parseInt(standaloneStockInput?.value, 10) || 0;
+    let html = '';
+
+    sizes.forEach(size => {
+      const upper = size.toUpperCase();
+      let qty = currentStockMap[size] !== undefined ? currentStockMap[size] : (currentStockMap[upper] !== undefined ? currentStockMap[upper] : defaultQty);
+      qty = Math.max(0, parseInt(qty, 10) || 0);
+      currentStockMap[size] = qty;
+
+      let statusBadge = '<span class="badge bg-success">In Stock</span>';
+      if (qty === 0) {
+        statusBadge = '<span class="badge bg-danger">Out of Stock (0)</span>';
+      } else if (qty < 10) {
+        statusBadge = '<span class="badge bg-warning text-dark">Low Stock (' + qty + ')</span>';
+      }
+
+      html += `
+        <tr data-size="${size}">
+          <td>
+            <span class="badge bg-light text-dark border fs-6 px-3 py-1">${size}</span>
+          </td>
+          <td>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text"><i class="bi bi-boxes"></i></span>
+              <input type="number"
+                     class="form-control size-stock-input"
+                     name="size_stock_${size}"
+                     data-size="${size}"
+                     min="0"
+                     value="${qty}"
+                     required>
+            </div>
+          </td>
+          <td class="stock-status-cell">
+            ${statusBadge}
+          </td>
+        </tr>
+      `;
+    });
+
+    tbody.innerHTML = html;
+    syncStockDataJson();
+  }
+
+  function syncStockDataJson() {
+    if (!stockDataInput) return;
+    const sizes = parseSizes();
+    const finalMap = {};
+    sizes.forEach(s => {
+      const input = tbody.querySelector(`input[data-size="${s}"]`);
+      if (input) {
+        const val = Math.max(0, parseInt(input.value, 10) || 0);
+        finalMap[s] = val;
+        currentStockMap[s] = val;
+      } else if (currentStockMap[s] !== undefined) {
+        finalMap[s] = currentStockMap[s];
+      }
+    });
+    stockDataInput.value = JSON.stringify(finalMap);
+  }
+
+  function updateToggleState() {
+    if (toggle.checked) {
+      panel.style.display = 'block';
+      if (badge) {
+        badge.textContent = 'Multi-Size Inventory Active';
+        badge.className = 'badge bg-success-subtle text-success border border-success-subtle';
+      }
+      renderStockTable();
+      updatePillsState();
+    } else {
+      panel.style.display = 'none';
+      if (badge) {
+        badge.textContent = 'Single Standalone Stock';
+        badge.className = 'badge bg-secondary-subtle text-secondary border';
+      }
+    }
+  }
+
+  // Event Listeners
+  toggle.addEventListener('change', updateToggleState);
+
+  if (pillsContainer) {
+    pillsContainer.addEventListener('click', function(e) {
+      const btn = e.target.closest('.size-pill-btn');
+      if (!btn) return;
+      const sizeVal = btn.getAttribute('data-size');
+      const currentSizes = parseSizes();
+      const idx = currentSizes.findIndex(s => s.toUpperCase() === sizeVal.toUpperCase());
+      if (idx >= 0) {
+        currentSizes.splice(idx, 1);
+      } else {
+        currentSizes.push(sizeVal);
+      }
+      sizesInput.value = currentSizes.join(', ');
+      updatePillsState();
+      renderStockTable();
+    });
+  }
+
+  sizesInput.addEventListener('input', function() {
+    updatePillsState();
+    renderStockTable();
+  });
+
+  tbody.addEventListener('input', function(e) {
+    if (!e.target.classList.contains('size-stock-input')) return;
+    const input = e.target;
+    const size = input.getAttribute('data-size');
+    const qty = Math.max(0, parseInt(input.value, 10) || 0);
+    currentStockMap[size] = qty;
+
+    // Update status badge in row
+    const row = input.closest('tr');
+    const cell = row ? row.querySelector('.stock-status-cell') : null;
+    if (cell) {
+      if (qty === 0) {
+        cell.innerHTML = '<span class="badge bg-danger">Out of Stock (0)</span>';
+      } else if (qty < 10) {
+        cell.innerHTML = '<span class="badge bg-warning text-dark">Low Stock (' + qty + ')</span>';
+      } else {
+        cell.innerHTML = '<span class="badge bg-success">In Stock</span>';
+      }
+    }
+    syncStockDataJson();
+  });
+
+  if (btnApplyDefaultStock) {
+    btnApplyDefaultStock.addEventListener('click', function() {
+      const defaultQty = Math.max(0, parseInt(standaloneStockInput?.value, 10) || 0);
+      tbody.querySelectorAll('.size-stock-input').forEach(input => {
+        input.value = defaultQty;
+        const size = input.getAttribute('data-size');
+        currentStockMap[size] = defaultQty;
+        const row = input.closest('tr');
+        const cell = row ? row.querySelector('.stock-status-cell') : null;
+        if (cell) {
+          if (defaultQty === 0) {
+            cell.innerHTML = '<span class="badge bg-danger">Out of Stock (0)</span>';
+          } else if (defaultQty < 10) {
+            cell.innerHTML = '<span class="badge bg-warning text-dark">Low Stock (' + defaultQty + ')</span>';
+          } else {
+            cell.innerHTML = '<span class="badge bg-success">In Stock</span>';
+          }
+        }
+      });
+      syncStockDataJson();
+    });
+  }
+
+  // Also sync on form submit
+  const form = toggle.closest('form');
+  if (form) {
+    form.addEventListener('submit', function() {
+      if (toggle.checked) {
+        syncStockDataJson();
+      }
+    });
+  }
+
+  // Initialize on page load
+  updateToggleState();
+})();
+</script>
 {% endblock %}

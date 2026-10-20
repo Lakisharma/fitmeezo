@@ -227,7 +227,7 @@
                         <li class="d-flex justify-content-between align-items-center py-1">
                           <div>
                             <span class="fw-semibold text-dark">{{ it.product_name }}</span>
-                            {% if it.variant_label %}<span class="text-secondary">({{ it.variant_label }})</span>{% endif %}
+                            {% if it.variant_label %}<span class="badge bg-light text-dark border ms-1">{{ it.variant_label }}</span>{% endif %}
                             <span class="text-muted ms-1">× {{ it.quantity }}</span>
                           </div>
                           <span class="fw-bold text-dark">{{ CURRENCY_SYMBOL }}{{ it.line_total }}</span>
@@ -293,7 +293,11 @@
                             <span class="fw-semibold text-dark">{{ item.product_name }}</span>
                           {% endif %}
                           {% if item.variant_label %}
-                            <div class="text-muted small">Option: {{ item.variant_label }}</div>
+                            <div class="mt-1">
+                              <span class="badge bg-light text-dark border small">
+                                {{ item.variant_label }}
+                              </span>
+                            </div>
                           {% endif %}
                           {% if item.seller_order %}
                             <div class="mt-1">

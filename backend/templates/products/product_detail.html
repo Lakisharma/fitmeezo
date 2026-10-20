@@ -147,26 +147,38 @@
             <div class="small text-muted mt-1">Inclusive of all taxes • Free shipping eligible</div>
           </div>
 
-          <!-- Variant Selectors (Shown only when active variants exist) -->
-          {% if active_variants %}
+          <!-- Variant Selectors (Shown only when active variants exist or sizes configured) -->
+          {% if has_configured_sizes and not product.has_size_variants %}
+            <div class="alert alert-warning py-2 px-3 small d-flex align-items-center mb-3" id="fmNoSizesAvailableAlert" role="alert">
+              <i class="bi bi-exclamation-circle-fill me-2 fs-5 text-warning"></i>
+              <div>
+                <strong>Notice:</strong> Sizes are currently unavailable for this product.
+              </div>
+            </div>
+          {% elif active_variants %}
             <div class="fm-variant-selectors-container mb-3" id="fmVariantSelectors" aria-label="Product options selection">
               {% for opt_type, variants_list in variants_by_type.items %}
-                <fieldset class="fm-variant-group mb-3" data-option-type="{{ opt_type }}" aria-labelledby="label-opt-{{ forloop.counter }}">
+                <fieldset class="fm-variant-group mb-3" data-option-type="{{ opt_type }}" id="fmGroup_{{ opt_type|slugify }}" aria-labelledby="label-opt-{{ forloop.counter }}">
                   <legend id="label-opt-{{ forloop.counter }}" class="fm-variant-label">
                     <span class="fw-semibold">Select {{ opt_type }}:</span>
                     <span class="fm-selected-value fw-bold text-dark ms-1" id="fmSelectedText_{{ forloop.counter }}">
-                      {{ variants_list.0.option_value }}
+                      {% if opt_type|lower == "size" %}
+                        <span class="text-muted fw-normal" id="fmSizePromptText" style="font-size: 0.9em;">(Choose a size)</span>
+                      {% else %}
+                        {{ variants_list.0.option_value }}
+                      {% endif %}
                     </span>
                   </legend>
                   <div class="fm-variant-pills-row d-flex flex-wrap gap-2" role="radiogroup" aria-labelledby="label-opt-{{ forloop.counter }}">
                     {% for v in variants_list %}
-                      <label class="fm-variant-pill-label {% if not v.is_in_stock %}is-out-of-stock{% endif %} {% if forloop.first %}is-selected{% endif %}"
+                      <label class="fm-variant-pill-label {% if not v.is_in_stock %}is-out-of-stock is-disabled{% endif %} {% if opt_type|lower != 'size' and forloop.first %}is-selected{% endif %}"
                              for="var_opt_{{ v.id }}"
                              data-variant-id="{{ v.id }}"
                              data-option-type="{{ v.option_type }}"
                              data-option-value="{{ v.option_value }}"
                              data-stock="{{ v.stock_quantity }}"
-                             id="pill_label_{{ v.id }}">
+                             id="pill_label_{{ v.id }}"
+                             {% if not v.is_in_stock %}aria-disabled="true" title="{{ v.option_value }} is currently out of stock"{% endif %}>
                         <input type="radio"
                                name="variant_opt_{{ opt_type|slugify }}"
                                id="var_opt_{{ v.id }}"
@@ -174,7 +186,8 @@
                                data-option-type="{{ v.option_type }}"
                                data-option-value="{{ v.option_value }}"
                                class="fm-variant-radio visually-hidden"
-                               {% if forloop.first %}checked{% endif %}
+                               {% if not v.is_in_stock %}disabled{% endif %}
+                               {% if opt_type|lower != 'size' and forloop.first %}checked{% endif %}
                                aria-label="{{ opt_type }}: {{ v.option_value }}{% if not v.is_in_stock %} (Out of Stock){% endif %}">
                         <span class="fm-pill-content">
                           <span class="fm-pill-text">{{ v.option_value }}</span>
@@ -185,6 +198,11 @@
                       </label>
                     {% endfor %}
                   </div>
+                  {% if opt_type|lower == "size" %}
+                    <div id="fmSizeErrorMsg" class="text-danger small mt-2 d-none fw-semibold">
+                      <i class="bi bi-exclamation-circle me-1"></i> Please select an available size to continue.
+                    </div>
+                  {% endif %}
                 </fieldset>
               {% endfor %}
             </div>
@@ -192,7 +210,17 @@
 
           <!-- Stock Availability Status -->
           <div class="fm-detail-stock-row mb-3" id="fmStockStatusBox" aria-live="polite">
-            {% if active_variants %}
+            {% if product.has_size_variants %}
+              {% if not has_in_stock_size %}
+                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle py-2 px-3 fw-semibold" id="fmStockBadge">
+                  <i class="bi bi-x-circle-fill me-1"></i> Currently Out of Stock
+                </span>
+              {% else %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle py-2 px-3 fw-semibold" id="fmStockBadge">
+                  <i class="bi bi-check-circle-fill me-1"></i> In Stock (Select a size)
+                </span>
+              {% endif %}
+            {% elif active_variants %}
               {% if active_variants.0.is_in_stock %}
                 <span class="badge bg-success-subtle text-success border border-success-subtle py-2 px-3 fw-semibold" id="fmStockBadge">
                   <i class="bi bi-check-circle-fill me-1"></i> In Stock (<span id="fmStockUnits">{{ active_variants.0.stock_quantity }}</span> unit{{ active_variants.0.stock_quantity|pluralize }} available)
@@ -222,7 +250,7 @@
           <form action="{% url 'core:cart_add' %}" method="post" id="fmAddToCartForm" class="mb-4">
             {% csrf_token %}
             <input type="hidden" name="product_id" value="{{ product.id }}">
-            <input type="hidden" name="variant_id" id="fmFormVariantId" value="{% if active_variants %}{{ active_variants.0.id }}{% endif %}">
+            <input type="hidden" name="variant_id" id="fmFormVariantId" value="{% if active_variants and not product.has_size_variants %}{{ active_variants.0.id }}{% endif %}">
 
             <!-- Quantity Selector -->
             <div class="fm-quantity-selector d-flex align-items-center gap-3 mb-3">
@@ -252,7 +280,12 @@
                       class="fm-btn fm-btn-primary fm-btn-lg"
                       id="fmAddToCartBtn"
                       data-product-title="{{ product.name }}"
-                      {% if active_variants %}
+                      data-has-size-variants="{% if product.has_size_variants %}true{% else %}false{% endif %}"
+                      {% if product.has_size_variants %}
+                        {% if not has_in_stock_size %}
+                          disabled aria-disabled="true" style="opacity: 0.6; cursor: not-allowed;"
+                        {% endif %}
+                      {% elif active_variants %}
                         data-variant-id="{{ active_variants.0.id }}"
                         data-variant-sku="{{ active_variants.0.sku }}"
                         {% if not active_variants.0.is_in_stock %}disabled aria-disabled="true" style="opacity: 0.6; cursor: not-allowed;"{% endif %}
@@ -260,9 +293,11 @@
                         disabled aria-disabled="true" style="opacity: 0.6; cursor: not-allowed;"
                       {% endif %}
                       aria-label="Add {{ product.name }} to cart">
-                <i class="bi {% if active_variants %}{% if active_variants.0.is_in_stock %}bi-cart-plus{% else %}bi-x-circle{% endif %}{% elif product.is_in_stock %}bi-cart-plus{% else %}bi-x-circle{% endif %} me-1" id="fmCartBtnIcon" aria-hidden="true"></i>
+                <i class="bi {% if product.has_size_variants %}{% if has_in_stock_size %}bi-cart-plus{% else %}bi-x-circle{% endif %}{% elif active_variants %}{% if active_variants.0.is_in_stock %}bi-cart-plus{% else %}bi-x-circle{% endif %}{% elif product.is_in_stock %}bi-cart-plus{% else %}bi-x-circle{% endif %} me-1" id="fmCartBtnIcon" aria-hidden="true"></i>
                 <span id="fmCartBtnText">
-                  {% if active_variants %}
+                  {% if product.has_size_variants %}
+                    {% if has_in_stock_size %}Add to Cart{% else %}Out of Stock{% endif %}
+                  {% elif active_variants %}
                     {% if active_variants.0.is_in_stock %}Add to Cart{% else %}Out of Stock{% endif %}
                   {% elif product.is_in_stock %}
                     Add to Cart
@@ -871,6 +906,12 @@
             legendText.textContent = matchedVariant.option_value;
           }
 
+          // Clear size validation error
+          const sizeErrorMsg = document.getElementById('fmSizeErrorMsg');
+          if (sizeErrorMsg) sizeErrorMsg.classList.add('d-none');
+          const sizeGroup = document.getElementById('fmGroup_size') || document.querySelector('.fm-variant-group[data-option-type="Size"]');
+          if (sizeGroup) sizeGroup.classList.remove('fm-size-selector-error');
+
           applyVariant(matchedVariant);
         } else {
           // Multiple option types: gather selected values per option type
@@ -964,9 +1005,27 @@
 
     if (form) {
       form.addEventListener('submit', function(e) {
+        const submitBtn = document.getElementById('fmAddToCartBtn');
+        const hasSizeVariants = submitBtn && submitBtn.getAttribute('data-has-size-variants') === 'true';
+        const variantInput = document.getElementById('fmFormVariantId');
+
+        if (hasSizeVariants && (!variantInput || !variantInput.value.trim())) {
+          e.preventDefault();
+          const sizeErrorMsg = document.getElementById('fmSizeErrorMsg');
+          if (sizeErrorMsg) sizeErrorMsg.classList.remove('d-none');
+          const sizeGroup = document.getElementById('fmGroup_size') || document.querySelector('.fm-variant-group[data-option-type="Size"]');
+          if (sizeGroup) {
+            sizeGroup.classList.add('fm-size-selector-error');
+            sizeGroup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          if (typeof showToast === 'function') {
+            showToast('Please select a size before adding to cart.', 'Notice');
+          }
+          return false;
+        }
+
         if (window.fetch && window.FormData) {
           e.preventDefault();
-          const submitBtn = document.getElementById('fmAddToCartBtn');
           if (submitBtn) submitBtn.disabled = true;
 
           const formData = new FormData(form);
@@ -977,16 +1036,16 @@
               'X-Requested-With': 'XMLHttpRequest',
             }
           })
-          .then(res => res.json())
-          .then(data => {
+          .then(res => res.json().then(data => ({ status: res.status, ok: res.ok, data })))
+          .then(({ status, ok, data }) => {
             if (submitBtn) submitBtn.disabled = false;
-            if (data.success) {
+            if (ok && data.success) {
               window.location.href = data.redirect_url || '/cart/';
             } else {
               if (typeof showToast === 'function') {
-                showToast(data.message, 'Notice');
+                showToast(data.message || 'Could not add item to cart.', 'Notice');
               } else {
-                alert(data.message);
+                alert(data.message || 'Could not add item to cart.');
               }
             }
           })

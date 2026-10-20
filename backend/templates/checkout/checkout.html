@@ -353,7 +353,17 @@
                       {{ line.product.name }}
                     </div>
                     {% if line.variant_label %}
-                      <div class="text-muted" style="font-size: 11px;">{{ line.variant_label }}</div>
+                      <div class="mt-1">
+                        <span class="badge bg-light text-dark border" style="font-size: 11px;">
+                          {{ line.variant_label }}
+                        </span>
+                      </div>
+                    {% elif line.variant %}
+                      <div class="mt-1">
+                        <span class="badge bg-light text-dark border" style="font-size: 11px;">
+                          {{ line.variant.option_type }}: {{ line.variant.option_value }}
+                        </span>
+                      </div>
                     {% endif %}
                     <div class="small fw-bold text-dark mt-1">
                       {{ CURRENCY_SYMBOL }}{{ line.line_subtotal }}
