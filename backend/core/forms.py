@@ -32,6 +32,7 @@ from .models import (
     ProductVariant,
     Seller,
     SellerOrder,
+    ContactInquiry,
     GSTIN_REGEX,
     PAN_REGEX,
 )
@@ -2164,5 +2165,129 @@ class AdminBankVerificationForm(forms.Form):
         if action == "reject" and not reason:
             self.add_error("rejection_reason", "Rejection reason is mandatory when rejecting bank details.")
         return cleaned_data
+
+
+class ContactForm(forms.ModelForm):
+    """
+    Customer & Merchant Contact Inquiry Submission Form.
+    Provides rigorous client-side and server-side validation, clean error messages,
+    accessible attributes, and sanitized field inputs.
+    """
+
+    class Meta:
+        model = ContactInquiry
+        fields = ["full_name", "email", "phone_number", "subject", "order_number", "message"]
+        widgets = {
+            "full_name": forms.TextInput(attrs={
+                "class": "form-control fm-input",
+                "placeholder": "e.g. Ramesh Kumar",
+                "required": True,
+                "autocomplete": "name",
+                "id": "contact_full_name",
+            }),
+            "email": forms.EmailInput(attrs={
+                "class": "form-control fm-input",
+                "placeholder": "e.g. ramesh@example.com",
+                "required": True,
+                "autocomplete": "email",
+                "id": "contact_email",
+            }),
+            "phone_number": forms.TextInput(attrs={
+                "class": "form-control fm-input",
+                "placeholder": "e.g. +91 98765 43210 (Optional)",
+                "autocomplete": "tel",
+                "id": "contact_phone_number",
+            }),
+            "subject": forms.Select(attrs={
+                "class": "form-select fm-input",
+                "required": True,
+                "id": "contact_subject",
+            }),
+            "order_number": forms.TextInput(attrs={
+                "class": "form-control fm-input",
+                "placeholder": "e.g. FM-20261010-AB12 (Optional)",
+                "id": "contact_order_number",
+            }),
+            "message": forms.Textarea(attrs={
+                "class": "form-control fm-input",
+                "rows": 5,
+                "placeholder": "Please describe your inquiry or issue in detail...",
+                "required": True,
+                "id": "contact_message",
+            }),
+        }
+
+    def clean_full_name(self):
+        name = (self.cleaned_data.get("full_name") or "").strip()
+        if len(name) < 2:
+            raise ValidationError("Please enter your full name (at least 2 characters).")
+        return name
+
+    def clean_email(self):
+        email = (self.cleaned_data.get("email") or "").strip().lower()
+        if not email or "@" not in email:
+            raise ValidationError("Please provide a valid email address.")
+        return email
+
+    def clean_message(self):
+        message = (self.cleaned_data.get("message") or "").strip()
+        if len(message) < 10:
+            raise ValidationError("Your message is too short. Please provide at least 10 characters.")
+        if len(message) > 5000:
+            raise ValidationError("Your message exceeds the maximum allowed length of 5000 characters.")
+        return message
+
+    def clean_order_number(self):
+        ord_num = (self.cleaned_data.get("order_number") or "").strip().upper()
+        if ord_num.startswith("#"):
+            ord_num = ord_num[1:].strip()
+        return ord_num
+
+
+class OrderTrackingForm(forms.Form):
+    """
+    Customer order tracking search form with dual-factor verification
+    (order number + customer phone or email) to protect privacy.
+    """
+    order_number = forms.CharField(
+        max_length=40,
+        required=True,
+        widget=forms.TextInput(attrs={
+            "class": "form-control fm-input form-control-lg",
+            "placeholder": "e.g. FM-20261010-AB12",
+            "required": True,
+            "autocomplete": "off",
+            "id": "fmTrackOrderNumber",
+        }),
+        label="Order Number",
+    )
+    verification = forms.CharField(
+        max_length=100,
+        required=True,
+        widget=forms.TextInput(attrs={
+            "class": "form-control fm-input form-control-lg",
+            "placeholder": "Email address or 10-digit mobile number used at checkout",
+            "required": True,
+            "autocomplete": "off",
+            "id": "fmTrackVerification",
+        }),
+        label="Email or Mobile Number",
+        help_text="Enter the email address or phone number provided during checkout.",
+    )
+
+    def clean_order_number(self):
+        ord_num = (self.cleaned_data.get("order_number") or "").strip().upper()
+        if ord_num.startswith("#"):
+            ord_num = ord_num[1:].strip()
+        if not ord_num:
+            raise ValidationError("Please enter your Fitmeezo order number.")
+        return ord_num
+
+    def clean_verification(self):
+        v = (self.cleaned_data.get("verification") or "").strip().lower()
+        if not v:
+            raise ValidationError("Please enter your verification email or phone number.")
+        return v
+
 
 

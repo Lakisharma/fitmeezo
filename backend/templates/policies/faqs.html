@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Frequently Asked Questions (FAQ) — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Find fast answers to frequently asked questions about Fitmeezo orders, shipment tracking, 7-day returns, payments, COD, and vendor registration.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Frequently Asked Questions</span>
+  </nav>
+
+  <!-- Page Header & Live Search -->
+  <div class="text-center mb-5">
+    <span class="badge px-3 py-2 rounded-pill mb-2" style="background-color: var(--fm-primary-subtle); color: var(--fm-primary); font-weight: 700;">
+      <i class="bi bi-question-circle-fill me-1" aria-hidden="true"></i> Help &amp; Support Hub
+    </span>
+    <h1 class="h2 fw-bold text-dark mb-2">How Can We Help You Today?</h1>
+    <p class="text-secondary mx-auto mb-4" style="max-width: 600px;">
+      Explore our frequently asked questions or type a keyword below to find answers on shipping, returns, payment options, and accounts.
+    </p>
+
+    <!-- FAQ Search Bar -->
+    <div class="row justify-content-center">
+      <div class="col-md-7 col-lg-6">
+        <div class="input-group input-group-lg shadow-sm border rounded-pill overflow-hidden bg-white">
+          <span class="input-group-text bg-white border-0 ps-3 text-muted">
+            <i class="bi bi-search" aria-hidden="true"></i>
+          </span>
+          <input type="text" id="faqSearchInput" class="form-control border-0 py-3 shadow-none" placeholder="Search questions (e.g. shipping, return, refund, COD)..." aria-label="Search FAQs">
+          <button class="btn btn-outline-secondary border-0 pe-3" type="button" id="faqClearBtn" style="display: none;">
+            <i class="bi bi-x-circle-fill"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAQ Category Filter Pills -->
+  <div class="d-flex justify-content-center gap-2 flex-wrap mb-4" id="faqCategoryFilter">
+    <button class="btn btn-sm btn-dark rounded-pill px-3 py-2 active" data-category="all">All Topics</button>
+    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-2" data-category="orders">Orders &amp; Tracking</button>
+    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-2" data-category="shipping">Shipping &amp; Delivery</button>
+    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-2" data-category="returns">Returns &amp; Refunds</button>
+    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-2" data-category="payments">Payments &amp; COD</button>
+    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 py-2" data-category="sellers">Selling on Fitmeezo</button>
+  </div>
+
+  <!-- Accordion FAQ Items -->
+  <div class="row justify-content-center">
+    <div class="col-lg-9">
+      <div class="accordion shadow-sm border rounded-3 overflow-hidden bg-white" id="faqAccordion">
+
+        <!-- Question 1: Orders -->
+        <div class="accordion-item faq-item" data-category="orders">
+          <h2 class="accordion-header" id="faqHeading1">
+            <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse1" aria-expanded="true" aria-controls="faqCollapse1">
+              How do I track the delivery status of my order?
+            </button>
+          </h2>
+          <div id="faqCollapse1" class="accordion-collapse collapse show" aria-labelledby="faqHeading1" data-bs-parent="#faqAccordion">
+            <div class="accordion-body text-secondary" style="line-height: 1.7;">
+              You can track your parcel live anytime using our <a href="{% url 'core:order_track' %}" class="text-primary fw-semibold">Track Your Order</a> page. Enter your Order Number (e.g. FM-20261010-AB12) and your registered contact email or mobile number. If you have an account, you can also view order status under <strong>My Account &gt; My Orders</strong>.
+            </div>
+          </div>
+        </div>
+
+        <!-- Question 2: Shipping -->
+        <div class="accordion-item faq-item" data-category="shipping">
+          <h2 class="accordion-header" id="faqHeading2">
+            <button class="accordion-button collapsed fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse2" aria-expanded="false" aria-controls="faqCollapse2">
+              What are the delivery charges on Fitmeezo?
+            </button>
+          </h2>
+          <div id="faqCollapse2" class="accordion-collapse collapse" aria-labelledby="faqHeading2" data-bs-parent="#faqAccordion">
+            <div class="accordion-body text-secondary" style="line-height: 1.7;">
+              Fitmeezo provides <strong>FREE standard delivery</strong> on all orders where the subtotal is ₹499.00 or higher. For orders under ₹499.00, a flat courier fee of ₹49.00 is applied at checkout. Full details are available in our <a href="{% url 'core:shipping_policy' %}" class="text-primary fw-semibold">Shipping Policy</a>.
+            </div>
+          </div>
+        </div>
+
+        <!-- Question 3: Shipping Timeline -->
+        <div class="accordion-item faq-item" data-category="shipping">
+          <h2 class="accordion-header" id="faqHeading3">
+            <button class="accordion-button collapsed fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse3" aria-expanded="false" aria-controls="faqCollapse3">
+              How many days will it take for my order to arrive?
+            </button>
+          </h2>
+          <div id="faqCollapse3" class="accordion-collapse collapse" aria-labelledby="faqHeading3" data-bs-parent="#faqAccordion">
+            <div class="accordion-body text-secondary" style="line-height: 1.7;">
+              Orders are dispatched from our partner hubs within 24–48 business hours. Most deliveries across India reach your doorstep within <strong>3 to 7 business days</strong> depending on your PIN code and location.
+            </div>
+          </div>
+        </div>
+
+        <!-- Question 4: Returns -->
+        <div class="accordion-item faq-item" data-category="returns">
+          <h2 class="accordion-header" id="faqHeading4">
+            <button class="accordion-button collapsed fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse4" aria-expanded="false" aria-controls="faqCollapse4">
+              What is Fitmeezo's return window and eligibility?
+            </button>
+          </h2>
+          <div id="faqCollapse4" class="accordion-collapse collapse" aria-labelledby="faqHeading4" data-bs-parent="#faqAccordion">
+            <div class="accordion-body text-secondary" style="line-height: 1.7;">
+              We offer a <strong>7-day hassle-free return policy</strong> starting from the date of confirmed delivery. Eligible items must be unused, unwashed, and returned in their original packaging with all brand tags and accessories intact. Innerwear and personal hygiene items are non-returnable.
+            </div>
+          </div>
+        </div>
+
+        <!-- Question 5: Refunds -->
+        <div class="accordion-item faq-item" data-category="returns">
+          <h2 class="accordion-header" id="faqHeading5">
+            <button class="accordion-button collapsed fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse5" aria-expanded="false" aria-controls="faqCollapse5">
+              How and when will I receive my refund?
+            </button>
+          </h2>
+          <div id="faqCollapse5" class="accordion-collapse collapse" aria-labelledby="faqHeading5" data-bs-parent="#faqAccordion">
+            <div class="accordion-body text-secondary" style="line-height: 1.7;">
+              Once our fulfillment team receives and inspects the returned item (within 48 hours), refunds are processed immediately. For online prepaid orders, funds reflect in your original payment method in <strong>5–7 business days</strong>. For Cash on Delivery orders, funds are deposited to your bank account via NEFT/IMPS within <strong>3–5 business days</strong>.
+            </div>
+          </div>
+        </div>
+
+        <!-- Question 6: Payments -->
+        <div class="accordion-item faq-item" data-category="payments">
+          <h2 class="accordion-header" id="faqHeading6">
+            <button class="accordion-button collapsed fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse6" aria-expanded="false" aria-controls="faqCollapse6">
+              What payment methods does Fitmeezo accept?
+            </button>
+          </h2>
+          <div id="faqCollapse6" class="accordion-collapse collapse" aria-labelledby="faqHeading6" data-bs-parent="#faqAccordion">
+            <div class="accordion-body text-secondary" style="line-height: 1.7;">
+              We support a full suite of secure payment options:
+              <ul>
+                <li><strong>UPI:</strong> Google Pay, PhonePe, Paytm, BHIM, and bank UPI apps.</li>
+                <li><strong>Debit &amp; Credit Cards:</strong> Visa, MasterCard, RuPay, and American Express.</li>
+                <li><strong>Net Banking:</strong> Over 50+ supported Indian banks.</li>
+                <li><strong>Cash on Delivery (COD):</strong> Available on eligible PIN codes.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Question 7: Authenticity -->
+        <div class="accordion-item faq-item" data-category="orders">
+          <h2 class="accordion-header" id="faqHeading7">
+            <button class="accordion-button collapsed fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse7" aria-expanded="false" aria-controls="faqCollapse7">
+              Are products sold on Fitmeezo 100% genuine and authentic?
+            </button>
+          </h2>
+          <div id="faqCollapse7" class="accordion-collapse collapse" aria-labelledby="faqHeading7" data-bs-parent="#faqAccordion">
+            <div class="accordion-body text-secondary" style="line-height: 1.7;">
+              Yes, absolutely. We enforce a zero-tolerance policy against counterfeit merchandise. All sellers must submit verified GSTIN, PAN, and business credentials before listing. Learn more about our authenticity checks on our <a href="{% url 'core:guarantee' %}" class="text-primary fw-semibold">100% Genuine Guarantee</a> page.
+            </div>
+          </div>
+        </div>
+
+        <!-- Question 8: Sellers -->
+        <div class="accordion-item faq-item" data-category="sellers">
+          <h2 class="accordion-header" id="faqHeading8">
+            <button class="accordion-button collapsed fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#faqCollapse8" aria-expanded="false" aria-controls="faqCollapse8">
+              How can I register as a seller on Fitmeezo?
+            </button>
+          </h2>
+          <div id="faqCollapse8" class="accordion-collapse collapse" aria-labelledby="faqHeading8" data-bs-parent="#faqAccordion">
+            <div class="accordion-body text-secondary" style="line-height: 1.7;">
+              Indian merchants and brand owners can register on our dedicated vendor portal at <a href="{% url 'core:seller_register' %}" class="text-primary fw-semibold">Sell with Us (Vendors)</a>. Complete your business profile, submit your GSTIN and bank details for automated verification, and start cataloging products.
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- No search results placeholder -->
+      <div id="faqNoResults" class="text-center p-5 bg-white border rounded-3 mt-3 shadow-sm" style="display: none;">
+        <i class="bi bi-question-circle text-muted fs-1 mb-2"></i>
+        <h4 class="h5 fw-bold text-dark">No Matching Questions Found</h4>
+        <p class="text-secondary small mb-3">
+          We couldn't find an answer matching your query. Our customer helpline is available to help!
+        </p>
+        <a href="{% url 'core:contact' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-headset me-1"></i> Ask Customer Support
+        </a>
+      </div>
+
+      <!-- Help CTA Banner -->
+      <div class="mt-4 p-4 rounded-3 text-center border shadow-sm" style="background: var(--fm-light-surface);">
+        <h3 class="h5 fw-bold text-dark mb-1">Still Have Questions?</h3>
+        <p class="text-secondary small mb-3">Our customer support specialists are ready to assist you Monday through Saturday, 9 AM – 9 PM IST.</p>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+          <a href="tel:{{ SUPPORT_PHONE_TEL|default:'+91940885323' }}" class="fm-btn fm-btn-outline py-2 px-3 small">
+            <i class="bi bi-telephone me-1"></i> Call {{ SUPPORT_PHONE|default:'+91 940885323' }}
+          </a>
+          <a href="{% url 'core:contact' %}" class="fm-btn fm-btn-primary py-2 px-3 small">
+            <i class="bi bi-envelope me-1"></i> Send Us a Message
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const searchInput = document.getElementById('faqSearchInput');
+  const clearBtn = document.getElementById('faqClearBtn');
+  const categoryBtns = document.querySelectorAll('#faqCategoryFilter button');
+  const faqItems = document.querySelectorAll('.faq-item');
+  const noResults = document.getElementById('faqNoResults');
+  let currentCategory = 'all';
+
+  function filterFAQs() {
+    const query = searchInput.value.toLowerCase().trim();
+    let visibleCount = 0;
+
+    faqItems.forEach(function (item) {
+      const category = item.getAttribute('data-category');
+      const text = item.textContent.toLowerCase();
+      const matchesCategory = (currentCategory === 'all' || category === currentCategory);
+      const matchesQuery = (!query || text.includes(query));
+
+      if (matchesCategory && matchesQuery) {
+        item.style.display = '';
+        visibleCount++;
+      } else {
+        item.style.display = 'none';
+      }
+    });
+
+    if (noResults) {
+      noResults.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', function () {
+      if (clearBtn) clearBtn.style.display = this.value ? 'inline-block' : 'none';
+      filterFAQs();
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener('click', function () {
+      searchInput.value = '';
+      this.style.display = 'none';
+      filterFAQs();
+      searchInput.focus();
+    });
+  }
+
+  categoryBtns.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      categoryBtns.forEach(b => {
+        b.classList.remove('btn-dark', 'active');
+        b.classList.add('btn-outline-secondary');
+      });
+      this.classList.remove('btn-outline-secondary');
+      this.classList.add('btn-dark', 'active');
+      currentCategory = this.getAttribute('data-category');
+      filterFAQs();
+    });
+  });
+});
+</script>
+{% endblock %}

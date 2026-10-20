@@ -3,6 +3,7 @@ import csv
 from decimal import Decimal
 import json
 import logging
+import re
 from urllib.parse import quote
 import uuid
 
@@ -29,9 +30,16 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .cart import Cart
-from .emails import send_order_confirmation_email, send_payment_failed_email, send_payment_success_email
+from .emails import (
+    send_contact_inquiry_email,
+    send_order_confirmation_email,
+    send_payment_failed_email,
+    send_payment_success_email,
+)
 from .forms import (
     AddressForm,
+    ContactForm,
+    OrderTrackingForm,
     CustomerLoginForm,
     CustomerProfileForm,
     CustomerRegistrationForm,
@@ -56,9 +64,11 @@ from .forms import (
 from .models import (
     Address,
     Category,
+    ContactInquiry,
     CustomerProfile,
     Order,
     OrderItem,
+    OrderStatusHistory,
     Product,
     ProductImage,
     ProductReview,
@@ -1286,9 +1296,165 @@ def account_address_set_default(request, pk):
 
 def terms_view(request):
     """
-    Renders Fitmeezo Terms of Service & Privacy Policy informational page.
+    Renders Fitmeezo Terms of Service & Legal Policies page.
     """
     return render(request, "account/terms.html")
+
+
+def contact_us_view(request):
+    """
+    Renders and processes Fitmeezo Customer Support & Contact Us page.
+    Includes corporate helpline, email, operating hours, and customer inquiry form.
+    """
+    if request.method == "POST":
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            inquiry = form.save(commit=False)
+            inquiry.ip_address = get_client_ip(request)
+            inquiry.save()
+            send_contact_inquiry_email(inquiry)
+            messages.success(
+                request,
+                f"Thank you, {inquiry.full_name}! Your message has been received (Ref #{inquiry.id}). "
+                "Our customer care team will review your inquiry and get back to you shortly."
+            )
+            return redirect("core:contact")
+        else:
+            messages.error(request, "Please check the highlighted errors in the form below.")
+    else:
+        initial_data = {}
+        if request.user.is_authenticated:
+            initial_data["full_name"] = request.user.get_full_name() or request.user.username
+            initial_data["email"] = request.user.email
+            phone = getattr(request.user, "customer_phone", "")
+            if phone:
+                initial_data["phone_number"] = phone
+        form = ContactForm(initial=initial_data)
+
+    return render(request, "contact.html", {"form": form})
+
+
+def order_track_view(request):
+    """
+    Customer Order Tracking Portal with privacy-preserving dual verification.
+    Customers look up their order using Order Number + verification (Email or Mobile).
+    Authenticated customers can also see their recent active orders.
+    """
+    order = None
+    timeline = []
+    packages = []
+    verified = False
+    searched = False
+    form = OrderTrackingForm(request.GET or None)
+
+    order_number = request.GET.get("order_number", "").strip()
+    verification = request.GET.get("verification", "").strip()
+
+    if order_number and verification:
+        searched = True
+        if form.is_valid():
+            ord_num = form.cleaned_data["order_number"]
+            ver_input = form.cleaned_data["verification"]
+
+            matched_order = Order.objects.filter(order_number__iexact=ord_num).first()
+            if matched_order:
+                user_email = (matched_order.user.email or "").strip().lower()
+                order_phone_digits = re.sub(r"\D", "", matched_order.shipping_phone_number or "")
+                input_digits = re.sub(r"\D", "", ver_input)
+
+                is_email_match = ver_input.lower() == user_email and bool(user_email)
+                is_phone_match = bool(input_digits) and (
+                    input_digits == order_phone_digits or
+                    (len(input_digits) >= 10 and order_phone_digits.endswith(input_digits[-10:]))
+                )
+                is_user_match = request.user.is_authenticated and matched_order.user_id == request.user.id
+
+                if is_email_match or is_phone_match or is_user_match:
+                    order = matched_order
+                    verified = True
+                    timeline = order.status_history.all().order_by("created_at")
+                    packages = order.seller_orders.all()
+                else:
+                    messages.error(
+                        request,
+                        "We could not find an order matching that order number and contact detail. "
+                        "Please verify your order number and contact email/mobile and try again."
+                    )
+            else:
+                messages.error(
+                    request,
+                    "We could not find an order matching that order number and contact detail. "
+                    "Please verify your order number and contact email/mobile and try again."
+                )
+
+    recent_orders = []
+    if request.user.is_authenticated and not order:
+        recent_orders = Order.objects.filter(user=request.user).order_by("-created_at")[:5]
+
+    return render(request, "orders/track.html", {
+        "form": form,
+        "order": order,
+        "timeline": timeline,
+        "packages": packages,
+        "verified": verified,
+        "searched": searched,
+        "recent_orders": recent_orders,
+    })
+
+
+def shipping_policy_view(request):
+    """Renders Fitmeezo Official Shipping & Delivery Policy."""
+    return render(request, "policies/shipping.html")
+
+
+def return_policy_view(request):
+    """Renders Fitmeezo Official 7-Day Return & Replacement Policy."""
+    return render(request, "policies/returns.html")
+
+
+def faqs_view(request):
+    """Renders Categorized and Searchable Frequently Asked Questions."""
+    return render(request, "policies/faqs.html")
+
+
+def about_us_view(request):
+    """Renders About Fitmeezo Company Story, Mission, and Core Values."""
+    return render(request, "about/about_us.html")
+
+
+def careers_view(request):
+    """Renders Fitmeezo Careers & Talent Network."""
+    return render(request, "about/careers.html")
+
+
+def guarantee_view(request):
+    """Renders 100% Genuine Authenticity & Quality Guarantee."""
+    return render(request, "about/guarantee.html")
+
+
+def press_view(request):
+    """Renders Fitmeezo Media, Newsroom & Official Announcements."""
+    return render(request, "about/press.html")
+
+
+def privacy_policy_view(request):
+    """Renders Comprehensive Fitmeezo Privacy & Data Protection Policy."""
+    return render(request, "policies/privacy.html")
+
+
+def refund_cancellation_policy_view(request):
+    """Renders Fitmeezo Refund & Order Cancellation Policy."""
+    return render(request, "policies/refund_cancellation.html")
+
+
+def cookie_policy_view(request):
+    """Renders Fitmeezo Cookie, Session & Tracking Policy."""
+    return render(request, "policies/cookies.html")
+
+
+def grievance_policy_view(request):
+    """Renders Consumer Grievance Redressal Officer Information (India)."""
+    return render(request, "policies/grievance.html")
 
 
 # ==============================================================================
@@ -1675,12 +1841,20 @@ def wishlist_api_detail(request, pk):
 def oauth_google_login(request):
     """
     Initiates Google OAuth 2.0 / OpenID Connect login via allauth.
-    If Google credentials are not configured in environment, displays
+    If Google credentials are not configured in environment or database, displays
     a safe setup notice and redirects to the login page.
     """
     client_id = getattr(settings, "GOOGLE_CLIENT_ID", "").strip()
     secret = getattr(settings, "GOOGLE_CLIENT_SECRET", "").strip()
-    if not client_id or not secret or client_id.lower().startswith(("replace_", "your_", "todo")):
+    has_credentials = bool(client_id and secret and not client_id.lower().startswith(("replace_", "your_", "todo")))
+    if not has_credentials:
+        try:
+            from allauth.socialaccount.models import SocialApp
+            has_credentials = SocialApp.objects.filter(provider="google").exists()
+        except Exception:
+            has_credentials = False
+
+    if not has_credentials:
         messages.info(
             request,
             "Google Sign-In is not configured yet. "

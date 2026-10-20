@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Return &amp; Refund Policy — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Fitmeezo 7-Day Return and Refund Policy. Learn about return eligibility, doorstep reverse pickup, inspection timelines, and refund processing to bank account or original payment method.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Return &amp; Refund Policy</span>
+  </nav>
+
+  <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5">
+    <div class="border-bottom pb-4 mb-4">
+      <span class="badge mb-2" style="background: var(--fm-primary);">Customer Protection</span>
+      <h1 class="h2 fw-bold text-dark mb-1">Return &amp; Refund Policy</h1>
+      <p class="text-secondary small mb-0">Window: 7 Days from Delivery • Full Refund &amp; Doorstep Reverse Pickup</p>
+    </div>
+
+    <div class="text-secondary" style="line-height: 1.8; font-size: 1rem;">
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">1. 7-Day Return Window</h2>
+      <p>
+        At Fitmeezo, customer satisfaction is our highest priority. If you receive an item that is defective, damaged in transit, incorrectly dispatched, or fails to meet your expectations, you may initiate a return request within <strong>7 calendar days</strong> from the date of confirmed delivery.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">2. Eligibility Criteria</h2>
+      <p>To qualify for a full refund or replacement, returned items must comply with the following conditions:</p>
+      <ul>
+        <li><strong>Unused &amp; Undamaged:</strong> Merchandise must be in its pristine original condition, unworn, unwashed, and without signs of wear, stains, or fragrance.</li>
+        <li><strong>Original Packaging &amp; Brand Tags:</strong> Product boxes, manufacturer tags, authenticity cards, warranty booklets, and all accompanying accessories must remain intact.</li>
+        <li><strong>Original Invoice:</strong> The customer must retain the order invoice or digital receipt available in the customer dashboard.</li>
+      </ul>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">3. Non-Returnable Items</h2>
+      <p>
+        For hygiene, safety, and health regulations, the following product categories are strictly non-returnable unless delivered in damaged or defective condition:
+      </p>
+      <ul>
+        <li>Innerwear, lingerie, swimwear, and personal hygiene products.</li>
+        <li>Cosmetics, perfumes, and skincare items with unsealed or opened packaging.</li>
+        <li>Customized, tailored, or personalized merchandise.</li>
+      </ul>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">4. Step-by-Step Return Process</h2>
+      <ol class="mb-3">
+        <li><strong>Submit Request:</strong> Log in to your account, visit <a href="{% url 'core:account_orders' %}" class="text-primary text-decoration-underline">My Orders</a>, locate your delivered purchase, and click <em>"Return Items"</em>. Select the return reason and upload photos if damaged.</li>
+        <li><strong>Approval &amp; Pickup:</strong> Our support team reviews and approves requests within 24 to 48 hours. A courier agent will be dispatched to collect the parcel from your original delivery address with zero return shipping cost.</li>
+        <li><strong>Quality Inspection:</strong> Once the returned merchandise reaches our fulfillment hub, our quality assurance team inspects the item within <strong>48 hours</strong>.</li>
+        <li><strong>Refund Dispatch:</strong> Upon successful inspection, the refund is triggered immediately to your preferred refund method.</li>
+      </ol>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">5. Refund Timelines &amp; Methods</h2>
+      <div class="table-responsive my-3">
+        <table class="table table-bordered table-striped align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th scope="col">Original Payment Method</th>
+              <th scope="col">Refund Route</th>
+              <th scope="col">Processing Timeline</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Prepaid (Razorpay / UPI / Cards / Net Banking)</strong></td>
+              <td>Credited back to the original source bank/card/UPI account</td>
+              <td>5 to 7 Business Days</td>
+            </tr>
+            <tr>
+              <td><strong>Cash on Delivery (COD)</strong></td>
+              <td>Direct bank transfer (NEFT/IMPS) via secure customer-provided bank details</td>
+              <td>3 to 5 Business Days after bank details verification</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">6. Order Cancellation Prior to Dispatch</h2>
+      <p>
+        Orders can be cancelled at zero charge directly from your account before the merchant has marked them as packed and dispatched. For prepaid orders cancelled prior to shipment, 100% of the payment is refunded instantly back to the source account.
+      </p>
+
+      <div class="mt-5 pt-4 border-top d-flex gap-3 flex-wrap">
+        <a href="{% url 'core:account_orders' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-box-arrow-in-down-left me-1"></i> Go to My Orders
+        </a>
+        <a href="{% url 'core:contact' %}" class="fm-btn fm-btn-outline">
+          <i class="bi bi-headset me-1"></i> Contact Support Helpline
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Cookie Policy &amp; Session Management — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Understand Fitmeezo's Cookie Policy. We use strictly necessary session and security cookies (sessionid, csrftoken) to ensure shopping cart, login, and fraud protection.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Cookie Policy</span>
+  </nav>
+
+  <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5">
+    <div class="border-bottom pb-4 mb-4">
+      <span class="badge mb-2" style="background: var(--fm-primary);">Website Transparency</span>
+      <h1 class="h2 fw-bold text-dark mb-1">Fitmeezo Cookie Policy</h1>
+      <p class="text-secondary small mb-0">Updated: October 2026 • Strict Operational Privacy</p>
+    </div>
+
+    <div class="text-secondary" style="line-height: 1.8; font-size: 1rem;">
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">1. What Are Cookies?</h2>
+      <p>
+        Cookies are small cryptographic text files placed on your computer, tablet, or smartphone by our web servers when you browse Fitmeezo. They are essential for enabling basic website functionality such as maintaining your active login session, remembering items placed into your shopping cart, and securing form submissions against malicious cyber attacks.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">2. The Actual Cookies We Use</h2>
+      <p>
+        Fitmeezo utilizes exclusively <strong>strictly necessary first-party cookies</strong> required for the reliable operation of our e-commerce platform:
+      </p>
+
+      <div class="table-responsive my-3">
+        <table class="table table-bordered table-striped align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th scope="col">Cookie Identifier</th>
+              <th scope="col">Category</th>
+              <th scope="col">Operational Purpose</th>
+              <th scope="col">Lifespan</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>sessionid</code></td>
+              <td>Essential Authentication</td>
+              <td>Maintains your authenticated customer session, cart items, and wishlist selections while browsing across different catalog categories.</td>
+              <td>Session / 2 Weeks</td>
+            </tr>
+            <tr>
+              <td><code>csrftoken</code></td>
+              <td>Security &amp; CSRF Defense</td>
+              <td>Protects your account against Cross-Site Request Forgery (CSRF) attacks when submitting payment, address, and login forms.</td>
+              <td>1 Year (Standard Django)</td>
+            </tr>
+            <tr>
+              <td><code>messages</code></td>
+              <td>User Experience</td>
+              <td>Stores temporary flash notification alerts (e.g. order placed, review submitted) that clear after display.</td>
+              <td>Session</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">3. Advertising &amp; Third-Party Trackers</h2>
+      <p>
+        <strong>Fitmeezo does not deploy third-party advertising tracking pixels, cross-site social surveillance cookies, or invasive behavioral retargeting cookies</strong>. Our platform focuses entirely on providing you with direct, uncompromised e-commerce shopping without selling your browsing footprints.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">4. Controlling Cookies in Your Browser</h2>
+      <p>
+        You can choose to disable or block cookies through your individual browser preferences (Chrome, Firefox, Safari, Edge). Please note that because our cookies are strictly essential for core functions, disabling cookies will prevent you from logging into your account, maintaining a shopping cart, or completing checkouts.
+      </p>
+
+      <div class="mt-5 pt-4 border-top d-flex gap-3 flex-wrap">
+        <a href="{% url 'core:privacy_policy' %}" class="fm-btn fm-btn-outline">
+          <i class="bi bi-shield-check me-1"></i> View Privacy Policy
+        </a>
+        <a href="{% url 'core:contact' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-headset me-1"></i> Contact Support
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Privacy Policy &amp; Data Protection — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Read Fitmeezo's Privacy Policy. Understand how customer personal data is collected, securely encrypted with PBKDF2/SHA-256, used for order fulfillment, and never sold to third parties.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Privacy Policy</span>
+  </nav>
+
+  <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5">
+    <div class="border-bottom pb-4 mb-4">
+      <span class="badge mb-2" style="background: var(--fm-primary);">Legal &amp; Compliance</span>
+      <h1 class="h2 fw-bold text-dark mb-1">Privacy Policy &amp; Customer Data Commitment</h1>
+      <p class="text-secondary small mb-0">Effective Date: October 2026 • Governing Jurisdiction: Republic of India</p>
+    </div>
+
+    <div class="text-secondary" style="line-height: 1.8; font-size: 1rem;">
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">1. Scope &amp; Commitment</h2>
+      <p>
+        Fitmeezo (<strong>"Fitmeezo"</strong>, <strong>"we"</strong>, <strong>"us"</strong>, <strong>"our"</strong>) respects your privacy and is dedicated to safeguarding your personal information. This Privacy Policy details the exact data we collect, why we collect it, how it is encrypted and retained, and your rights concerning your personal information when utilizing our website (<a href="https://fitmeezo.com" class="text-primary text-decoration-none" target="_blank" rel="noopener">https://fitmeezo.com</a>).
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">2. Information We Actually Collect</h2>
+      <p>We collect only the information necessary to provide e-commerce shopping services:</p>
+      <ul>
+        <li><strong>Account Registration &amp; Authentication:</strong> Full name, verified email address, optional contact mobile number, and cryptographic password hash (PBKDF2/SHA-256 algorithm). We never view or store plaintext passwords.</li>
+        <li><strong>Order &amp; Delivery Information:</strong> Recipient full name, delivery contact phone number, detailed street address, locality, city, state, and 6-digit postal PIN code required for logistics dispatch.</li>
+        <li><strong>Shopping &amp; Interaction Data:</strong> Shopping cart contents, wishlist selections, purchase history, customer reviews submitted, and returns requested.</li>
+        <li><strong>Technical &amp; Session Identifiers:</strong> IP address recorded during inquiry/order placement for fraud prevention, browser type, and essential security cookies (Django <code>sessionid</code> and <code>csrftoken</code>).</li>
+      </ul>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">3. Payment Information &amp; PCI-DSS Compliance</h2>
+      <p>
+        All digital online payments (UPI, Credit Cards, Debit Cards, Net Banking) are processed directly via <strong>Razorpay</strong>, an authorized, PCI-DSS Level 1 certified payment aggregator in India. 
+        <strong>Fitmeezo does not store, process, or view your debit/credit card numbers, CVV codes, UPI PINs, or banking passwords.</strong> Transaction settlement occurs via secure encrypted tokens.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">4. Purpose of Data Processing</h2>
+      <p>We process your personal data strictly for legitimate operational purposes:</p>
+      <ul>
+        <li>Fulfilling orders, preparing packing slips, and coordinating doorstep delivery via logistics partners.</li>
+        <li>Transmitting order confirmations, tracking alerts, and invoice PDFs to your registered email.</li>
+        <li>Facilitating customer returns, replacements, and automated refunds.</li>
+        <li>Preventing e-commerce fraud, unauthorized account takeovers, and bot submissions.</li>
+      </ul>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">5. Zero Sale of Personal Data</h2>
+      <p>
+        <strong>Fitmeezo does not sell, rent, monetize, or trade your personal information</strong> with data brokers, advertising syndicates, or unauthorized third parties. We share recipient delivery details exclusively with courier and logistics partners (such as Blue Dart, Delhivery) strictly to complete physical delivery.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">6. Customer Rights &amp; Access Controls</h2>
+      <p>You maintain full control over your personal account information:</p>
+      <ul>
+        <li>You can view and modify your profile details anytime in <a href="{% url 'core:account_profile' %}" class="text-primary text-decoration-underline">My Profile</a>.</li>
+        <li>You can add, edit, or delete saved addresses in <a href="{% url 'core:account_addresses' %}" class="text-primary text-decoration-underline">Saved Addresses</a>.</li>
+        <li>You may request complete account deactivation and data deletion by contacting our grievance team.</li>
+      </ul>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">7. Grievance Redressal &amp; Privacy Queries</h2>
+      <p>
+        If you have questions, concerns, or requests regarding this Privacy Policy, please contact our designated Grievance Officer at <a href="mailto:grievance@fitmeezo.com" class="text-dark fw-bold">grievance@fitmeezo.com</a> or via our <a href="{% url 'core:grievance_policy' %}" class="text-primary text-decoration-underline">Grievance Information page</a>.
+      </p>
+
+      <div class="mt-5 pt-4 border-top d-flex gap-3 flex-wrap">
+        <a href="{% url 'core:terms' %}" class="fm-btn fm-btn-outline">
+          <i class="bi bi-file-text me-1"></i> Review Terms &amp; Conditions
+        </a>
+        <a href="{% url 'core:contact' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-headset me-1"></i> Contact Privacy Desk
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

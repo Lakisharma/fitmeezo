@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Refund &amp; Cancellation Policy — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Fitmeezo Order Cancellation and Refund Policy. Learn about free cancellation before dispatch, 100% refund for prepaid orders, and 7-day post-delivery returns.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Refund &amp; Cancellation</span>
+  </nav>
+
+  <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5">
+    <div class="border-bottom pb-4 mb-4">
+      <span class="badge mb-2" style="background: var(--fm-primary);">Customer Protection</span>
+      <h1 class="h2 fw-bold text-dark mb-1">Refund &amp; Cancellation Policy</h1>
+      <p class="text-secondary small mb-0">Hassle-Free Cancellations &amp; Direct Bank / Source Account Refunds</p>
+    </div>
+
+    <div class="text-secondary" style="line-height: 1.8; font-size: 1rem;">
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">1. Order Cancellation (Prior to Dispatch)</h2>
+      <p>
+        You have the right to cancel your order at <strong>any time before it has been marked as shipped</strong> by the fulfilling merchant or platform warehouse.
+      </p>
+      <ul>
+        <li><strong>Cancellation Process:</strong> Simply go to <a href="{% url 'core:account_orders' %}" class="text-primary text-decoration-underline">My Orders</a> in your account dashboard, find the order in 'Pending', 'Confirmed', or 'Processing' status, and click <em>"Cancel Order"</em>.</li>
+        <li><strong>Cancellation Fee:</strong> There are zero cancellation charges or penalty deductions.</li>
+        <li><strong>Prepaid Orders:</strong> If payment was completed online via Razorpay (UPI, Credit/Debit Card, Net Banking), a 100% refund of the transaction total (including any delivery fee) is triggered automatically upon cancellation confirmation.</li>
+      </ul>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">2. Cancellation After Dispatch (In Transit)</h2>
+      <p>
+        If your order has already been handed over to our logistics partner and is in transit, cancellation cannot be completed via the online dashboard. In this case, you may simply <strong>decline/refuse acceptance</strong> of the parcel when the courier executive arrives at your doorstep. Once the shipment returns to our warehouse, your refund will be processed.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">3. Post-Delivery Returns &amp; Refunds (7 Days)</h2>
+      <p>
+        Once delivered, our <a href="{% url 'core:return_policy' %}" class="text-primary text-decoration-underline">7-Day Return Policy</a> takes effect. You have 7 days from the delivery date to initiate a return request if:
+      </p>
+      <ul>
+        <li>The product is defective, damaged, or malfunctioning.</li>
+        <li>The delivered product differs from what was ordered (incorrect size, color, or model).</li>
+        <li>The item is unwashed, unused, and in original packaging with tags intact.</li>
+      </ul>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">4. Refund Execution &amp; Crediting Timelines</h2>
+      <div class="table-responsive my-3">
+        <table class="table table-bordered table-striped align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th scope="col">Case Type</th>
+              <th scope="col">Payment Mode</th>
+              <th scope="col">Refund Route</th>
+              <th scope="col">Timeline</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Pre-Dispatch Cancellation</td>
+              <td>Online (UPI / Cards / Net Banking)</td>
+              <td>Original Source Account (Razorpay)</td>
+              <td>Instant to 5 Business Days</td>
+            </tr>
+            <tr>
+              <td>Pre-Dispatch Cancellation</td>
+              <td>Cash on Delivery (COD)</td>
+              <td>No payment collected</td>
+              <td>Immediate Void</td>
+            </tr>
+            <tr>
+              <td>Approved Return / Refund</td>
+              <td>Online (UPI / Cards / Net Banking)</td>
+              <td>Original Source Account</td>
+              <td>5 to 7 Business Days after hub inspection</td>
+            </tr>
+            <tr>
+              <td>Approved Return / Refund</td>
+              <td>Cash on Delivery (COD)</td>
+              <td>Direct Bank Transfer (NEFT/IMPS)</td>
+              <td>3 to 5 Business Days after customer bank details verified</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-5 pt-4 border-top d-flex gap-3 flex-wrap">
+        <a href="{% url 'core:account_orders' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-box-seam me-1"></i> Manage My Orders
+        </a>
+        <a href="{% url 'core:contact' %}" class="fm-btn fm-btn-outline">
+          <i class="bi bi-headset me-1"></i> Contact Support Helpline
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

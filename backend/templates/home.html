@@ -126,9 +126,7 @@
         <span class="fm-code-pill">{{ campaign_banner.coupon_code }}</span>
       </div>
       <a href="#featured-products"
-         class="fm-btn fm-btn-primary"
-         data-placeholder="true"
-         data-placeholder-label="Festival Offers">
+         class="fm-btn fm-btn-primary">
         <span>Explore Offers</span>
         <i class="bi bi-arrow-right" aria-hidden="true"></i>
       </a>
@@ -180,7 +178,7 @@
       <span class="fm-section-pretitle">Handpicked Selections</span>
       <h2 id="featured-title" class="fm-section-title">Featured Products</h2>
     </div>
-    <a href="#" class="fm-section-link" data-placeholder="true" data-placeholder-label="View All Featured Products">
+    <a href="{% url 'core:category_list' %}" class="fm-section-link">
       <span>View All</span>
       <i class="bi bi-chevron-right" aria-hidden="true"></i>
     </a>
@@ -223,7 +221,7 @@
       <span class="fm-section-pretitle">Trending in India Right Now</span>
       <h2 id="trending-title" class="fm-section-title">Popular Demands</h2>
     </div>
-    <a href="#" class="fm-section-link" data-placeholder="true" data-placeholder-label="View All Trending Products">
+    <a href="{% url 'core:category_list' %}" class="fm-section-link">
       <span>See What's Hot</span>
       <i class="bi bi-fire" aria-hidden="true"></i>
     </a>

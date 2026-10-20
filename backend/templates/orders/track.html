@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Track Your Order — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Track your Fitmeezo shipment and delivery status using your order number and registered contact details. Live delivery updates across India.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <!-- Breadcrumb Navigation -->
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Track Your Order</span>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="text-center mb-4 mb-md-5">
+    <span class="badge px-3 py-2 rounded-pill mb-2" style="background-color: var(--fm-primary-subtle); color: var(--fm-primary); font-weight: 700;">
+      <i class="bi bi-truck me-1" aria-hidden="true"></i> Live Shipment Tracking
+    </span>
+    <h1 class="h2 fw-bold text-dark mb-2">Track Your Package &amp; Delivery Status</h1>
+    <p class="text-secondary mx-auto mb-0" style="max-width: 620px;">
+      Enter your Fitmeezo Order Number along with your checkout email or mobile number to track real-time delivery milestones.
+    </p>
+  </div>
+
+  <!-- Search Card -->
+  <div class="row justify-content-center mb-5">
+    <div class="col-lg-8">
+      <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5">
+        <form method="get" action="{% url 'core:order_track' %}" class="row g-3" id="fmOrderTrackingForm">
+          <div class="col-md-6">
+            <label for="{{ form.order_number.id_for_label }}" class="form-label fw-bold small text-dark">
+              Order Number <span class="text-danger">*</span>
+            </label>
+            {{ form.order_number }}
+            <div class="form-text small text-muted">e.g. FM-20261010-AB12 (found in confirmation SMS/email)</div>
+            {% if form.order_number.errors %}
+              <div class="text-danger small mt-1">{% for e in form.order_number.errors %}{{ e }}{% endfor %}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-md-6">
+            <label for="{{ form.verification.id_for_label }}" class="form-label fw-bold small text-dark">
+              Registered Email or Mobile <span class="text-danger">*</span>
+            </label>
+            {{ form.verification }}
+            <div class="form-text small text-muted">Entered during checkout to verify ownership</div>
+            {% if form.verification.errors %}
+              <div class="text-danger small mt-1">{% for e in form.verification.errors %}{{ e }}{% endfor %}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-12 mt-4 text-center">
+            <button type="submit" class="fm-btn fm-btn-primary px-5 py-2 fw-bold d-inline-flex align-items-center gap-2" id="btnTrackSubmit">
+              <i class="bi bi-search" aria-hidden="true"></i>
+              <span>Track Order</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if verified and order %}
+    <!-- Verified Order Tracking Result -->
+    <div class="row justify-content-center">
+      <div class="col-lg-10">
+        <div class="card border shadow-sm rounded-3 bg-white overflow-hidden mb-4">
+          <!-- Card Header Banner -->
+          <div class="p-4 border-bottom bg-light d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div>
+              <span class="text-muted small text-uppercase fw-bold letter-spacing-1">Order Details</span>
+              <h2 class="h4 fw-bold text-dark mb-1">#{{ order.order_number }}</h2>
+              <div class="text-secondary small">
+                Placed on {{ order.created_at|date:"F j, Y, g:i A" }} IST • Payment: {{ order.get_payment_method_display }}
+              </div>
+            </div>
+            <div>
+              <span class="badge px-3 py-2 fs-6 rounded-pill {% if order.status == 'delivered' %}bg-success{% elif order.status == 'cancelled' %}bg-danger{% elif order.status == 'shipped' %}bg-primary{% else %}bg-warning text-dark{% endif %}">
+                {{ order.get_status_display }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Progress Stepper (if not cancelled) -->
+          {% if order.status != 'cancelled' %}
+            <div class="p-4 p-md-5 border-bottom bg-white">
+              <h3 class="h6 fw-bold text-dark mb-4 text-uppercase letter-spacing-1">Fulfillment Progress</h3>
+              <div class="d-flex justify-content-between position-relative text-center">
+                <!-- Progress Line Behind Icons -->
+                <div class="position-absolute top-50 start-0 translate-middle-y w-100" style="height: 4px; background: #E5E7EB; z-index: 1;">
+                  <div style="height: 100%; background: var(--fm-primary); width: {% if order.status == 'delivered' %}100%{% elif order.status == 'shipped' %}75%{% elif order.status == 'packed' %}50%{% elif order.status == 'processing' or order.status == 'confirmed' %}25%{% else %}10%{% endif %};"></div>
+                </div>
+
+                <!-- Step 1: Confirmed -->
+                <div class="position-relative" style="z-index: 2;">
+                  <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-2 text-white shadow-sm" style="width: 44px; height: 44px; background: {% if order.status != 'pending' %}var(--fm-primary){% else %}#9CA3AF{% endif %};">
+                    <i class="bi bi-check-lg fs-5"></i>
+                  </div>
+                  <div class="fw-bold small text-dark">Confirmed</div>
+                  <div class="text-muted" style="font-size: 11px;">Order Verified</div>
+                </div>
+
+                <!-- Step 2: Processing / Packed -->
+                <div class="position-relative" style="z-index: 2;">
+                  <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-2 text-white shadow-sm" style="width: 44px; height: 44px; background: {% if order.status in 'packed,shipped,delivered' %}var(--fm-primary){% elif order.status in 'confirmed,processing' %}var(--fm-primary-hover){% else %}#9CA3AF{% endif %};">
+                    <i class="bi bi-box-seam fs-5"></i>
+                  </div>
+                  <div class="fw-bold small text-dark">Packed</div>
+                  <div class="text-muted" style="font-size: 11px;">Merchant Sealed</div>
+                </div>
+
+                <!-- Step 3: Shipped -->
+                <div class="position-relative" style="z-index: 2;">
+                  <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-2 text-white shadow-sm" style="width: 44px; height: 44px; background: {% if order.status in 'shipped,delivered' %}var(--fm-primary){% else %}#9CA3AF{% endif %};">
+                    <i class="bi bi-truck fs-5"></i>
+                  </div>
+                  <div class="fw-bold small text-dark">Shipped</div>
+                  <div class="text-muted" style="font-size: 11px;">In Transit</div>
+                </div>
+
+                <!-- Step 4: Delivered -->
+                <div class="position-relative" style="z-index: 2;">
+                  <div class="rounded-circle d-flex align-items-center justify-content-center mx-auto mb-2 text-white shadow-sm" style="width: 44px; height: 44px; background: {% if order.status == 'delivered' %}var(--fm-success){% else %}#9CA3AF{% endif %};">
+                    <i class="bi bi-house-check fs-5"></i>
+                  </div>
+                  <div class="fw-bold small text-dark">Delivered</div>
+                  <div class="text-muted" style="font-size: 11px;">At Destination</div>
+                </div>
+              </div>
+            </div>
+          {% else %}
+            <div class="p-4 border-bottom bg-danger-subtle text-danger">
+              <i class="bi bi-x-circle-fill me-2 fs-5"></i>
+              <strong>This order has been cancelled.</strong>
+              {% if order.cancellation_reason %}<span class="ms-1">Reason: {{ order.cancellation_reason }}</span>{% endif %}
+            </div>
+          {% endif %}
+
+          <!-- Summary & Packages Details -->
+          <div class="p-4 p-md-5">
+            <div class="row g-4">
+              <!-- Left: Destination & Privacy Protection -->
+              <div class="col-md-5 border-end-md">
+                <h4 class="h6 fw-bold text-dark text-uppercase letter-spacing-1 mb-3">Delivery Destination</h4>
+                <div class="bg-light p-3 rounded-3 small">
+                  <div class="fw-bold text-dark">{{ order.shipping_full_name|slice:":1" }}*** {{ order.shipping_full_name|slice:"-1:" }}</div>
+                  <div class="text-muted mt-1">{{ order.shipping_city }}, {{ order.shipping_state }} - {{ order.shipping_postal_code|slice:":3" }}***</div>
+                  <div class="text-muted mt-1"><i class="bi bi-telephone me-1"></i> +91 ******{{ order.shipping_phone_number|slice:"-4:" }}</div>
+                  <div class="mt-2 text-success" style="font-size: 11px;">
+                    <i class="bi bi-shield-check me-1"></i> Customer privacy protected with field masking
+                  </div>
+                </div>
+
+                {% if request.user.is_authenticated and order.user_id == request.user.id %}
+                  <div class="mt-4">
+                    <a href="{% url 'core:order_detail' order.order_number %}" class="fm-btn fm-btn-outline w-100 text-center py-2">
+                      <i class="bi bi-receipt me-1"></i> View Full Order In My Account
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+
+              <!-- Right: Sub-order Packages & Milestones -->
+              <div class="col-md-7">
+                <h4 class="h6 fw-bold text-dark text-uppercase letter-spacing-1 mb-3">Shipment Packages</h4>
+                {% if packages %}
+                  <div class="d-flex flex-column gap-3">
+                    {% for pkg in packages %}
+                      <div class="border rounded-3 p-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                          <span class="fw-bold text-dark small">Package #{{ pkg.sub_order_number }}</span>
+                          <span class="badge bg-secondary">{{ pkg.get_status_display }}</span>
+                        </div>
+                        <div class="text-secondary small">
+                          Fulfilling Merchant: <strong>{{ pkg.seller.store_name|default:"Fitmeezo Direct" }}</strong>
+                        </div>
+                        {% if pkg.shiprocket_awb_code %}
+                          <div class="mt-2 p-2 rounded bg-light small d-flex justify-content-between align-items-center">
+                            <div>
+                              <span class="text-muted">Airway Bill (AWB):</span>
+                              <strong class="text-dark ms-1">{{ pkg.shiprocket_awb_code }}</strong>
+                              {% if pkg.shiprocket_courier_name %}
+                                <span class="badge bg-info ms-1">{{ pkg.shiprocket_courier_name }}</span>
+                              {% endif %}
+                            </div>
+                          </div>
+                        {% else %}
+                          <div class="text-muted small mt-1">Logistics AWB will be updated as soon as courier partner is dispatched.</div>
+                        {% endif %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <div class="text-muted small">
+                    Items are currently being assembled for dispatch. You will receive an SMS and email notification with courier tracking details once dispatched.
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% elif searched and not verified %}
+    <!-- No matching order notice -->
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="card border-0 bg-light rounded-3 p-4 text-center">
+          <i class="bi bi-search text-muted fs-1 mb-2"></i>
+          <h3 class="h5 fw-bold text-dark">No Matching Order Found</h3>
+          <p class="text-secondary small mb-3">
+            Please ensure you have entered the exact order number (e.g. FM-20261010-AB12) and the email or mobile number provided at the time of purchase.
+          </p>
+          <div>
+            <a href="{% url 'core:contact' %}" class="fm-btn fm-btn-outline py-2 px-3 small">
+              <i class="bi bi-headset me-1"></i> Contact Customer Support for Assistance
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Authenticated User Recent Orders Helper -->
+  {% if recent_orders %}
+    <div class="row justify-content-center mt-4">
+      <div class="col-lg-8">
+        <div class="card border rounded-3 p-4 bg-white shadow-sm">
+          <h3 class="h6 fw-bold text-dark mb-3">
+            <i class="bi bi-clock-history me-1 text-primary"></i> Your Recent Purchases
+          </h3>
+          <div class="d-flex flex-column gap-2">
+            {% for r_order in recent_orders %}
+              <div class="d-flex flex-wrap justify-content-between align-items-center p-2 rounded border bg-light">
+                <div>
+                  <strong class="text-dark">#{{ r_order.order_number }}</strong>
+                  <span class="text-muted small ms-2">{{ r_order.created_at|date:"d M Y" }}</span>
+                  <span class="badge bg-secondary ms-2">{{ r_order.get_status_display }}</span>
+                </div>
+                <div class="mt-2 mt-sm-0">
+                  <a href="{% url 'core:order_track' %}?order_number={{ r_order.order_number }}&verification={{ request.user.email }}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-truck me-1"></i> Track Now
+                  </a>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

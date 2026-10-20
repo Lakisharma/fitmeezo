@@ -424,17 +424,15 @@ SOCIALACCOUNT_LOGIN_ON_GET = True
 SOCIALACCOUNT_STORE_TOKENS = False
 SOCIALACCOUNT_AUTO_SIGNUP = True
 
-# Read Google OAuth client ID and secret strictly from environment variables
+# Read Google OAuth client ID and secret strictly from environment variables (fallback/context)
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
 
+# Google OAuth Provider Settings
+# Credentials are loaded exclusively from the database-backed SocialApp record
+# to avoid duplicate app registrations and prevent django-allauth MultipleObjectsReturned errors.
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
-        "APP": {
-            "client_id": GOOGLE_CLIENT_ID,
-            "secret": GOOGLE_CLIENT_SECRET,
-            "key": "",
-        },
         "SCOPE": [
             "profile",
             "email",

@@ -176,3 +176,45 @@ def send_order_cancellation_email(order, reason="", cancelled_by="customer") -> 
         )
         return False
 
+
+def send_contact_inquiry_email(inquiry) -> bool:
+    """
+    Sends customer acknowledgment and platform notification emails for a submitted contact inquiry.
+    Fails silently on network / SMTP errors so inquiry persistence is never interrupted.
+    """
+    if not inquiry or not inquiry.email:
+        return False
+
+    brand_name = getattr(settings, "BRAND_NAME", "Fitmeezo")
+    support_email = getattr(settings, "SUPPORT_EMAIL", "support@fitmeezo.com")
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", f"{brand_name} <{support_email}>")
+
+    subject = f"We have received your message: #{inquiry.id} | {brand_name} Support"
+    text_content = (
+        f"Dear {inquiry.full_name},\n\n"
+        f"Thank you for contacting {brand_name}. We have received your inquiry regarding "
+        f"'{inquiry.get_subject_display()}'.\n\n"
+        f"Inquiry Reference: #{inquiry.id}\n"
+        f"Your Message:\n{inquiry.message}\n\n"
+        f"Our customer care team typically responds within 24 business hours.\n\n"
+        f"Warm regards,\n"
+        f"{brand_name} Customer Care\n"
+        f"Helpline: {getattr(settings, 'SUPPORT_PHONE', '+91 940885323')} (Mon-Sat 9am-9pm IST)\n"
+        f"Email: {support_email}\n"
+    )
+
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content,
+            from_email=from_email,
+            to=[inquiry.email.strip()],
+        )
+        msg.send(fail_silently=False)
+        logger.info(f"Inquiry confirmation email dispatched to {inquiry.email} for #{inquiry.id}")
+        return True
+    except Exception as exc:
+        logger.warning(f"Could not dispatch inquiry email for #{inquiry.id} to {inquiry.email}: {exc}")
+        return False
+
+

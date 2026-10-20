@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Careers at Fitmeezo — Join Our Team{% endblock %}
+
+{% block meta_description %}Explore career opportunities and talent network at Fitmeezo. While active hiring is currently closed, submit your profile for future roles in tech, logistics, and customer success.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Careers</span>
+  </nav>
+
+  <!-- Hero Section -->
+  <div class="text-center mb-5">
+    <span class="badge px-3 py-2 rounded-pill mb-2" style="background-color: var(--fm-primary-subtle); color: var(--fm-primary); font-weight: 700;">
+      <i class="bi bi-people-fill me-1" aria-hidden="true"></i> People &amp; Culture
+    </span>
+    <h1 class="h2 fw-bold text-dark mb-2">Build the Future of Indian E-Commerce With Us</h1>
+    <p class="text-secondary mx-auto mb-0" style="max-width: 650px;">
+      At Fitmeezo, we are building a customer-centric marketplace that values technical excellence, operational integrity, and genuine merchant partnerships.
+    </p>
+  </div>
+
+  <!-- Transparent Hiring Status Banner -->
+  <div class="row justify-content-center mb-5">
+    <div class="col-lg-9">
+      <div class="alert alert-info border-info-subtle shadow-sm p-4 rounded-3 d-flex align-items-start gap-3">
+        <div class="rounded-circle p-2 bg-info text-white flex-shrink-0 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+          <i class="bi bi-info-circle-fill fs-5" aria-hidden="true"></i>
+        </div>
+        <div>
+          <h2 class="h6 fw-bold text-dark mb-1">Current Recruitment Status: Talent Pool Open</h2>
+          <p class="mb-2 text-secondary" style="font-size: 0.95rem; line-height: 1.6;">
+            We are not actively advertising open vacancies at this exact moment as our current core operational and engineering headcount is fully staffed. We do not publish artificial or expired job listings.
+          </p>
+          <p class="mb-0 text-secondary" style="font-size: 0.95rem; line-height: 1.6;">
+            However, we are always eager to review profiles from exceptional developers, logistics experts, and customer support specialists for upcoming expansion phases.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Departments & What We Value -->
+  <div class="row g-4 mb-5 justify-content-center">
+    <div class="col-md-4">
+      <div class="card border rounded-3 p-4 bg-white shadow-sm h-100">
+        <div class="rounded-circle p-3 d-flex align-items-center justify-content-center text-white mb-3" style="background: var(--fm-primary); width: 48px; height: 48px;">
+          <i class="bi bi-code-slash fs-5"></i>
+        </div>
+        <h3 class="h6 fw-bold text-dark mb-2">Software Engineering</h3>
+        <p class="text-secondary small mb-0">
+          Django, Python, modern responsive web architecture, resilient database locking, and high-throughput transaction pipelines.
+        </p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border rounded-3 p-4 bg-white shadow-sm h-100">
+        <div class="rounded-circle p-3 d-flex align-items-center justify-content-center text-white mb-3" style="background: #059669; width: 48px; height: 48px;">
+          <i class="bi bi-boxes fs-5"></i>
+        </div>
+        <h3 class="h6 fw-bold text-dark mb-2">Logistics &amp; Supply Chain</h3>
+        <p class="text-secondary small mb-0">
+          Partner courier coordination, multi-vendor fulfillment, quality inspection, and reverse logistics across Indian territories.
+        </p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card border rounded-3 p-4 bg-white shadow-sm h-100">
+        <div class="rounded-circle p-3 d-flex align-items-center justify-content-center text-white mb-3" style="background: #2563EB; width: 48px; height: 48px;">
+          <i class="bi bi-headset fs-5"></i>
+        </div>
+        <h3 class="h6 fw-bold text-dark mb-2">Customer Care &amp; Support</h3>
+        <p class="text-secondary small mb-0">
+          Delivering empathetic, real-time assistance via telephone, email, and live dispute resolution for thousands of daily shoppers.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Expression of Interest CTA Card -->
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5 text-center">
+        <h2 class="h4 fw-bold text-dark mb-2">Submit Your Expression of Interest</h2>
+        <p class="text-secondary small mx-auto mb-4" style="max-width: 520px;">
+          Send your updated resume and a brief introduction detailing your expertise to our talent inbox. When relevant openings arise, our hiring team will contact you directly.
+        </p>
+        <div class="p-3 rounded-3 bg-light border d-inline-block mx-auto mb-4">
+          <i class="bi bi-envelope-at text-primary me-2"></i>
+          <span class="text-muted small">Official Talent Inbox:</span>
+          <strong class="text-dark ms-1">careers@fitmeezo.com</strong>
+          <span class="text-muted small ms-2">(or via <a href="mailto:{{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}">{{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}</a>)</span>
+        </div>
+        <div>
+          <a href="{% url 'core:contact' %}?subject=other" class="fm-btn fm-btn-primary px-4 py-2">
+            <i class="bi bi-send me-1"></i> Send General Talent Inquiry
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

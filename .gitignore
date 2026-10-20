@@ -38,10 +38,12 @@ venv.bak/
 !.env.example
 secrets.json
 
-# Databases
+# Databases & Fixture dumps
 *.sqlite3
 *.sqlite3-journal
 *.db
+*-transfer.json
+backend/*-transfer.json
 
 # Django media & collected static files
 # backend/media/ is intentionally tracked in Git so that product/category images

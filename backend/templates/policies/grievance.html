@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Grievance Redressal Mechanism &amp; Officer (India) — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Statutory Grievance Redressal information under Consumer Protection (E-Commerce) Rules, 2020. Contact Fitmeezo Grievance Officer: grievance@fitmeezo.com.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Grievance Redressal</span>
+  </nav>
+
+  <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5">
+    <div class="border-bottom pb-4 mb-4">
+      <span class="badge mb-2" style="background: var(--fm-primary);">Regulatory Compliance (India)</span>
+      <h1 class="h2 fw-bold text-dark mb-1">Grievance Redressal Mechanism</h1>
+      <p class="text-secondary small mb-0">
+        In accordance with the Information Technology Act, 2000 &amp; Consumer Protection (E-Commerce) Rules, 2020
+      </p>
+    </div>
+
+    <div class="text-secondary" style="line-height: 1.8; font-size: 1rem;">
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">1. Statutory Overview</h2>
+      <p>
+        Fitmeezo is committed to swift, fair, and transparent resolution of consumer complaints, transaction disputes, and data protection inquiries. In strict compliance with the <strong>Consumer Protection (E-Commerce) Rules, 2020</strong> and the <strong>Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021</strong>, we have designated a dedicated Grievance Officer for India.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">2. Designated Grievance Officer Details</h2>
+      <div class="card border rounded-3 p-4 bg-light my-3 shadow-none">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="text-muted small">Designation:</div>
+            <strong class="text-dark fs-6">Designated Grievance &amp; Compliance Officer</strong>
+          </div>
+          <div class="col-md-6">
+            <div class="text-muted small">Entity Name:</div>
+            <strong class="text-dark fs-6">{{ BRAND_NAME }} E-Commerce Platform</strong>
+          </div>
+          <div class="col-md-6">
+            <div class="text-muted small">Grievance Email Address:</div>
+            <a href="mailto:grievance@fitmeezo.com" class="fw-bold text-primary">grievance@fitmeezo.com</a>
+            <div class="small text-muted">(Alternate: <a href="mailto:{{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}">{{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}</a>)</div>
+          </div>
+          <div class="col-md-6">
+            <div class="text-muted small">Helpline &amp; Operating Hours:</div>
+            <a href="tel:{{ SUPPORT_PHONE_TEL|default:'+91940885323' }}" class="fw-bold text-dark">{{ SUPPORT_PHONE|default:'+91 940885323' }}</a>
+            <div class="small text-muted">Monday to Saturday: 10:00 AM – 7:00 PM IST</div>
+          </div>
+          <div class="col-12">
+            <div class="text-muted small">Registered Regional Office:</div>
+            <div class="text-dark">Fitmeezo Operations Desk, Republic of India</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">3. Escalation &amp; Resolution Timelines</h2>
+      <p>Our statutory grievance handling procedure operates under strict legal deadlines:</p>
+      <ul>
+        <li><strong>Step 1 (First Response):</strong> Before filing a formal grievance, we encourage customers to reach out to our general helpdesk at <a href="{% url 'core:contact' %}" class="text-primary text-decoration-underline">Contact Us</a>, where standard queries are typically resolved within 24 hours.</li>
+        <li><strong>Step 2 (Formal Acknowledgment):</strong> When a formal complaint is escalated to the Grievance Officer, an official acknowledgment and unique ticket number are issued within <strong>48 hours</strong> of receipt.</li>
+        <li><strong>Step 3 (Investigation &amp; Resolution):</strong> Every grievance is thoroughly investigated in coordination with the fulfilling merchant, logistics carrier, or payment gateway. A written resolution is provided within <strong>30 calendar days (1 month)</strong> from the date of complaint registration.</li>
+      </ul>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">4. Submitting a Formal Complaint</h2>
+      <p>When contacting the Grievance Officer, please include:</p>
+      <ul>
+        <li>Your Full Name and registered contact phone number / email address.</li>
+        <li>Order Number (e.g. FM-20261010-AB12) or transaction reference number.</li>
+        <li>Clear, chronological description of the grievance and any prior correspondence with support.</li>
+      </ul>
+
+      <div class="mt-5 pt-4 border-top d-flex gap-3 flex-wrap">
+        <a href="{% url 'core:contact' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-headset me-1"></i> Submit Customer Inquiry
+        </a>
+        <a href="{% url 'core:terms' %}" class="fm-btn fm-btn-outline">
+          <i class="bi bi-file-earmark-text me-1"></i> Terms &amp; Conditions
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

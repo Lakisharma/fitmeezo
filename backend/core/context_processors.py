@@ -73,6 +73,11 @@ def brand_context(request):
         "SUPPORT_PHONE_TEL": getattr(settings, "FITMEEZO_SUPPORT_PHONE", getattr(settings, "SUPPORT_PHONE", "+91 940885323")).replace(" ", "").replace("-", ""),
         "CURRENCY": getattr(settings, "CURRENCY", "INR"),
         "CURRENCY_SYMBOL": getattr(settings, "CURRENCY_SYMBOL", "₹"),
+        "SOCIAL_INSTAGRAM_URL": getattr(settings, "SOCIAL_INSTAGRAM_URL", ""),
+        "SOCIAL_FACEBOOK_URL": getattr(settings, "SOCIAL_FACEBOOK_URL", ""),
+        "SOCIAL_X_URL": getattr(settings, "SOCIAL_X_URL", ""),
+        "SOCIAL_LINKEDIN_URL": getattr(settings, "SOCIAL_LINKEDIN_URL", ""),
+        "SOCIAL_YOUTUBE_URL": getattr(settings, "SOCIAL_YOUTUBE_URL", ""),
         "nav_categories": nav_categories,
         "admin_user_role": admin_user_role,
         "can_manage_products": can_manage_products,
@@ -142,12 +147,21 @@ def oauth_context(request):
     """
     Exposes OAuth provider availability status to templates.
     Allows templates to display setup indicators or handle unconfigured providers safely.
+    Checks environment credentials or database-backed SocialApp record.
     """
     google_client_id = getattr(settings, "GOOGLE_CLIENT_ID", "")
     google_secret = getattr(settings, "GOOGLE_CLIENT_SECRET", "")
+    google_enabled = bool(google_client_id and google_secret)
+    if not google_enabled:
+        try:
+            from allauth.socialaccount.models import SocialApp
+            google_enabled = SocialApp.objects.filter(provider="google").exists()
+        except Exception:
+            google_enabled = False
 
     return {
-        "google_oauth_enabled": bool(google_client_id and google_secret),
+        "google_oauth_enabled": google_enabled,
         "facebook_oauth_enabled": False,
     }
+
 

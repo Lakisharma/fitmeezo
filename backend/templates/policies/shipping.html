@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Shipping &amp; Delivery Policy — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Learn about Fitmeezo's shipping charges, delivery timelines, free delivery threshold (₹499), Cash on Delivery (COD), and courier tracking across India.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Shipping Policy</span>
+  </nav>
+
+  <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5">
+    <div class="border-bottom pb-4 mb-4">
+      <span class="badge mb-2" style="background: var(--fm-primary);">Customer Service</span>
+      <h1 class="h2 fw-bold text-dark mb-1">Shipping &amp; Delivery Policy</h1>
+      <p class="text-secondary small mb-0">Effective Date: October 2026 • Region: Republic of India</p>
+    </div>
+
+    <div class="text-secondary" style="line-height: 1.8; font-size: 1rem;">
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">1. Overview &amp; Coverage</h2>
+      <p>
+        Fitmeezo operates a nationwide multi-category e-commerce platform delivering orders across all serviceable postal PIN codes in India. We partner with India's leading courier and express logistics networks (including Blue Dart, Delhivery, and express surface couriers via automated shipment allocation) to ensure safe, tamper-evident, and timely delivery of your purchases.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">2. Shipping Charges &amp; Free Delivery</h2>
+      <div class="table-responsive my-3">
+        <table class="table table-bordered table-striped align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th scope="col">Cart Subtotal</th>
+              <th scope="col">Delivery Charge</th>
+              <th scope="col">Estimated Transit Timeline</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Orders ₹499.00 and Above</strong></td>
+              <td><span class="badge bg-success fs-6">FREE Delivery</span></td>
+              <td>3 – 7 Business Days</td>
+            </tr>
+            <tr>
+              <td>Orders Below ₹499.00</td>
+              <td>Flat ₹49.00 (Standard Courier Fee)</td>
+              <td>3 – 7 Business Days</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="small text-muted">
+        * Shipping fees are calculated per order on the checkout screen prior to payment authorization. Free shipping applies automatically when the final merchandise subtotal reaches ₹499 or more.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">3. Processing &amp; Dispatch Timeline</h2>
+      <p>
+        Orders are verified, packed in tamper-proof protective packaging, and handed over to logistics partners within <strong>24 to 48 business hours</strong> of successful placement (excluding Sundays and national holidays). In multi-vendor orders, items may be dispatched in separate packages to ensure the fastest possible dispatch from the nearest merchant facility.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">4. Cash on Delivery (COD)</h2>
+      <p>
+        Cash on Delivery is supported across eligible PIN codes. When ordering via COD:
+      </p>
+      <ul>
+        <li>Payment must be tendered in Indian Rupees (INR cash or via digital scan-and-pay UPI QR provided by the courier executive) at the exact moment of delivery.</li>
+        <li>Open delivery / inspection before payment is not permitted by our logistics partners. If you find any discrepancy or defect after receiving the parcel, our <a href="{% url 'core:return_policy' %}" class="text-primary text-decoration-underline">7-Day Return Policy</a> fully protects your purchase.</li>
+      </ul>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">5. Shipment Tracking</h2>
+      <p>
+        As soon as your parcel is dispatched from our fulfillment facility or registered seller hub, an SMS and email notification containing the courier name and Airway Bill (AWB) tracking number will be sent to your registered contact details. You can also monitor your delivery status live on our <a href="{% url 'core:order_track' %}" class="text-primary text-decoration-underline">Track Your Order</a> page.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">6. Damaged or Tampered Parcels</h2>
+      <p>
+        If you notice that the outer packaging has been severely crushed, torn, or the security seal has been broken upon delivery, please <strong>refuse delivery</strong> and immediately alert our helpline at <a href="tel:{{ SUPPORT_PHONE_TEL|default:'+91940885323' }}" class="text-dark fw-bold">{{ SUPPORT_PHONE|default:'+91 940885323' }}</a> or email <a href="mailto:{{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}" class="text-dark fw-bold">{{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}</a>.
+      </p>
+
+      <div class="mt-5 pt-4 border-top d-flex gap-3 flex-wrap">
+        <a href="{% url 'core:order_track' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-truck me-1"></i> Track Existing Order
+        </a>
+        <a href="{% url 'core:contact' %}" class="fm-btn fm-btn-outline">
+          <i class="bi bi-headset me-1"></i> Contact Support Helpline
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

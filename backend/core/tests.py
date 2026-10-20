@@ -3954,15 +3954,25 @@ class OAuthSocialLoginTest(TestCase):
 
     def test_social_account_adapter_google_verified_email_auto_linking(self):
         """Verified Google emails safely link to existing account."""
+        from django.contrib.sites.models import Site
         from django.test import RequestFactory
         from django.contrib.auth.models import AnonymousUser
         from django.contrib.messages.storage.fallback import FallbackStorage
         from django.contrib.sessions.middleware import SessionMiddleware
-        from allauth.socialaccount.models import SocialAccount, SocialLogin
+        from allauth.socialaccount.models import SocialApp, SocialAccount, SocialLogin
         from core.adapters import FitmeezoSocialAccountAdapter
 
+        site = Site.objects.get_current()
+        app = SocialApp.objects.create(
+            provider="google",
+            name="Fitmeezo Google",
+            client_id="test-google-client-id",
+            secret="test-google-secret",
+        )
+        app.sites.add(site)
+
         rf = RequestFactory()
-        req = rf.get("/")
+        req = rf.get("/", HTTP_HOST=site.domain)
         SessionMiddleware(lambda r: None).process_request(req)
         req.session.save()
         req._messages = FallbackStorage(req)
@@ -4144,6 +4154,82 @@ class OAuthSocialLoginTest(TestCase):
         resp_prof = self.client.get(reverse("core:account_profile"))
         self.assertEqual(resp_prof.status_code, 302)
         self.assertIn(reverse("core:account_login"), resp_prof["Location"])
+
+    def test_database_backed_social_app_list_apps_returns_single_app(self):
+        """Verify only 1 Google app is returned by list_apps to prevent MultipleObjectsReturned."""
+        from django.contrib.sites.models import Site
+        from allauth.socialaccount.models import SocialApp
+        from allauth.socialaccount.adapter import get_adapter
+        from django.test import RequestFactory
+
+        site = Site.objects.get_current()
+        app = SocialApp.objects.create(
+            provider="google",
+            name="Fitmeezo Google",
+            client_id="test-db-client-id",
+            secret="test-db-secret",
+        )
+        app.sites.add(site)
+
+        rf = RequestFactory()
+        req = rf.get("/accounts/google/login/", HTTP_HOST=site.domain)
+        adapter = get_adapter(req)
+
+        apps = adapter.list_apps(req, provider="google")
+        self.assertEqual(len(apps), 1)
+
+        resolved_app = adapter.get_app(req, "google")
+        self.assertEqual(resolved_app.id, app.id)
+        self.assertEqual(resolved_app.name, "Fitmeezo Google")
+
+    def test_database_backed_social_app_google_login_endpoint_redirects(self):
+        """Verify /accounts/google/login/ endpoint initiates OAuth flow without MultipleObjectsReturned."""
+        from django.contrib.sites.models import Site
+        from allauth.socialaccount.models import SocialApp
+
+        site = Site.objects.get_current()
+        old_domain = site.domain
+        site.domain = "fitmeezo.com"
+        site.save()
+
+        app = SocialApp.objects.create(
+            provider="google",
+            name="Fitmeezo Google",
+            client_id="test-db-client-id",
+            secret="test-db-secret",
+        )
+        app.sites.add(site)
+
+        try:
+            resp = self.client.get(reverse("google_login"), HTTP_HOST="fitmeezo.com")
+            self.assertEqual(resp.status_code, 302)
+            self.assertTrue(resp["Location"].startswith("https://accounts.google.com/o/oauth2/v2/auth"))
+            self.assertTrue(
+                "scope=profile+email" in resp["Location"] or "scope=email+profile" in resp["Location"]
+            )
+            self.assertIn("access_type=online", resp["Location"])
+        finally:
+            site.domain = old_domain
+            site.save()
+
+    def test_oauth_google_login_view_with_db_social_app(self):
+        """Custom core:oauth_google view routes when credentials exist in database SocialApp."""
+        from django.contrib.sites.models import Site
+        from allauth.socialaccount.models import SocialApp
+
+        site = Site.objects.get_current()
+        app = SocialApp.objects.create(
+            provider="google",
+            name="Fitmeezo Google",
+            client_id="test-db-client-id",
+            secret="test-db-secret",
+        )
+        app.sites.add(site)
+
+        with self.settings(GOOGLE_CLIENT_ID="", GOOGLE_CLIENT_SECRET=""):
+            resp = self.client.get(reverse("core:oauth_google"))
+            self.assertEqual(resp.status_code, 302)
+            self.assertEqual(resp["Location"], reverse("google_login"))
 
 
 class ProductSearchFeatureTests(TestCase):

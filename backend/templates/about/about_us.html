@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}About Us — {{ BRAND_NAME }} | {{ BRAND_TAGLINE }}{% endblock %}
+
+{% block meta_description %}Learn about Fitmeezo — India's modern multi-category shopping destination. Delivering smart value, genuine products, and trusted service nationwide.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">About Us</span>
+  </nav>
+
+  <!-- Hero Banner -->
+  <div class="card border-0 rounded-4 overflow-hidden mb-5 text-white shadow-sm" style="background: linear-gradient(135deg, #121212 0%, #2A2A2A 100%);">
+    <div class="p-4 p-md-5 text-center my-md-4">
+      <span class="badge px-3 py-2 rounded-pill mb-3" style="background-color: var(--fm-primary); font-size: 0.85rem; font-weight: 700;">
+        {{ BRAND_TAGLINE }}
+      </span>
+      <h1 class="display-5 fw-bold mb-3">Redefining Smart Online Shopping in India</h1>
+      <p class="lead mx-auto text-light opacity-75 mb-4" style="max-width: 720px; font-size: 1.15rem;">
+        Fitmeezo is India's dedicated multi-category digital marketplace built on three fundamental pillars: authentic merchandise, transparent pricing, and dependable doorstep delivery.
+      </p>
+      <div class="d-flex justify-content-center gap-3 flex-wrap">
+        <a href="{% url 'core:category_list' %}" class="fm-btn fm-btn-primary px-4 py-2">
+          <i class="bi bi-grid me-1"></i> Explore Categories
+        </a>
+        <a href="{% url 'core:seller_register' %}" class="fm-btn fm-btn-outline text-white border-white px-4 py-2">
+          <i class="bi bi-shop me-1"></i> Become a Merchant
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Our Mission & Story -->
+  <div class="row g-4 g-lg-5 align-items-center mb-5">
+    <div class="col-lg-6">
+      <span class="badge px-3 py-2 rounded-pill mb-2" style="background-color: var(--fm-primary-subtle); color: var(--fm-primary); font-weight: 700;">
+        Our Vision
+      </span>
+      <h2 class="h3 fw-bold text-dark mb-3">Why Fitmeezo Was Created</h2>
+      <div class="text-secondary" style="line-height: 1.8;">
+        <p>
+          In a rapidly growing digital commerce landscape, Indian consumers deserve a shopping destination they can trust unconditionally. Fitmeezo was established with a singular objective: to eliminate counterfeit products, opaque delivery fees, and sluggish customer service from the online purchasing journey.
+        </p>
+        <p>
+          Whether you are looking for genuine consumer electronics, stylish lifestyle apparel, reliable home utilities, or fitness gear, Fitmeezo connects you directly with verified Indian manufacturers, brand owners, and authorized distributors.
+        </p>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="row g-3">
+        <div class="col-6">
+          <div class="card border rounded-3 p-3 p-md-4 text-center h-100 bg-white shadow-sm">
+            <i class="bi bi-patch-check-fill text-warning fs-1 mb-2"></i>
+            <h3 class="h6 fw-bold text-dark">100% Genuine</h3>
+            <p class="text-muted small mb-0">Strict merchant vetting and authenticity guarantees.</p>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="card border rounded-3 p-3 p-md-4 text-center h-100 bg-white shadow-sm">
+            <i class="bi bi-truck text-primary fs-1 mb-2"></i>
+            <h3 class="h6 fw-bold text-dark">Free Over ₹499</h3>
+            <p class="text-muted small mb-0">Fast, tamper-evident courier dispatch across India.</p>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="card border rounded-3 p-3 p-md-4 text-center h-100 bg-white shadow-sm">
+            <i class="bi bi-arrow-repeat text-success fs-1 mb-2"></i>
+            <h3 class="h6 fw-bold text-dark">7-Day Returns</h3>
+            <p class="text-muted small mb-0">Zero hassle doorstep reverse pickup &amp; prompt refunds.</p>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="card border rounded-3 p-3 p-md-4 text-center h-100 bg-white shadow-sm">
+            <i class="bi bi-shield-lock-fill text-danger fs-1 mb-2"></i>
+            <h3 class="h6 fw-bold text-dark">Secure Payments</h3>
+            <p class="text-muted small mb-0">PCI-DSS encrypted Razorpay UPI, cards &amp; verified COD.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operational Commitments -->
+  <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5 mb-5">
+    <h2 class="h4 fw-bold text-dark mb-4 text-center">Our Core Commitments to Every Customer</h2>
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="d-flex gap-3">
+          <div class="rounded-circle p-2 d-flex align-items-center justify-content-center text-white" style="background: var(--fm-primary); width: 40px; height: 40px; flex-shrink: 0;">
+            <i class="bi bi-shield-check fs-5"></i>
+          </div>
+          <div>
+            <h3 class="h6 fw-bold text-dark mb-1">Authenticity First</h3>
+            <p class="text-secondary small mb-0">
+              Every merchant listed on Fitmeezo undergoes rigorous GSTIN, PAN, and address verification before receiving listing approval.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="d-flex gap-3">
+          <div class="rounded-circle p-2 d-flex align-items-center justify-content-center text-white" style="background: #059669; width: 40px; height: 40px; flex-shrink: 0;">
+            <i class="bi bi-wallet2 fs-5"></i>
+          </div>
+          <div>
+            <h3 class="h6 fw-bold text-dark mb-1">Fair &amp; Transparent Value</h3>
+            <p class="text-secondary small mb-0">
+              What you see is what you pay. No concealed transaction surcharges, and free delivery on orders ₹499 and above.
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="d-flex gap-3">
+          <div class="rounded-circle p-2 d-flex align-items-center justify-content-center text-white" style="background: #2563EB; width: 40px; height: 40px; flex-shrink: 0;">
+            <i class="bi bi-headset fs-5"></i>
+          </div>
+          <div>
+            <h3 class="h6 fw-bold text-dark mb-1">Human-Driven Support</h3>
+            <p class="text-secondary small mb-0">
+              Direct telephone and email support from real customer specialists who resolve inquiries rather than sending automated loops.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contact CTA -->
+  <div class="text-center p-4 p-md-5 rounded-3 bg-light border">
+    <h2 class="h5 fw-bold text-dark mb-2">Want to Know More or Partner With Us?</h2>
+    <p class="text-secondary small mb-3">Our team is available Monday through Saturday, 9:00 AM – 9:00 PM IST.</p>
+    <div class="d-flex justify-content-center gap-3 flex-wrap">
+      <a href="{% url 'core:contact' %}" class="fm-btn fm-btn-primary">
+        <i class="bi bi-envelope me-1"></i> Contact Us
+      </a>
+      <a href="{% url 'core:seller_register' %}" class="fm-btn fm-btn-outline">
+        <i class="bi bi-shop me-1"></i> Register as a Vendor
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}

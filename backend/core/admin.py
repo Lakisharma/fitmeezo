@@ -37,6 +37,7 @@ from .models import (
     SellerLedgerEntry,
     Invoice,
     InvoiceSequence,
+    ContactInquiry,
 )
 from .ledger_services import (
     process_mock_payout_batch,
@@ -2313,6 +2314,39 @@ class SellerLoginOTPAdmin(admin.ModelAdmin):
     def masked_mobile(self, obj):
         from core.sms_services import mask_phone_number
         return mask_phone_number(obj.mobile)
+
+
+@admin.register(ContactInquiry)
+class ContactInquiryAdmin(admin.ModelAdmin):
+    """
+    Administrative management for customer and vendor contact inquiries.
+    """
+    list_display = (
+        "id",
+        "full_name",
+        "email",
+        "phone_number",
+        "subject",
+        "order_number",
+        "status",
+        "created_at",
+    )
+    list_filter = ("status", "subject", "created_at")
+    search_fields = ("full_name", "email", "phone_number", "order_number", "message", "admin_notes")
+    list_editable = ("status",)
+    readonly_fields = ("created_at", "updated_at", "ip_address")
+    fieldsets = (
+        ("Inquirer Details", {
+            "fields": ("full_name", "email", "phone_number", "ip_address"),
+        }),
+        ("Inquiry Details", {
+            "fields": ("subject", "order_number", "message", "created_at", "updated_at"),
+        }),
+        ("Support Management", {
+            "fields": ("status", "admin_notes"),
+        }),
+    )
+
 
 
 

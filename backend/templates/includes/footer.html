@@ -38,27 +38,27 @@
           <h2 class="fm-footer-heading">Customer Service</h2>
           <ul class="fm-footer-links">
             <li>
-              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Contact Us">
+              <a href="{% url 'core:contact' %}" class="fm-footer-link">
                 Contact Us
               </a>
             </li>
             <li>
-              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Track Order">
+              <a href="{% url 'core:order_track' %}" class="fm-footer-link">
                 Track Your Order
               </a>
             </li>
             <li>
-              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Shipping Policy">
+              <a href="{% url 'core:shipping_policy' %}" class="fm-footer-link">
                 Shipping Policy
               </a>
             </li>
             <li>
-              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Return Policy">
+              <a href="{% url 'core:return_policy' %}" class="fm-footer-link">
                 Return &amp; Refund Policy
               </a>
             </li>
             <li>
-              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Help & FAQs">
+              <a href="{% url 'core:faqs' %}" class="fm-footer-link">
                 Frequently Asked Questions
               </a>
             </li>
@@ -70,17 +70,17 @@
           <h2 class="fm-footer-heading">About Fitmeezo</h2>
           <ul class="fm-footer-links">
             <li>
-              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="About Us">
+              <a href="{% url 'core:about' %}" class="fm-footer-link">
                 About Us
               </a>
             </li>
             <li>
-              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Careers">
+              <a href="{% url 'core:careers' %}" class="fm-footer-link">
                 Careers at Fitmeezo
               </a>
             </li>
             <li>
-              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Authenticity Guarantee">
+              <a href="{% url 'core:guarantee' %}" class="fm-footer-link">
                 100% Genuine Guarantee
               </a>
             </li>
@@ -90,7 +90,7 @@
               </a>
             </li>
             <li>
-              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Press & News">
+              <a href="{% url 'core:press' %}" class="fm-footer-link">
                 Newsroom &amp; Press
               </a>
             </li>
@@ -102,7 +102,7 @@
           <h2 class="fm-footer-heading">Legal &amp; Connect</h2>
           <ul class="fm-footer-links">
             <li>
-              <a href="{% url 'core:terms' %}#privacy" class="fm-footer-link">
+              <a href="{% url 'core:privacy_policy' %}" class="fm-footer-link">
                 Privacy Policy
               </a>
             </li>
@@ -112,12 +112,17 @@
               </a>
             </li>
             <li>
-              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Security & Safety">
-                Security &amp; Fraud Prevention
+              <a href="{% url 'core:refund_cancellation_policy' %}" class="fm-footer-link">
+                Refund &amp; Cancellation Policy
               </a>
             </li>
             <li>
-              <a href="#" class="fm-footer-link" data-placeholder="true" data-placeholder-label="Grievance Officer">
+              <a href="{% url 'core:cookie_policy' %}" class="fm-footer-link">
+                Cookie Policy
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'core:grievance_policy' %}" class="fm-footer-link">
                 Grievance Officer (India)
               </a>
             </li>
@@ -128,21 +133,55 @@
               Follow Us
             </div>
             <div class="fm-social-links">
-              <a href="#" class="fm-social-btn" data-placeholder="true" data-placeholder-label="Instagram Profile" aria-label="Follow Fitmeezo on Instagram">
-                <i class="bi bi-instagram" aria-hidden="true"></i>
-              </a>
-              <a href="#" class="fm-social-btn" data-placeholder="true" data-placeholder-label="Facebook Page" aria-label="Follow Fitmeezo on Facebook">
-                <i class="bi bi-facebook" aria-hidden="true"></i>
-              </a>
-              <a href="#" class="fm-social-btn" data-placeholder="true" data-placeholder-label="X (Twitter) Profile" aria-label="Follow Fitmeezo on X">
-                <i class="bi bi-twitter-x" aria-hidden="true"></i>
-              </a>
-              <a href="#" class="fm-social-btn" data-placeholder="true" data-placeholder-label="LinkedIn Page" aria-label="Connect with Fitmeezo on LinkedIn">
-                <i class="bi bi-linkedin" aria-hidden="true"></i>
-              </a>
-              <a href="#" class="fm-social-btn" data-placeholder="true" data-placeholder-label="YouTube Channel" aria-label="Fitmeezo YouTube Channel">
-                <i class="bi bi-youtube" aria-hidden="true"></i>
-              </a>
+              {% if SOCIAL_INSTAGRAM_URL %}
+                <a href="{{ SOCIAL_INSTAGRAM_URL }}" class="fm-social-btn" target="_blank" rel="noopener noreferrer" aria-label="Follow Fitmeezo on Instagram">
+                  <i class="bi bi-instagram" aria-hidden="true"></i>
+                </a>
+              {% else %}
+                <span class="fm-social-btn opacity-50" title="Official Instagram Coming Soon" aria-label="Instagram handle coming soon" style="cursor: default;">
+                  <i class="bi bi-instagram" aria-hidden="true"></i>
+                </span>
+              {% endif %}
+
+              {% if SOCIAL_FACEBOOK_URL %}
+                <a href="{{ SOCIAL_FACEBOOK_URL }}" class="fm-social-btn" target="_blank" rel="noopener noreferrer" aria-label="Follow Fitmeezo on Facebook">
+                  <i class="bi bi-facebook" aria-hidden="true"></i>
+                </a>
+              {% else %}
+                <span class="fm-social-btn opacity-50" title="Official Facebook Coming Soon" aria-label="Facebook page coming soon" style="cursor: default;">
+                  <i class="bi bi-facebook" aria-hidden="true"></i>
+                </span>
+              {% endif %}
+
+              {% if SOCIAL_X_URL %}
+                <a href="{{ SOCIAL_X_URL }}" class="fm-social-btn" target="_blank" rel="noopener noreferrer" aria-label="Follow Fitmeezo on X">
+                  <i class="bi bi-twitter-x" aria-hidden="true"></i>
+                </a>
+              {% else %}
+                <span class="fm-social-btn opacity-50" title="Official X (Twitter) Coming Soon" aria-label="X handle coming soon" style="cursor: default;">
+                  <i class="bi bi-twitter-x" aria-hidden="true"></i>
+                </span>
+              {% endif %}
+
+              {% if SOCIAL_LINKEDIN_URL %}
+                <a href="{{ SOCIAL_LINKEDIN_URL }}" class="fm-social-btn" target="_blank" rel="noopener noreferrer" aria-label="Connect with Fitmeezo on LinkedIn">
+                  <i class="bi bi-linkedin" aria-hidden="true"></i>
+                </a>
+              {% else %}
+                <span class="fm-social-btn opacity-50" title="Official LinkedIn Coming Soon" aria-label="LinkedIn profile coming soon" style="cursor: default;">
+                  <i class="bi bi-linkedin" aria-hidden="true"></i>
+                </span>
+              {% endif %}
+
+              {% if SOCIAL_YOUTUBE_URL %}
+                <a href="{{ SOCIAL_YOUTUBE_URL }}" class="fm-social-btn" target="_blank" rel="noopener noreferrer" aria-label="Fitmeezo YouTube Channel">
+                  <i class="bi bi-youtube" aria-hidden="true"></i>
+                </a>
+              {% else %}
+                <span class="fm-social-btn opacity-50" title="Official YouTube Coming Soon" aria-label="YouTube channel coming soon" style="cursor: default;">
+                  <i class="bi bi-youtube" aria-hidden="true"></i>
+                </span>
+              {% endif %}
             </div>
           </div>
         </div>

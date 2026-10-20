@@ -4863,6 +4863,112 @@ class Invoice(models.Model):
         return f"[{self.get_invoice_type_display()}] #{self.invoice_number} (Order #{self.order.order_number})"
 
 
+# ==============================================================================
+# CUSTOMER & VENDOR CONTACT INQUIRIES
+# ==============================================================================
+
+class ContactInquiry(models.Model):
+    """
+    Fitmeezo Customer & Vendor Contact Inquiry.
+    Captures submitted inquiries, validation status, contact details,
+    subject category, customer message, and administrative resolution notes.
+    """
+
+    STATUS_NEW = "new"
+    STATUS_IN_PROGRESS = "in_progress"
+    STATUS_RESOLVED = "resolved"
+    STATUS_CLOSED = "closed"
+
+    STATUS_CHOICES = [
+        (STATUS_NEW, "New"),
+        (STATUS_IN_PROGRESS, "In Progress"),
+        (STATUS_RESOLVED, "Resolved"),
+        (STATUS_CLOSED, "Closed"),
+    ]
+
+    SUBJECT_ORDER = "order"
+    SUBJECT_RETURN = "return"
+    SUBJECT_PAYMENT = "payment"
+    SUBJECT_PRODUCT = "product"
+    SUBJECT_SELLER = "seller"
+    SUBJECT_FEEDBACK = "feedback"
+    SUBJECT_OTHER = "other"
+
+    SUBJECT_CHOICES = [
+        (SUBJECT_ORDER, "Order Status & Delivery"),
+        (SUBJECT_RETURN, "Returns, Replacement & Refunds"),
+        (SUBJECT_PAYMENT, "Payment & Billing Inquiries"),
+        (SUBJECT_PRODUCT, "Product Inquiry & Stock Availability"),
+        (SUBJECT_SELLER, "Sell with Us / Vendor Partnership"),
+        (SUBJECT_FEEDBACK, "Customer Feedback & Suggestions"),
+        (SUBJECT_OTHER, "General Inquiry / Other"),
+    ]
+
+    full_name = models.CharField(
+        max_length=120,
+        help_text="Customer or inquirer full name.",
+    )
+    email = models.EmailField(
+        help_text="Customer contact email address.",
+    )
+    phone_number = models.CharField(
+        max_length=25,
+        blank=True,
+        default="",
+        help_text="Contact telephone number (optional).",
+    )
+    subject = models.CharField(
+        max_length=40,
+        choices=SUBJECT_CHOICES,
+        default=SUBJECT_ORDER,
+        db_index=True,
+        help_text="Primary category of the inquiry.",
+    )
+    order_number = models.CharField(
+        max_length=40,
+        blank=True,
+        default="",
+        help_text="Related order reference number if applicable.",
+    )
+    message = models.TextField(
+        help_text="Detailed customer inquiry or support request.",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_NEW,
+        db_index=True,
+        help_text="Operational lifecycle state of this customer inquiry.",
+    )
+    admin_notes = models.TextField(
+        blank=True,
+        default="",
+        help_text="Internal staff notes, resolution comments, or correspondence log.",
+    )
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="Client IP address recorded at submission time for security audit.",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text="Timestamp when inquiry was submitted.",
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Timestamp when inquiry or notes were last modified.",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Customer Inquiry"
+        verbose_name_plural = "Customer Inquiries"
+
+    def __str__(self):
+        return f"[{self.get_status_display()}] {self.full_name} ({self.get_subject_display()}) - {self.created_at.strftime('%d-%b-%Y')}"
+
+
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
 def create_or_update_user_profile(sender, instance, created, **kwargs):
     """Ensures each User has an associated CustomerProfile instance."""

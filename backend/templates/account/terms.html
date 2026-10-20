@@ -1,55 +1,87 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Terms of Service &amp; Privacy Policy — {{ BRAND_NAME }}{% endblock %}
+{% block title %}Terms &amp; Conditions of Service — {{ BRAND_NAME }}{% endblock %}
 
-{% block meta_description %}Review Fitmeezo's terms of service, customer privacy commitment, and e-commerce policies.{% endblock %}
+{% block meta_description %}Review Fitmeezo's complete Terms and Conditions of Service. Covers customer accounts, order acceptance, pricing in INR, Razorpay/COD payments, 7-day returns, and Indian governing laws.{% endblock %}
 
 {% block content %}
-<div class="fm-container py-5">
-  <nav class="fm-breadcrumbs mb-3" aria-label="Breadcrumb navigation">
+<div class="fm-container py-4 py-md-5">
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
     <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
       <i class="bi bi-house-door" aria-hidden="true"></i>
       <span>Home</span>
     </a>
     <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
-    <span class="fm-breadcrumb-item is-current" aria-current="page">Terms &amp; Policies</span>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Terms &amp; Conditions</span>
   </nav>
 
   <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5">
     <div class="border-bottom pb-4 mb-4">
-      <span class="badge mb-2" style="background: var(--fm-primary);">Fitmeezo Policies</span>
-      <h1 class="h3 fw-bold text-dark mb-1">Terms of Service &amp; Privacy Commitment</h1>
-      <p class="text-secondary small mb-0">Effective Date: October 2026 • Region: India (INR)</p>
+      <span class="badge mb-2" style="background: var(--fm-primary);">Legal Agreement</span>
+      <h1 class="h2 fw-bold text-dark mb-1">Terms &amp; Conditions of Service</h1>
+      <p class="text-secondary small mb-0">Effective Date: October 2026 • Region: Republic of India • Currency: INR (₹)</p>
     </div>
 
-    <div class="text-secondary" style="line-height: 1.8;">
-      <h2 class="h5 fw-bold text-dark mt-3 mb-2">1. Introduction &amp; Account Usage</h2>
+    <div class="text-secondary" style="line-height: 1.8; font-size: 1rem;">
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">1. Agreement to Terms</h2>
       <p>
-        Welcome to Fitmeezo (<strong>"Fitmeezo"</strong>, <strong>"we"</strong>, <strong>"us"</strong>). By creating a customer account, browsing our merchandise, or utilizing our services, you agree to comply with and be bound by these Terms of Service. Customer accounts must be created with authentic personal details. You are responsible for safeguarding your login credentials.
+        These Terms &amp; Conditions govern your access to and utilization of the website, mobile services, and shopping systems of <strong>{{ BRAND_NAME }}</strong> (<a href="https://fitmeezo.com" class="text-primary text-decoration-none" target="_blank" rel="noopener">https://fitmeezo.com</a>). By registering a customer account, browsing merchandise, placing an order, or registering as a merchant, you acknowledge that you have read, understood, and agreed to be legally bound by these terms.
       </p>
 
-      <h2 class="h5 fw-bold text-dark mt-4 mb-2">2. Product Catalog, Pricing &amp; Inventory</h2>
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">2. Customer Account &amp; Security</h2>
       <p>
-        All prices are displayed in Indian Rupees (INR ₹) inclusive of applicable taxes unless specified otherwise. We make reasonable efforts to reflect accurate variant stock and pricing. In the rare event of inventory exhaustion or pricing discrepancy, we reserve the right to decline or cancel order fulfillment with prior notice.
+        To make purchases, customers may register an account using authentic personal details. You are responsible for preserving the confidentiality of your credentials. Fitmeezo stores passwords using industry-standard PBKDF2/SHA-256 cryptographic hashing. You agree to notify us immediately of any unauthorized access to your account.
       </p>
 
-      <h2 class="h5 fw-bold text-dark mt-4 mb-2">3. Privacy &amp; Data Protection</h2>
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">3. Product Catalog, Pricing &amp; Inventory</h2>
       <p>
-        We value your privacy. We collect only necessary customer information—such as your full name, email address, delivery addresses, and contact number—strictly for processing shopping cart items, authenticating your account, and fulfilling doorstep shipments. We do not sell your personal information to third parties.
+        All prices displayed on Fitmeezo are denominated in <strong>Indian Rupees (INR ₹)</strong> and are inclusive of applicable taxes unless explicitly stated otherwise. We make reasonable efforts to maintain accurate inventory and variant availability. In the rare event of inventory exhaustion or pricing errors, we reserve the right to cancel fulfillment with prior notice and issue a 100% refund.
       </p>
 
-      <h2 class="h5 fw-bold text-dark mt-4 mb-2">4. Saved Delivery Addresses &amp; Security</h2>
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">4. Orders, Payments &amp; Invoices</h2>
+      <ul>
+        <li><strong>Online Digital Payments:</strong> Processed through authorized, PCI-DSS compliant payment gateways (Razorpay) supporting UPI, Credit Cards, Debit Cards, and Net Banking. Fitmeezo never retains raw card or banking credentials.</li>
+        <li><strong>Cash on Delivery (COD):</strong> Available across serviceable PIN codes. Payment must be tendered in cash or UPI scan-and-pay upon doorstep delivery.</li>
+        <li><strong>Invoices:</strong> Official tax and commercial invoices are generated upon order dispatch and accessible in PDF format from your customer dashboard.</li>
+      </ul>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">5. Order Cancellations &amp; Modifications</h2>
       <p>
-        Addresses saved in your account are accessible solely by your authenticated profile. Password hashing utilizes industry-standard PBKDF2/SHA-256 algorithms. We do not store plaintext passwords.
+        Customers may cancel orders at zero penalty before the fulfilling merchant marks them as packed and dispatched. For prepaid orders cancelled prior to dispatch, a 100% refund is initiated automatically. Review our <a href="{% url 'core:refund_cancellation_policy' %}" class="text-primary text-decoration-underline">Refund &amp; Cancellation Policy</a> for full details.
       </p>
 
-      <div class="mt-5 pt-3 border-top d-flex gap-3 flex-wrap">
-        <a href="{% url 'core:account_register' %}" class="fm-btn fm-btn-primary">
-          <i class="bi bi-person-plus me-1"></i> Create Customer Account
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">6. 7-Day Returns &amp; Replacement Policy</h2>
+      <p>
+        Deliveries are covered by our <a href="{% url 'core:return_policy' %}" class="text-primary text-decoration-underline">7-Day Return Policy</a>. Returns must be initiated within 7 days of delivery with original packaging and tags intact. Refunds for approved returns are executed within 5–7 business days to the source payment method or customer-provided bank account for COD.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">7. Marketplace Platform &amp; Vendor Network</h2>
+      <p>
+        Fitmeezo acts as a platform connecting verified merchants and brand owners with consumers across India. Sellers must complete mandatory GSTIN, PAN, and identity verification before listing merchandise. All products are backed by our <a href="{% url 'core:guarantee' %}" class="text-primary text-decoration-underline">100% Genuine Guarantee</a>.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">8. Intellectual Property &amp; Acceptable Use</h2>
+      <p>
+        All brand logos, UI designs, code, graphics, and product descriptions on Fitmeezo are the intellectual property of Fitmeezo or its authorized brand partners. Unauthorized scraping, automated data harvesting, or commercial exploitation is prohibited.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2" id="privacy">9. Privacy &amp; Data Protection</h2>
+      <p>
+        Your privacy is paramount. For details on how customer data is processed and stored, please consult our full <a href="{% url 'core:privacy_policy' %}" class="text-primary text-decoration-underline">Privacy Policy</a>.
+      </p>
+
+      <h2 class="h5 fw-bold text-dark mt-4 mb-2">10. Governing Law &amp; Jurisdiction</h2>
+      <p>
+        These Terms &amp; Conditions are governed by and construed in accordance with the laws of the Republic of India. In the event of any legal dispute arising from transactions on Fitmeezo, the courts of competent jurisdiction in India shall have exclusive jurisdiction.
+      </p>
+
+      <div class="mt-5 pt-4 border-top d-flex gap-3 flex-wrap">
+        <a href="{% url 'core:contact' %}" class="fm-btn fm-btn-primary">
+          <i class="bi bi-headset me-1"></i> Contact Support Helpline
         </a>
-        <a href="{% url 'core:home' %}" class="fm-btn fm-btn-outline">
-          <i class="bi bi-house me-1"></i> Return to Homepage
+        <a href="{% url 'core:grievance_policy' %}" class="fm-btn fm-btn-outline">
+          <i class="bi bi-shield-check me-1"></i> Grievance Officer Details
         </a>
       </div>
     </div>

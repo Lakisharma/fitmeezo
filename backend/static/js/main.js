@@ -162,16 +162,16 @@ function showToast(message, title = 'Fitmeezo Preview') {
  * Safe Placeholder Link and Button Handler
  */
 function initPlaceholderHandler() {
-  // Capture all links and buttons marked with data-placeholder
+  // Capture all links and buttons explicitly marked with data-placeholder
   document.addEventListener('click', (e) => {
-    const placeholderEl = e.target.closest('[data-placeholder="true"], a[href="#"]');
+    const placeholderEl = e.target.closest('[data-placeholder="true"]');
     if (placeholderEl) {
       e.preventDefault();
       const label = placeholderEl.getAttribute('data-placeholder-label') ||
                     placeholderEl.getAttribute('aria-label') ||
                     placeholderEl.textContent.trim() ||
-                    'This section';
-      showToast(`${label} is currently a placeholder for Phase 1. Complete functionality will be built in an upcoming phase.`);
+                    'This feature';
+      showToast(`${label} will be available soon.`);
     }
   });
 }

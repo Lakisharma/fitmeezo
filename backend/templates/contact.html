@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Contact Us &amp; Customer Support — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Get in touch with Fitmeezo customer care team. Helpline: {{ SUPPORT_PHONE|default:'+91 940885323' }}, Email: {{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}. Operating Monday to Saturday, 9 AM to 9 PM IST.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <!-- Breadcrumb Navigation -->
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Contact Us</span>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="mb-4 mb-md-5">
+    <span class="badge px-3 py-2 rounded-pill mb-2" style="background-color: var(--fm-primary-subtle); color: var(--fm-primary); font-weight: 700; font-size: 0.85rem;">
+      <i class="bi bi-headset me-1" aria-hidden="true"></i> Dedicated Customer Care
+    </span>
+    <h1 class="h2 fw-bold text-dark mb-2">We're Here to Help You</h1>
+    <p class="text-secondary mb-0" style="max-width: 680px; font-size: 1rem;">
+      Have a question about your order, returns, vendor partnerships, or products? Reach out via our direct helpline, email, or fill out the inquiry form below.
+    </p>
+  </div>
+
+  <div class="row g-4 g-lg-5">
+    <!-- Contact Info Cards Column -->
+    <div class="col-lg-5">
+      <div class="d-flex flex-column gap-3">
+        <!-- Phone Helpline Card -->
+        <div class="card border rounded-3 p-4 shadow-sm bg-white">
+          <div class="d-flex align-items-start gap-3">
+            <div class="rounded-circle p-3 d-flex align-items-center justify-content-center text-white" style="background: var(--fm-primary); width: 48px; height: 48px; flex-shrink: 0;">
+              <i class="bi bi-telephone-fill fs-5" aria-hidden="true"></i>
+            </div>
+            <div>
+              <h2 class="h6 fw-bold mb-1 text-dark">Customer Helpline</h2>
+              <p class="text-muted small mb-2">Mon to Sat: 9:00 AM – 9:00 PM IST</p>
+              <a href="tel:{{ SUPPORT_PHONE_TEL|default:'+91940885323' }}" class="fw-bold fs-5 text-decoration-none" style="color: var(--fm-primary);">
+                {{ SUPPORT_PHONE|default:'+91 940885323' }}
+              </a>
+              <div class="text-muted small mt-1">Direct telephonic assistance across India</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Email Support Card -->
+        <div class="card border rounded-3 p-4 shadow-sm bg-white">
+          <div class="d-flex align-items-start gap-3">
+            <div class="rounded-circle p-3 d-flex align-items-center justify-content-center text-white" style="background: #2563EB; width: 48px; height: 48px; flex-shrink: 0;">
+              <i class="bi bi-envelope-fill fs-5" aria-hidden="true"></i>
+            </div>
+            <div>
+              <h2 class="h6 fw-bold mb-1 text-dark">Email Support</h2>
+              <p class="text-muted small mb-2">24/7 inbox — response within 24 hours</p>
+              <a href="mailto:{{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}" class="fw-bold fs-6 text-decoration-none text-dark">
+                {{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}
+              </a>
+              <div class="text-muted small mt-1">For order queries, returns &amp; account issues</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Self-Service Links Card -->
+        <div class="card border rounded-3 p-4 shadow-sm" style="background: var(--fm-light-surface);">
+          <h2 class="h6 fw-bold text-dark mb-3">
+            <i class="bi bi-lightning-charge-fill text-warning me-1" aria-hidden="true"></i> Quick Self-Service
+          </h2>
+          <ul class="list-unstyled mb-0 d-flex flex-column gap-2">
+            <li>
+              <a href="{% url 'core:order_track' %}" class="text-decoration-none d-flex align-items-center justify-content-between p-2 rounded border bg-white text-dark hover-bg-light">
+                <span><i class="bi bi-truck me-2 text-primary"></i> Track Your Order</span>
+                <i class="bi bi-chevron-right text-muted small"></i>
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'core:return_policy' %}" class="text-decoration-none d-flex align-items-center justify-content-between p-2 rounded border bg-white text-dark hover-bg-light">
+                <span><i class="bi bi-arrow-return-left me-2 text-primary"></i> Return &amp; Refund Rules</span>
+                <i class="bi bi-chevron-right text-muted small"></i>
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'core:faqs' %}" class="text-decoration-none d-flex align-items-center justify-content-between p-2 rounded border bg-white text-dark hover-bg-light">
+                <span><i class="bi bi-question-circle me-2 text-primary"></i> Frequently Asked Questions</span>
+                <i class="bi bi-chevron-right text-muted small"></i>
+              </a>
+            </li>
+            <li>
+              <a href="{% url 'core:seller_register' %}" class="text-decoration-none d-flex align-items-center justify-content-between p-2 rounded border bg-white text-dark hover-bg-light">
+                <span><i class="bi bi-shop me-2 text-primary"></i> Sell on Fitmeezo (Vendor Portal)</span>
+                <i class="bi bi-chevron-right text-muted small"></i>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Contact Form Column -->
+    <div class="col-lg-7">
+      <div class="card border shadow-sm rounded-3 bg-white p-4 p-md-5">
+        <h2 class="h4 fw-bold text-dark mb-1">Send Us a Message</h2>
+        <p class="text-secondary small mb-4">
+          Fill in your details and our team will get back to you with a resolution.
+        </p>
+
+        <form method="post" action="{% url 'core:contact' %}" novalidate id="contactInquiryForm">
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger py-2 px-3 small" role="alert">
+              {% for error in form.non_field_errors %}
+                <div><i class="bi bi-exclamation-circle me-1"></i> {{ error }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <div class="row g-3">
+            <!-- Full Name -->
+            <div class="col-md-6">
+              <label for="{{ form.full_name.id_for_label }}" class="form-label fw-semibold small text-dark">
+                Full Name <span class="text-danger">*</span>
+              </label>
+              {{ form.full_name }}
+              {% if form.full_name.errors %}
+                <div class="text-danger small mt-1">
+                  {% for error in form.full_name.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Email Address -->
+            <div class="col-md-6">
+              <label for="{{ form.email.id_for_label }}" class="form-label fw-semibold small text-dark">
+                Email Address <span class="text-danger">*</span>
+              </label>
+              {{ form.email }}
+              {% if form.email.errors %}
+                <div class="text-danger small mt-1">
+                  {% for error in form.email.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Phone Number -->
+            <div class="col-md-6">
+              <label for="{{ form.phone_number.id_for_label }}" class="form-label fw-semibold small text-dark">
+                Mobile Number <span class="text-muted fw-normal">(Optional)</span>
+              </label>
+              {{ form.phone_number }}
+              {% if form.phone_number.errors %}
+                <div class="text-danger small mt-1">
+                  {% for error in form.phone_number.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Subject Category -->
+            <div class="col-md-6">
+              <label for="{{ form.subject.id_for_label }}" class="form-label fw-semibold small text-dark">
+                Inquiry Topic <span class="text-danger">*</span>
+              </label>
+              {{ form.subject }}
+              {% if form.subject.errors %}
+                <div class="text-danger small mt-1">
+                  {% for error in form.subject.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Order Number Reference -->
+            <div class="col-12">
+              <label for="{{ form.order_number.id_for_label }}" class="form-label fw-semibold small text-dark">
+                Order Number <span class="text-muted fw-normal">(If relating to an existing purchase)</span>
+              </label>
+              {{ form.order_number }}
+              {% if form.order_number.errors %}
+                <div class="text-danger small mt-1">
+                  {% for error in form.order_number.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Message Content -->
+            <div class="col-12">
+              <label for="{{ form.message.id_for_label }}" class="form-label fw-semibold small text-dark">
+                Message / Details <span class="text-danger">*</span>
+              </label>
+              {{ form.message }}
+              <div class="form-text small text-muted">
+                Minimum 10 characters. Please provide any relevant details so we can resolve your request faster.
+              </div>
+              {% if form.message.errors %}
+                <div class="text-danger small mt-1">
+                  {% for error in form.message.errors %}{{ error }}{% endfor %}
+                </div>
+              {% endif %}
+            </div>
+
+            <!-- Submit Button -->
+            <div class="col-12 mt-4">
+              <button type="submit" class="fm-btn fm-btn-primary w-100 py-2 d-flex align-items-center justify-content-center gap-2" id="btnSubmitContact">
+                <i class="bi bi-send-fill" aria-hidden="true"></i>
+                <span>Submit Message</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

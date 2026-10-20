@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Newsroom &amp; Press Releases — {{ BRAND_NAME }}{% endblock %}
+
+{% block meta_description %}Official newsroom, media announcements, press inquiries, and corporate updates from Fitmeezo. Verified media contact: press@fitmeezo.com.{% endblock %}
+
+{% block content %}
+<div class="fm-container py-4 py-md-5">
+  <nav class="fm-breadcrumbs mb-4" aria-label="Breadcrumb navigation">
+    <a href="{% url 'core:home' %}" class="fm-breadcrumb-item">
+      <i class="bi bi-house-door" aria-hidden="true"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right fm-breadcrumb-separator" aria-hidden="true"></i>
+    <span class="fm-breadcrumb-item is-current" aria-current="page">Newsroom &amp; Press</span>
+  </nav>
+
+  <!-- Page Header -->
+  <div class="text-center mb-5">
+    <span class="badge px-3 py-2 rounded-pill mb-2" style="background-color: var(--fm-primary-subtle); color: var(--fm-primary); font-weight: 700;">
+      <i class="bi bi-newspaper me-1" aria-hidden="true"></i> Media &amp; Communications
+    </span>
+    <h1 class="h2 fw-bold text-dark mb-2">Fitmeezo Newsroom &amp; Announcements</h1>
+    <p class="text-secondary mx-auto mb-0" style="max-width: 620px;">
+      Welcome to the official media center for Fitmeezo. Find our latest announcements, corporate updates, and media resources.
+    </p>
+  </div>
+
+  <!-- Main Announcement Section with Empty State -->
+  <div class="row justify-content-center mb-5">
+    <div class="col-lg-9">
+      <div class="card border rounded-3 p-5 text-center bg-white shadow-sm">
+        <div class="rounded-circle p-3 d-inline-flex align-items-center justify-content-center text-muted bg-light mx-auto mb-3" style="width: 64px; height: 64px;">
+          <i class="bi bi-megaphone fs-2" aria-hidden="true"></i>
+        </div>
+        <h2 class="h5 fw-bold text-dark mb-2">No Published Press Releases Currently</h2>
+        <p class="text-secondary small mx-auto mb-4" style="max-width: 480px;">
+          Fitmeezo has not issued any formal public press releases at this time. All official communications, platform launches, and milestone announcements will be published here.
+        </p>
+        <div>
+          <span class="badge bg-light text-muted border px-3 py-2">
+            Status: Operating Marketplace • Updates Forthcoming
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Media Kit & Inquiries Grid -->
+  <div class="row g-4 justify-content-center">
+    <div class="col-md-5">
+      <div class="card border rounded-3 p-4 bg-white shadow-sm h-100">
+        <h3 class="h6 fw-bold text-dark mb-3">
+          <i class="bi bi-envelope-paper-fill text-primary me-2"></i> Media Inquiries
+        </h3>
+        <p class="text-secondary small mb-3">
+          Journalists, media professionals, and industry analysts seeking official comments, executive interviews, or brand assets may contact our media relations desk directly.
+        </p>
+        <div class="p-3 rounded bg-light border mb-2 small">
+          <div><span class="text-muted">Press Email:</span> <strong class="text-dark">press@fitmeezo.com</strong></div>
+          <div class="mt-1"><span class="text-muted">General Contact:</span> <a href="mailto:{{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}" class="text-dark">{{ SUPPORT_EMAIL|default:'support@fitmeezo.com' }}</a></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-5">
+      <div class="card border rounded-3 p-4 bg-white shadow-sm h-100">
+        <h3 class="h6 fw-bold text-dark mb-3">
+          <i class="bi bi-building-fill text-success me-2"></i> Company Overview
+        </h3>
+        <ul class="list-unstyled small text-secondary mb-0 d-flex flex-column gap-2">
+          <li><strong>Brand Name:</strong> {{ BRAND_NAME }}</li>
+          <li><strong>Tagline:</strong> {{ BRAND_TAGLINE }}</li>
+          <li><strong>Headquarters &amp; Region:</strong> India (INR ₹)</li>
+          <li><strong>Website:</strong> <a href="https://fitmeezo.com" class="text-primary text-decoration-none" target="_blank" rel="noopener">https://fitmeezo.com</a></li>
+          <li><strong>Operating Categories:</strong> Electronics, Fashion, Home &amp; Living, Fitness</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
