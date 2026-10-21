@@ -295,6 +295,14 @@ class SellerAuthAndRegistrationFlowTests(TestCase):
         self.assertIn("gstin", resp4.context["form"].errors)
         self.assertIn("already registered", resp4.context["form"].errors["gstin"][0])
 
+        # 5. Duplicate mobile number
+        data5 = base_data.copy()
+        data5["mobile"] = "9876543210"  # Existing seller mobile
+        resp5 = self.client.post(reverse("core:seller_register"), data5)
+        self.assertEqual(resp5.status_code, 200)
+        self.assertIn("mobile", resp5.context["form"].errors)
+        self.assertTrue(any("already registered" in err or "already exists" in err for err in resp5.context["form"].errors["mobile"]))
+
     def test_authenticated_customer_can_onboard_seller_profile(self):
         """Logged-in customer without seller profile can register a store attached to their account."""
         self.client.login(username="shopper_john", password="SecurePass123!")

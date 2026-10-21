@@ -9,6 +9,8 @@ import uuid
 
 import razorpay
 
+logger = logging.getLogger(__name__)
+
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import authenticate, login, logout
@@ -2530,18 +2532,35 @@ def seller_register_view(request):
         if request.method == "POST":
             form = SellerRegistrationForm(request.POST)
             if form.is_valid():
-                seller = form.save(commit=False)
-                seller.user = request.user
-                seller.status = Seller.STATUS_PENDING
-                seller.is_active = True
-                seller.commission_rate = Decimal("0.00")
-                seller.save()
-                messages.success(
-                    request,
-                    f"Congratulations! Your seller application for '{seller.store_name}' has been submitted. "
-                    "Our platform administration team will review your business details and credentials shortly."
-                )
-                return redirect("core:seller_status")
+                try:
+                    seller = form.save(commit=False)
+                    seller.user = request.user
+                    seller.status = Seller.STATUS_PENDING
+                    seller.is_active = True
+                    seller.commission_rate = Decimal("0.00")
+                    user_mobile = getattr(getattr(request.user, "profile", None), "mobile_number", None)
+                    if user_mobile and not seller.registered_mobile:
+                        if not Seller.objects.filter(registered_mobile=user_mobile).exists():
+                            seller.registered_mobile = user_mobile
+                    seller.save()
+                    messages.success(
+                        request,
+                        f"Congratulations! Your seller application for '{seller.store_name}' has been submitted. "
+                        "Our platform administration team will review your business details and credentials shortly."
+                    )
+                    return redirect("core:seller_status")
+                except IntegrityError as exc:
+                    logger.warning("Integrity error during seller application: %s", exc)
+                    form.add_error(None, "A seller application with these store details, mobile number, or GSTIN already exists.")
+                    messages.error(request, "A seller application with these business details already exists. Please review your entries.")
+                except ValidationError as exc:
+                    logger.warning("Validation error during seller application: %s", exc)
+                    form.add_error(None, str(exc))
+                    messages.error(request, "Please review the highlighted errors and correct your application.")
+                except Exception as exc:
+                    logger.exception("Unexpected error during seller application: %s", exc)
+                    form.add_error(None, "An unexpected technical error occurred while submitting your application. Please try again.")
+                    messages.error(request, "Something went wrong while processing your application. Please try again.")
             else:
                 messages.error(request, "Please review the highlighted errors and correct your application.")
         else:
@@ -2561,14 +2580,34 @@ def seller_register_view(request):
     if request.method == "POST":
         form = PublicSellerRegistrationForm(request.POST)
         if form.is_valid():
-            user, seller = form.save()
-            login(request, user, backend="core.backends.EmailOrUsernameModelBackend")
-            messages.success(
-                request,
-                f"Congratulations! Your merchant account and seller application for '{seller.store_name}' "
-                "have been created. Your profile is currently pending administrator review."
-            )
-            return redirect("core:seller_status")
+            try:
+                user, seller = form.save()
+                login(request, user, backend="core.backends.EmailOrUsernameModelBackend")
+                messages.success(
+                    request,
+                    f"Congratulations! Your merchant account and seller application for '{seller.store_name}' "
+                    "have been created. Your profile is currently pending administrator review."
+                )
+                return redirect("core:seller_status")
+            except IntegrityError as exc:
+                logger.warning("Integrity error during public seller registration: %s", exc)
+                form.add_error(None, "An account or seller application with this email, mobile number, store name, or GSTIN already exists.")
+                messages.error(
+                    request,
+                    "An account or seller application with this email, mobile number, store name, or GSTIN already exists. "
+                    "Please verify your credentials or sign in."
+                )
+            except ValidationError as exc:
+                logger.warning("Validation error during public seller registration: %s", exc)
+                form.add_error(None, str(exc))
+                messages.error(request, "Please review the highlighted errors and correct your application.")
+            except Exception as exc:
+                logger.exception("Unexpected error during public seller registration: %s", exc)
+                form.add_error(None, "An unexpected technical error occurred while creating your account. Please try again.")
+                messages.error(
+                    request,
+                    "A technical error occurred while submitting your registration. Please check your details and try again."
+                )
         else:
             messages.error(request, "Please review the highlighted errors and correct your application.")
     else:

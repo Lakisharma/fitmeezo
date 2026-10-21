@@ -788,6 +788,27 @@ class SellerRegistrationForm(forms.ModelForm):
             raise ValidationError("A seller with this GSTIN is already registered on the platform.")
         return gstin
 
+    def clean_support_phone(self):
+        raw = self.cleaned_data.get("support_phone", "").strip()
+        if not raw:
+            raise ValidationError("Customer support phone is required.")
+        digits = re.sub(r"[^\d]", "", raw)
+        if len(digits) < 10:
+            raise ValidationError("Please enter a valid support phone number with at least 10 digits.")
+        return raw.strip()
+
+    def clean_postal_code(self):
+        pc = self.cleaned_data.get("postal_code", "").strip()
+        if not re.match(r"^\d{6}$", pc):
+            raise ValidationError("Please enter a valid 6-digit PIN code.")
+        return pc
+
+    def clean_pickup_postal_code(self):
+        ppc = self.cleaned_data.get("pickup_postal_code", "").strip()
+        if ppc and not re.match(r"^\d{6}$", ppc):
+            raise ValidationError("Please enter a valid 6-digit pickup PIN code.")
+        return ppc
+
     def clean(self):
         cleaned_data = super().clean()
         gstin = cleaned_data.get("gstin")
@@ -1071,14 +1092,33 @@ class PublicSellerRegistrationForm(forms.Form):
             raise ValidationError("Email address is required.")
         if User.objects.filter(email__iexact=email).exists():
             raise ValidationError("An account with this email address already exists. Please sign in.")
+        try:
+            from allauth.account.models import EmailAddress
+            if EmailAddress.objects.filter(email__iexact=email).exists():
+                raise ValidationError("An account with this email address already exists. Please sign in.")
+        except Exception:
+            pass
         return email
 
     def clean_mobile(self):
         raw = self.cleaned_data.get("mobile", "").strip()
+        normalized = normalize_mobile_number(raw)
+        if not normalized:
+            raise ValidationError("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.")
+        if CustomerProfile.objects.filter(mobile_number=normalized).exists() or CustomerProfile.objects.filter(phone_number__endswith=normalized).exists():
+            raise ValidationError("An account with this mobile number already exists. Please sign in or use a different mobile number.")
+        if Seller.objects.filter(registered_mobile=normalized).exists():
+            raise ValidationError("A seller store is already registered with this mobile number. Please sign in to Seller Hub or use a different mobile number.")
+        return normalized
+
+    def clean_support_phone(self):
+        raw = self.cleaned_data.get("support_phone", "").strip()
+        if not raw:
+            raise ValidationError("Customer support phone is required.")
         digits = re.sub(r"[^\d]", "", raw)
         if len(digits) < 10:
-            raise ValidationError("Please enter a valid 10-digit Indian mobile number.")
-        return digits[-10:]
+            raise ValidationError("Please enter a valid support phone number with at least 10 digits.")
+        return raw.strip()
 
     def clean_store_name(self):
         store_name = self.cleaned_data.get("store_name", "").strip()
@@ -1165,7 +1205,18 @@ class PublicSellerRegistrationForm(forms.Form):
 
             profile, _ = CustomerProfile.objects.get_or_create(user=user)
             profile.phone_number = self.cleaned_data["mobile"]
-            profile.save(update_fields=["phone_number", "updated_at"])
+            profile.mobile_number = self.cleaned_data["mobile"]
+            profile.save(update_fields=["phone_number", "mobile_number", "updated_at"])
+
+            try:
+                from allauth.account.models import EmailAddress
+                EmailAddress.objects.get_or_create(
+                    user=user,
+                    email=user.email,
+                    defaults={"primary": True, "verified": False},
+                )
+            except Exception:
+                pass
 
             pickup_addr = self.cleaned_data.get("pickup_address") or self.cleaned_data["registered_address"]
             pickup_city = self.cleaned_data.get("pickup_city") or self.cleaned_data["city"]

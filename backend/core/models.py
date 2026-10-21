@@ -1,5 +1,6 @@
 from decimal import Decimal
 import re
+import uuid
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.validators import MinValueValidator, MaxValueValidator
@@ -582,6 +583,9 @@ class Seller(models.Model):
 
         if not self.slug and self.store_name:
             base_slug = slugify(self.store_name)
+            if not base_slug:
+                legal = slugify(self.legal_business_name or "")
+                base_slug = legal or f"seller-{uuid.uuid4().hex[:6]}"
             slug = base_slug
             counter = 1
             while Seller.objects.filter(slug=slug).exclude(pk=self.pk).exists():
@@ -589,7 +593,7 @@ class Seller(models.Model):
                 counter += 1
             self.slug = slug
         elif self.slug:
-            self.slug = slugify(self.slug)
+            self.slug = slugify(self.slug) or f"seller-{uuid.uuid4().hex[:6]}"
 
         super().save(*args, **kwargs)
 
