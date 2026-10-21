@@ -262,6 +262,12 @@ class AdminProductForm(forms.ModelForm):
             return Product.APPROVAL_APPROVED
         return value
 
+    def clean_is_approved(self):
+        approval_status = self.cleaned_data.get("approval_status") or self.data.get("approval_status")
+        if not approval_status and self.instance and self.instance.pk:
+            approval_status = self.instance.approval_status
+        return approval_status == Product.APPROVAL_APPROVED
+
     def clean_image(self):
         img = self.cleaned_data.get("image")
         if img and hasattr(img, "size"):
@@ -397,13 +403,26 @@ class AdminProductForm(forms.ModelForm):
                 cleaned_data["stock_quantity"] = total_size_stock
         else:
             cleaned_data["available_sizes_list"] = []
-            cleaned_data["size_stock_map"] = {}
+        # Ensure is_approved is strictly synchronized with approval_status
+        approval_status = cleaned_data.get("approval_status")
+        if approval_status == Product.APPROVAL_APPROVED:
+            cleaned_data["is_approved"] = True
+        elif approval_status in (Product.APPROVAL_PENDING, Product.APPROVAL_REJECTED):
+            cleaned_data["is_approved"] = False
 
         return cleaned_data
 
     @transaction.atomic
     def save(self, commit=True):
         instance = super().save(commit=commit)
+        if instance.approval_status == Product.APPROVAL_APPROVED and not instance.is_approved:
+            instance.is_approved = True
+            if commit:
+                instance.save(update_fields=["is_approved", "updated_at"])
+        elif instance.approval_status != Product.APPROVAL_APPROVED and instance.is_approved:
+            instance.is_approved = False
+            if commit:
+                instance.save(update_fields=["is_approved", "updated_at"])
 
         has_size_variants = self.cleaned_data.get("has_size_variants", False)
         sizes_list = self.cleaned_data.get("available_sizes_list", [])

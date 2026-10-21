@@ -54,7 +54,7 @@ class CartLine:
         # Integrity, approval, and stock validation
         self.is_product_active = product.is_active if product else False
         self.is_product_approved = (
-            getattr(product, "is_approved", True)
+            (getattr(product, "is_approved", False) or getattr(product, "approval_status", "") == "approved")
             and getattr(product, "approval_status", "approved") == "approved"
         ) if product else False
         seller = getattr(product, "seller", None) if product else None
@@ -235,7 +235,11 @@ class Cart:
         Returns: (success: bool, message: str, key: str)
         """
         # 1. Product must exist, be active, and be approved
-        if not product or not product.is_active or not getattr(product, "is_approved", True):
+        is_approved = (
+            getattr(product, "is_approved", False)
+            or getattr(product, "approval_status", "") == Product.APPROVAL_APPROVED
+        ) and getattr(product, "approval_status", Product.APPROVAL_APPROVED) != Product.APPROVAL_REJECTED
+        if not product or not product.is_active or not is_approved:
             return False, "This product is currently inactive, unavailable or pending review and cannot be added to cart.", None
 
         # 2. Variant validation

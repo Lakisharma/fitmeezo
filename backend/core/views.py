@@ -544,9 +544,9 @@ def product_detail(request, slug):
     """
     product = get_object_or_404(
         Product.objects.select_related("category").prefetch_related("images", "variants"),
+        Q(is_approved=True) | Q(approval_status=Product.APPROVAL_APPROVED),
         slug=slug,
         is_active=True,
-        is_approved=True,
     )
     active_variants = list(
         product.variants.filter(is_active=True).order_by("option_type", "option_value", "id")
