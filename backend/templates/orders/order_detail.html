@@ -139,14 +139,49 @@
       {% if order.cancellation_reason %}
         <p class="small text-secondary mb-2"><strong>Reason:</strong> {{ order.cancellation_reason }}</p>
       {% endif %}
-      {% if order.payment_status == 'paid' %}
-        <div class="p-2 rounded bg-warning-subtle text-dark small border border-warning-subtle">
-          <i class="bi bi-hourglass-split me-1 text-warning"></i>
-          <strong>Refund Status:</strong> Verified online payment of {{ CURRENCY_SYMBOL }}{{ order.total_amount }} is pending refund review by our support team.
+      {% if order.payment_method == 'razorpay' and order.payment_status in 'paid,refunded' %}
+        {% if order.refund_status == 'processed' %}
+          <div class="p-3 rounded bg-success-subtle text-success-emphasis small border border-success-subtle">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+              <span class="fw-bold"><i class="bi bi-check-circle-fill text-success me-1"></i> Refund Successful (₹{{ order.refund_amount|default:order.total_amount }})</span>
+              {% if order.refunded_at %}<span class="text-muted" style="font-size: 11px;">Processed: {{ order.refunded_at|date:"d M Y, h:i A" }}</span>{% endif %}
+            </div>
+            {% if order.razorpay_refund_id %}
+              <div class="mb-1" style="font-size: 12px;">Gateway Refund Reference: <code>{{ order.razorpay_refund_id }}</code></div>
+            {% endif %}
+            <div class="text-secondary" style="font-size: 12px;">
+              <i class="bi bi-info-circle me-1"></i> Refund credited to your original payment method. Depending on your bank's clearance cycles, funds typically reflect within <strong>5–7 business days</strong>.
+            </div>
+          </div>
+        {% elif order.refund_status in 'pending,processing' %}
+          <div class="p-3 rounded bg-warning-subtle text-dark small border border-warning-subtle">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-1">
+              <span class="fw-bold"><i class="bi bi-hourglass-split text-warning me-1"></i> Refund Initiated &amp; Processing (₹{{ order.total_amount }})</span>
+              {% if order.razorpay_refund_id %}<code>{{ order.razorpay_refund_id }}</code>{% endif %}
+            </div>
+            <div class="text-secondary" style="font-size: 12px;">
+              Your refund has been initiated to your original payment source via Razorpay. We are awaiting verified settlement confirmation from your issuing bank (typically <strong>5–7 business days</strong>).
+            </div>
+          </div>
+        {% elif order.refund_status == 'failed' %}
+          <div class="p-3 rounded bg-danger-subtle text-danger small border border-danger-subtle">
+            <div class="fw-bold mb-1"><i class="bi bi-exclamation-triangle-fill me-1"></i> Refund Processing Delay</div>
+            <div style="font-size: 12px;">
+              We encountered a temporary processing delay with the payment gateway for your refund of ₹{{ order.total_amount }}. Our accounts desk has been alerted and will reconcile your refund shortly. You may also contact <a href="mailto:support@fitmeezo.com" class="text-danger fw-semibold">support@fitmeezo.com</a>.
+            </div>
+          </div>
+        {% else %}
+          <div class="p-2 rounded bg-light text-muted small border">
+            <i class="bi bi-info-circle me-1"></i> Refund status: {{ order.get_refund_status_display }}
+          </div>
+        {% endif %}
+      {% elif order.payment_method == 'cod' %}
+        <div class="small text-muted">
+          <i class="bi bi-info-circle me-1"></i> Cash on Delivery order. No payment was collected.
         </div>
       {% else %}
         <div class="small text-muted">
-          <i class="bi bi-info-circle me-1"></i> Cash on Delivery order. No payment was collected.
+          <i class="bi bi-info-circle me-1"></i> Order cancelled prior to payment completion. No charges were deducted.
         </div>
       {% endif %}
     </div>
@@ -544,7 +579,47 @@
             {% endif %}
           </div>
 
-          {% if order.payment_status == 'paid' %}
+          {% if order.status == 'cancelled' and order.payment_method == 'razorpay' %}
+            <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+              <span class="text-secondary small">Refund Status:</span>
+              {% if order.refund_status == 'processed' %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle">
+                  <i class="bi bi-check-circle-fill me-1"></i> Refund Successful
+                </span>
+              {% elif order.refund_status in 'pending,processing' %}
+                <span class="badge bg-warning-subtle text-dark border border-warning-subtle">
+                  <i class="bi bi-hourglass-split me-1"></i> Refund Processing
+                </span>
+              {% elif order.refund_status == 'failed' %}
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                  <i class="bi bi-exclamation-triangle-fill me-1"></i> Refund Failed
+                </span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-dark border">
+                  {{ order.get_refund_status_display }}
+                </span>
+              {% endif %}
+            </div>
+            {% if order.refund_amount and order.refund_amount > 0 %}
+              <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <span class="text-secondary small">Refunded Amount:</span>
+                <span class="fw-bold text-success small">{{ CURRENCY_SYMBOL }}{{ order.refund_amount }}</span>
+              </div>
+            {% endif %}
+            {% if order.razorpay_refund_id %}
+              <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                <span class="text-secondary small">Refund ID:</span>
+                <code class="small text-dark">{{ order.razorpay_refund_id }}</code>
+              </div>
+            {% endif %}
+          {% endif %}
+
+          {% if order.payment_status == 'refunded' or order.refund_status == 'processed' %}
+            <div class="alert alert-success py-2 px-3 mt-3 mb-0 small" style="font-size: 11px;">
+              <i class="bi bi-arrow-counterclockwise me-1 text-success"></i>
+              Refund completed to original source account.{% if order.razorpay_refund_id %} Ref: <code>{{ order.razorpay_refund_id }}</code>{% endif %}
+            </div>
+          {% elif order.payment_status == 'paid' and order.status != 'cancelled' %}
             <div class="alert alert-success py-2 px-3 mt-3 mb-0 small" style="font-size: 11px;">
               <i class="bi bi-shield-check me-1 text-success"></i>
               Payment verified successfully.{% if order.razorpay_payment_id %} Ref: <code>{{ order.razorpay_payment_id }}</code>{% endif %}
@@ -641,7 +716,7 @@
                   {% if order.payment_status == 'paid' %}
                     <div class="alert alert-warning py-2 px-3 small mb-3">
                       <i class="bi bi-info-circle-fill me-1"></i>
-                      <strong>Online Payment (Razorpay):</strong> Your payment of {{ CURRENCY_SYMBOL }}{{ order.total_amount }} will be flagged for refund review.
+                      <strong>Online Payment (Razorpay):</strong> An automatic refund of {{ CURRENCY_SYMBOL }}{{ order.total_amount }} will be initiated to your original payment method. Actual credit time depends on your bank (typically 5–7 business days).
                     </div>
                   {% else %}
                     <div class="alert alert-light border py-2 px-3 small mb-3 text-muted">

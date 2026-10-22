@@ -920,6 +920,28 @@ class OrderStatusHistoryAdmin(admin.ModelAdmin):
     readonly_fields = ("order", "from_status", "to_status", "changed_by", "notes", "created_at")
 
 
+class RefundRecordInline(admin.TabularInline):
+    model = RefundRecord
+    extra = 0
+    fields = (
+        "refund_reference",
+        "external_reference",
+        "approved_amount",
+        "commission_reversal",
+        "seller_payable_deduction",
+        "status",
+        "is_mock",
+        "processed_at",
+    )
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     """
@@ -951,6 +973,7 @@ class OrderAdmin(admin.ModelAdmin):
         "order_number",
         "razorpay_order_id",
         "razorpay_payment_id",
+        "razorpay_refund_id",
         "user__username",
         "user__email",
         "shipping_full_name",
@@ -974,12 +997,16 @@ class OrderAdmin(admin.ModelAdmin):
         "razorpay_payment_id",
         "razorpay_signature",
         "paid_at",
+        "razorpay_refund_id",
+        "refund_amount",
+        "refunded_at",
+        "refund_failure_reason",
         "confirmed_at",
         "packed_at",
         "shipped_at",
         "delivered_at",
     )
-    inlines = [SellerOrderInline, OrderItemInline, OrderStatusHistoryInline]
+    inlines = [SellerOrderInline, OrderItemInline, OrderStatusHistoryInline, RefundRecordInline]
     actions = [
         "mark_processing",
         "mark_shipped",
@@ -1010,6 +1037,14 @@ class OrderAdmin(admin.ModelAdmin):
                 ("razorpay_order_id", "razorpay_payment_id"),
                 "razorpay_signature",
                 "paid_at",
+            ),
+            "classes": ("collapse",),
+        }),
+        ("Online Refund Tracking", {
+            "fields": (
+                ("refund_status", "refund_amount"),
+                ("razorpay_refund_id", "refunded_at"),
+                "refund_failure_reason",
             ),
             "classes": ("collapse",),
         }),
@@ -1627,26 +1662,7 @@ class ReturnAuditLogInline(admin.TabularInline):
         return False
 
 
-class RefundRecordInline(admin.TabularInline):
-    model = RefundRecord
-    extra = 0
-    fields = (
-        "refund_reference",
-        "external_reference",
-        "approved_amount",
-        "commission_reversal",
-        "seller_payable_deduction",
-        "status",
-        "is_mock",
-        "processed_at",
-    )
-    readonly_fields = fields
 
-    def has_add_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 @admin.register(ReturnRequest)

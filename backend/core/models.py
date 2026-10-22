@@ -2324,13 +2324,15 @@ class Order(models.Model):
 
     REFUND_STATUS_NOT_APPLICABLE = "not_applicable"
     REFUND_STATUS_PENDING = "pending"
+    REFUND_STATUS_PROCESSING = "processing"
     REFUND_STATUS_PROCESSED = "processed"
     REFUND_STATUS_FAILED = "failed"
 
     REFUND_STATUS_CHOICES = [
-        (REFUND_STATUS_NOT_APPLICABLE, "Not Applicable"),
-        (REFUND_STATUS_PENDING, "Refund Required (Pending)"),
-        (REFUND_STATUS_PROCESSED, "Refund Processed"),
+        (REFUND_STATUS_NOT_APPLICABLE, "Refund Not Required"),
+        (REFUND_STATUS_PENDING, "Refund Pending"),
+        (REFUND_STATUS_PROCESSING, "Refund Processing"),
+        (REFUND_STATUS_PROCESSED, "Refund Successful"),
         (REFUND_STATUS_FAILED, "Refund Failed"),
     ]
 
@@ -2548,6 +2550,30 @@ class Order(models.Model):
         db_index=True,
         help_text="Refund fulfillment state for cancelled paid orders.",
     )
+    razorpay_refund_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Razorpay Refund ID returned by gateway (e.g. rfnd_xyz123).",
+    )
+    refund_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+        help_text="Total amount refunded to customer in INR.",
+    )
+    refunded_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when refund was settled / verified.",
+    )
+    refund_failure_reason = models.TextField(
+        blank=True,
+        default="",
+        help_text="Error message or failure reason from payment gateway if refund failed.",
+    )
     cancelled_at = models.DateTimeField(
         null=True,
         blank=True,
@@ -2586,6 +2612,7 @@ class Order(models.Model):
             models.Index(fields=["payment_status"], name="order_payment_status_idx"),
             models.Index(fields=["razorpay_order_id"], name="order_rp_order_idx"),
             models.Index(fields=["razorpay_payment_id"], name="order_rp_payment_idx"),
+            models.Index(fields=["razorpay_refund_id"], name="order_rp_refund_idx"),
         ]
 
     def __str__(self):
@@ -2649,7 +2676,7 @@ class Order(models.Model):
         return (
             self.status == self.STATUS_CANCELLED
             and self.payment_status == self.PAYMENT_STATUS_PAID
-            and self.refund_status == self.REFUND_STATUS_PENDING
+            and self.refund_status in [self.REFUND_STATUS_PENDING, self.REFUND_STATUS_FAILED]
         )
 
     @property
@@ -3924,11 +3951,13 @@ class RefundRecord(models.Model):
     Supports safe mock/simulated workflow with zero live external calls.
     """
     STATUS_PENDING = "pending"
+    STATUS_PROCESSING = "processing"
     STATUS_PROCESSED = "processed"
     STATUS_FAILED = "failed"
     STATUS_CANCELLED = "cancelled"
     STATUS_CHOICES = [
         (STATUS_PENDING, "Pending Approval / Processing"),
+        (STATUS_PROCESSING, "Processing with Gateway"),
         (STATUS_PROCESSED, "Processed (Settled)"),
         (STATUS_FAILED, "Failed"),
         (STATUS_CANCELLED, "Cancelled"),

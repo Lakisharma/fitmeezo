@@ -596,7 +596,6 @@ def cancel_order(order, user=None, cancelled_by="customer", reason="") -> tuple[
                 logger.warning(f"Failed to record cancellation in ledger for {locked_order.order_number}: {ledg_err}")
 
         # Safely attempt email dispatch outside the database transaction
-
         try:
             from .emails import send_order_cancellation_email
             send_order_cancellation_email(locked_order, reason=clean_reason, cancelled_by=cancelled_by)
@@ -605,7 +604,31 @@ def cancel_order(order, user=None, cancelled_by="customer", reason="") -> tuple[
                 f"Failed to dispatch cancellation email for #{locked_order.order_number}: {email_exc}"
             )
 
-        return True, f"Order #{locked_order.order_number} was successfully cancelled.", locked_order
+        # Automatic Razorpay refund initiation for paid online orders
+        refund_note = ""
+        if (
+            locked_order.payment_method == Order.PAYMENT_METHOD_RAZORPAY
+            and locked_order.payment_status in (Order.PAYMENT_STATUS_PAID, Order.PAYMENT_STATUS_REFUNDED)
+            and locked_order.razorpay_payment_id
+        ):
+            try:
+                from core.refund_services import initiate_order_cancellation_refund
+                ref_success, ref_message, _ = initiate_order_cancellation_refund(
+                    order=locked_order,
+                    actor=user,
+                    reason=clean_reason,
+                )
+                if ref_success:
+                    refund_note = f" {ref_message}"
+                else:
+                    logger.info(f"Refund initiation feedback for #{locked_order.order_number}: {ref_message}")
+            except Exception as ref_exc:
+                logger.error(
+                    f"Unexpected exception while initiating refund for #{locked_order.order_number}: {ref_exc}",
+                    exc_info=True,
+                )
+
+        return True, f"Order #{locked_order.order_number} was successfully cancelled.{refund_note}", locked_order
 
     except Exception as exc:
         logger.error(f"Error cancelling order #{order_pk}: {exc}", exc_info=True)

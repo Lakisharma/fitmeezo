@@ -1,0 +1,21 @@
+FITMEEZO - SHOP SMART • LIVE BETTER
+==================================================
+
+Dear {{ order.shipping_full_name }},
+
+A refund has been initiated for your cancelled order #{{ order.order_number }}.
+
+Refund Details:
+- Refund Amount: ₹{{ order.refund_amount|default:order.total_amount }}
+- Payment Method: Original Payment Source (Razorpay)
+{% if order.razorpay_refund_id %}- Gateway Refund Reference: {{ order.razorpay_refund_id }}{% endif %}
+{% if refund_record.refund_reference %}- Voucher Reference: {{ refund_record.refund_reference }}{% endif %}
+- Refund Status: {{ order.get_refund_status_display }}
+
+Bank Processing Timeline:
+The refund has been dispatched from Fitmeezo through Razorpay. Actual credit time depends on your bank and payment network; funds typically reflect in your account within 5 to 7 business days.
+
+View Order Online: https://fitmeezo.com{% url 'core:order_detail' order.order_number %}
+
+Customer Care: support@fitmeezo.com | Helpline: +91 940885323
+(c) Fitmeezo. All Rights Reserved.

@@ -103,8 +103,26 @@
                 </span>
               {% endif %}
 
-              <!-- Payment Status Badge -->
-              {% if order.payment_status == 'paid' %}
+              <!-- Payment / Refund Status Badge -->
+              {% if order.status == 'cancelled' and order.payment_method == 'razorpay' and order.payment_status in 'paid,refunded' %}
+                {% if order.refund_status == 'processed' %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle">
+                    <i class="bi bi-arrow-counterclockwise me-1"></i> Refund Successful
+                  </span>
+                {% elif order.refund_status in 'pending,processing' %}
+                  <span class="badge bg-warning-subtle text-dark border border-warning-subtle">
+                    <i class="bi bi-hourglass-split me-1"></i> Refund Processing
+                  </span>
+                {% elif order.refund_status == 'failed' %}
+                  <span class="badge bg-danger-subtle text-danger border border-danger-subtle">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i> Refund Failed
+                  </span>
+                {% else %}
+                  <span class="badge bg-secondary-subtle text-dark border">
+                    {{ order.get_refund_status_display }}
+                  </span>
+                {% endif %}
+              {% elif order.payment_status == 'paid' %}
                 <span class="badge bg-success text-white"><i class="bi bi-shield-check me-1"></i> Paid</span>
               {% elif order.payment_method == 'razorpay' %}
                 <span class="badge bg-warning-subtle text-dark border border-warning-subtle">
@@ -206,7 +224,7 @@
                       {% if order.payment_status == 'paid' %}
                         <div class="alert alert-warning py-2 px-3 small mb-3">
                           <i class="bi bi-info-circle-fill me-1"></i>
-                          <strong>Online Payment:</strong> Your verified payment of {{ CURRENCY_SYMBOL }}{{ order.total_amount }} will be flagged for refund review.
+                          <strong>Online Payment (Razorpay):</strong> An automatic refund of {{ CURRENCY_SYMBOL }}{{ order.total_amount }} will be initiated to your original payment method. Actual credit time depends on your bank (typically 5–7 business days).
                         </div>
                       {% else %}
                         <div class="alert alert-light border py-2 px-3 small mb-3 text-muted">

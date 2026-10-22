@@ -182,8 +182,46 @@
               <div class="text-muted" style="font-size: 11px;">Cancelled on: {{ order.cancelled_at|date:"M d, Y H:i" }} ({{ order.cancelled_by|title }})</div>
             {% endif %}
           </div>
-          {% if order.refund_status == 'pending' %}
-            <div class="alert alert-warning py-2 px-3 small">
+          {% if order.status == 'cancelled' and order.payment_method == 'razorpay' %}
+            <div class="mt-3 p-3 border rounded bg-light">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="fw-semibold small">Refund Status:</span>
+                {% if order.refund_status == 'processed' %}
+                  <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i> Refund Successful</span>
+                {% elif order.refund_status in 'pending,processing' %}
+                  <span class="badge bg-warning text-dark"><i class="bi bi-hourglass-split me-1"></i> {{ order.get_refund_status_display }}</span>
+                {% elif order.refund_status == 'failed' %}
+                  <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i> Refund Failed</span>
+                {% else %}
+                  <span class="badge bg-secondary">{{ order.get_refund_status_display }}</span>
+                {% endif %}
+              </div>
+              {% if order.refund_amount %}
+                <div class="small mb-1"><strong>Refund Amount:</strong> ₹{{ order.refund_amount }}</div>
+              {% endif %}
+              {% if order.razorpay_refund_id %}
+                <div class="small mb-1"><strong>Gateway Refund ID:</strong> <code>{{ order.razorpay_refund_id }}</code></div>
+              {% endif %}
+              {% if order.refunded_at %}
+                <div class="small text-muted mb-2">Settled At: {{ order.refunded_at|date:"d M Y, H:i" }}</div>
+              {% endif %}
+              {% if order.refund_failure_reason %}
+                <div class="alert alert-danger py-1 px-2 small mb-2">
+                  <i class="bi bi-exclamation-circle me-1"></i> {{ order.refund_failure_reason }}
+                </div>
+              {% endif %}
+
+              {% if order.refund_status != 'processed' and order.payment_status in 'paid,refunded' %}
+                <form method="post" action="{% url 'custom_admin:order_reconcile_refund' pk=order.pk %}" class="mt-2" onsubmit="return confirm('Reconcile or retry Razorpay refund for Order #{{ order.order_number }}? Razorpay will be checked first to prevent duplicate refunds.');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-primary w-100">
+                    <i class="bi bi-arrow-repeat me-1"></i> Reconcile / Retry Gateway Refund
+                  </button>
+                </form>
+              {% endif %}
+            </div>
+          {% elif order.refund_status == 'pending' %}
+            <div class="alert alert-warning py-2 px-3 small mt-2">
               <i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>Refund Required:</strong> Customer paid online. Process gateway refund and update payment status.
             </div>
           {% endif %}
@@ -246,9 +284,13 @@
               <div class="text-muted mt-1">Payment ID:</div>
               <code class="text-success">{{ order.razorpay_payment_id }}</code>
             {% endif %}
+            {% if order.razorpay_refund_id %}
+              <div class="text-muted mt-1">Refund ID:</div>
+              <code class="text-primary">{{ order.razorpay_refund_id }}</code>
+            {% endif %}
           </div>
           <div class="alert alert-info py-2 px-3 small">
-            <i class="bi bi-info-circle me-1"></i> Online orders are automatically verified via Razorpay webhook/verification endpoints.
+            <i class="bi bi-info-circle me-1"></i> Online orders and refunds are automatically verified via Razorpay webhook endpoints.
           </div>
         {% endif %}
 
@@ -267,6 +309,31 @@
             <i class="bi bi-check2-circle me-1"></i> Update Payment State
           </button>
         </form>
+
+        {% if refund_records %}
+          <hr class="my-3">
+          <h6 class="fw-bold small text-dark mb-2"><i class="bi bi-receipt-cutoff me-1 text-success"></i> Refund Voucher Records</h6>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered small mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th>Voucher Ref</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ref in refund_records %}
+                  <tr>
+                    <td><code>{{ ref.refund_reference }}</code></td>
+                    <td class="fw-bold text-success">₹{{ ref.approved_amount }}</td>
+                    <td><span class="badge bg-light text-dark border">{{ ref.get_status_display }}</span></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
       </div>
     </div>
 

@@ -218,3 +218,45 @@ def send_contact_inquiry_email(inquiry) -> bool:
         return False
 
 
+def send_order_refund_email(order, refund_record=None) -> bool:
+    """
+    Sends an automated refund notification email to the customer with refund amount,
+    gateway reference, and expected banking settlement timeline.
+    Fails silently so background/webhook workflows are never interrupted.
+    """
+    if not order or not order.user or not order.user.email:
+        logger.info(f"Skipping refund notification email: no valid customer email.")
+        return False
+
+    recipient_email = order.user.email.strip()
+    brand_name = getattr(settings, "BRAND_NAME", "Fitmeezo")
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", f"{brand_name} <support@fitmeezo.com>")
+    subject = f"Refund Update: Order #{order.order_number} | {brand_name}"
+
+    context = {
+        "order": order,
+        "refund_record": refund_record,
+        "brand_name": brand_name,
+    }
+
+    try:
+        html_content = render_to_string("emails/order_refund.html", context)
+        text_content = render_to_string("emails/order_refund.txt", context)
+
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content,
+            from_email=from_email,
+            to=[recipient_email],
+        )
+        msg.attach_alternative(html_content, "text/html")
+        msg.send(fail_silently=False)
+        logger.info(f"Refund notification email sent for #{order.order_number} to {recipient_email}")
+        return True
+    except Exception as exc:
+        logger.warning(
+            f"Failed to send refund notification email for #{order.order_number} to {recipient_email}: {exc}"
+        )
+        return False
+
+

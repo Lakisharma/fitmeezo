@@ -771,12 +771,14 @@ def admin_order_detail_view(request, pk):
 
     # Calculate allowed next transitions for UI display
     allowed_next_statuses = AdminOrderStatusForm.ALLOWED_TRANSITIONS.get(order.status, [])
+    refund_records = order.refund_records.order_by("-created_at")
 
     context = {
         "order": order,
         "status_form": status_form,
         "payment_form": payment_form,
         "allowed_next_statuses": allowed_next_statuses,
+        "refund_records": refund_records,
     }
     return render(request, "custom_admin/orders/detail.html", context)
 
@@ -845,6 +847,23 @@ def admin_order_update_payment_view(request, pk):
         )
         messages.error(request, error_msg)
 
+    return redirect("custom_admin:order_detail", pk=order.pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
+@require_POST
+def admin_order_reconcile_refund_view(request, pk):
+    """
+    Authorized administrative view to reconcile or retry an online order refund.
+    Performs a safe check at Razorpay first to prevent duplicate refunds.
+    """
+    order = get_object_or_404(Order, pk=pk)
+    from core.refund_services import reconcile_order_refund
+    success, message, _ = reconcile_order_refund(order, actor=request.user)
+    if success:
+        messages.success(request, message)
+    else:
+        messages.error(request, message)
     return redirect("custom_admin:order_detail", pk=order.pk)
 
 

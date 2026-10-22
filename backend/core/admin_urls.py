@@ -14,6 +14,7 @@ from .admin_views import (
     admin_logout_view,
     admin_order_detail_view,
     admin_order_list_view,
+    admin_order_reconcile_refund_view,
     admin_order_update_payment_view,
     admin_order_update_status_view,
     admin_product_add_view,
@@ -127,6 +128,7 @@ urlpatterns = [
     path("orders/<int:pk>/", admin_order_detail_view, name="order_detail"),
     path("orders/<int:pk>/update-status/", admin_order_update_status_view, name="order_update_status"),
     path("orders/<int:pk>/update-payment/", admin_order_update_payment_view, name="order_update_payment"),
+    path("orders/<int:pk>/reconcile-refund/", admin_order_reconcile_refund_view, name="order_reconcile_refund"),
 
     # Customers
     path("customers/", admin_customer_list_view, name="customer_list"),

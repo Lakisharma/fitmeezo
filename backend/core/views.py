@@ -18,8 +18,8 @@ from django.contrib.auth.decorators import login_required
 from django.core.cache import cache
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.core.paginator import Paginator
-from django.db import connection, transaction, IntegrityError
-from django.db.models import Avg, F, Q
+from django.db import connection, transaction, IntegrityError, models
+from django.db.models import Avg, F, Q, Sum
 from django.http import HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -378,12 +378,7 @@ def home(request):
     except Exception:
         db_featured = []
 
-    if db_featured:
-        featured_products = db_featured
-        is_demo_featured = False
-    else:
-        featured_products = SAMPLE_FEATURED_PRODUCTS
-        is_demo_featured = True
+    featured_products = db_featured
 
     # Active trending products from database
     # Ordering rule: Newest active products until popularity metric exists
@@ -396,21 +391,14 @@ def home(request):
     except Exception:
         db_trending = []
 
-    if db_trending:
-        trending_products = db_trending
-        is_demo_trending = False
-    else:
-        trending_products = SAMPLE_TRENDING_PRODUCTS
-        is_demo_trending = True
+    trending_products = db_trending
 
     context = {
         "categories": categories,
-        "spotlight_product": SAMPLE_SPOTLIGHT_PRODUCT,
         "featured_products": featured_products,
         "trending_products": trending_products,
         "benefits": BENEFITS,
         "campaign_banner": CAMPAIGN_BANNER,
-        "is_demo_data": is_demo_featured and is_demo_trending,
     }
     return render(request, "home.html", context)
 
@@ -1949,7 +1937,7 @@ def checkout_view(request):
     shipping_fee = Decimal("0.00") if subtotal >= FREE_SHIPPING_THRESHOLD else STANDARD_SHIPPING_FEE
     total_payable = (subtotal + shipping_fee).quantize(Decimal("0.01"))
     total_discount = cart.total_discount
-    razorpay_enabled = getattr(settings, "RAZORPAY_ENABLED", False) or bool(
+    razorpay_enabled = getattr(settings, "RAZORPAY_ENABLED", True) and bool(
         getattr(settings, "RAZORPAY_KEY_ID", "")
         and getattr(settings, "RAZORPAY_KEY_SECRET", "")
         and not getattr(settings, "RAZORPAY_KEY_ID", "").lower().startswith(("replace_", "your_", "todo"))
@@ -2100,7 +2088,7 @@ def razorpay_payment_page(request, order_number):
         messages.warning(request, f"Order #{order.order_number} is cancelled and cannot be paid.")
         return redirect("core:order_detail", order_number=order.order_number)
 
-    razorpay_enabled = getattr(settings, "RAZORPAY_ENABLED", False) or bool(
+    razorpay_enabled = getattr(settings, "RAZORPAY_ENABLED", True) and bool(
         getattr(settings, "RAZORPAY_KEY_ID", "")
         and getattr(settings, "RAZORPAY_KEY_SECRET", "")
         and not getattr(settings, "RAZORPAY_KEY_ID", "").lower().startswith(("replace_", "your_", "todo"))
@@ -2313,6 +2301,8 @@ def razorpay_webhook(request):
         return HttpResponse("Invalid JSON", status=400)
 
     event = data.get("event", "")
+    logger.info(f"Razorpay webhook received event: {event}")
+
     if event in ("order.paid", "payment.captured"):
         payment_entity = data.get("payload", {}).get("payment", {}).get("entity", {})
         rp_order_id = payment_entity.get("order_id")
@@ -2323,6 +2313,290 @@ def razorpay_webhook(request):
             if order and order.payment_status != Order.PAYMENT_STATUS_PAID:
                 order.mark_as_paid(payment_id=rp_payment_id)
                 send_payment_success_email(order)
+        return HttpResponse("OK", status=200)
+
+    elif event in ("refund.processed", "refund.created", "refund.failed", "refund.speed_changed"):
+        refund_entity = data.get("payload", {}).get("refund", {}).get("entity", {})
+        rfnd_id = refund_entity.get("id", "").strip()
+        payment_id = refund_entity.get("payment_id", "").strip()
+        amount_paise = refund_entity.get("amount", 0)
+        amount_inr = (
+            Decimal(str(amount_paise / 100)).quantize(Decimal("0.01"))
+            if amount_paise
+            else Decimal("0.00")
+        )
+        notes = refund_entity.get("notes", {}) or {}
+        order_number = notes.get("order_number", "").strip()
+
+        # Locate target Order through authoritative IDs (refund ID, payment ID, or verified order number)
+        target_order = None
+        if rfnd_id:
+            target_order = Order.objects.filter(razorpay_refund_id=rfnd_id).first()
+            if not target_order:
+                ref_match = RefundRecord.objects.filter(external_reference=rfnd_id).select_related("order").first()
+                if ref_match:
+                    target_order = ref_match.order
+
+        if not target_order and payment_id:
+            target_order = Order.objects.filter(razorpay_payment_id=payment_id).first()
+
+        if not target_order and order_number:
+            candidate_order = Order.objects.filter(order_number=order_number).first()
+            if candidate_order:
+                # Fallback to order_number requires positive verification that payment_id matches candidate order
+                if not payment_id or not candidate_order.razorpay_payment_id or candidate_order.razorpay_payment_id != payment_id:
+                    logger.error(
+                        f"Razorpay webhook {event}: Cross-order safety reject! "
+                        f"Webhook for order_number '{order_number}' has unverified or mismatched payment_id "
+                        f"'{payment_id}' vs order payment_id '{getattr(candidate_order, 'razorpay_payment_id', None)}'."
+                    )
+                    return HttpResponse("Payment identity unverified", status=200)
+                target_order = candidate_order
+
+        if not target_order:
+            logger.warning(
+                f"Razorpay webhook {event}: no matching Order found for rfnd={rfnd_id}, pay={payment_id}, order={order_number}."
+            )
+            return HttpResponse("Order not found", status=200)
+
+        # Authoritative payment identity verification:
+        # Every refund event (refund.created, refund.processed, refund.failed)
+        # MUST have a non-empty payment_id that strictly matches the target order's razorpay_payment_id.
+        # Even if the order was located via refund ID, unverified or mismatched payment identity is rejected.
+        if not payment_id or not target_order.razorpay_payment_id or target_order.razorpay_payment_id != payment_id:
+            logger.error(
+                f"Razorpay webhook {event}: Cross-order / unverified payment identity reject! "
+                f"Target Order #{target_order.order_number} razorpay_payment_id '{getattr(target_order, 'razorpay_payment_id', '')}' "
+                f"does not match webhook payment_id '{payment_id}'. Aborting without updating order."
+            )
+            return HttpResponse("Payment identity unverified or mismatched", status=200)
+
+        with transaction.atomic():
+            locked_order = Order.objects.select_for_update().get(pk=target_order.pk)
+
+            if event == "refund.processed":
+                # Find or associate RefundRecord for this specific refund transaction:
+                # 1. Exact match by external_reference
+                ref_rec = RefundRecord.objects.select_for_update().filter(
+                    order=locked_order, external_reference=rfnd_id
+                ).first()
+
+                # 2. Verified match by internal voucher reference (receipt or notes.refund_reference) ONLY
+                if not ref_rec and rfnd_id:
+                    receipt_ref = refund_entity.get("receipt", "").strip() or notes.get("refund_reference", "").strip()
+                    if receipt_ref:
+                        ref_rec = RefundRecord.objects.select_for_update().filter(
+                            order=locked_order,
+                            refund_reference=receipt_ref,
+                            external_reference="",
+                        ).first()
+
+                # Idempotency check: if this refund ID is already settled, do not duplicate amount or notifications
+                if ref_rec and ref_rec.status == RefundRecord.STATUS_PROCESSED and ref_rec.external_reference == rfnd_id:
+                    logger.info(
+                        f"Razorpay webhook refund.processed: #{locked_order.order_number} refund {rfnd_id} already processed (idempotent)."
+                    )
+                    return HttpResponse("OK", status=200)
+
+                now_ts = timezone.now()
+                effective_amount = (
+                    amount_inr if amount_inr > Decimal("0.00")
+                    else (ref_rec.approved_amount if ref_rec else Decimal("0.00"))
+                )
+
+                if ref_rec:
+                    ref_rec.external_reference = rfnd_id or ref_rec.external_reference
+                    ref_rec.status = RefundRecord.STATUS_PROCESSED
+                    if effective_amount > Decimal("0.00"):
+                        ref_rec.approved_amount = effective_amount
+                    ref_rec.processed_at = now_ts
+                    ref_rec.audit_note = (
+                        f"Settlement confirmed via Razorpay webhook ({event}): {rfnd_id}."
+                    )
+                    ref_rec.save(update_fields=[
+                        "external_reference", "status", "approved_amount", "processed_at", "audit_note", "updated_at"
+                    ])
+                else:
+                    date_str = now_ts.strftime("%Y%m%d")
+                    rand_id = uuid.uuid4().hex[:6].upper()
+                    ref_rec = RefundRecord.objects.create(
+                        refund_reference=f"REF-{date_str}-{rand_id}",
+                        external_reference=rfnd_id,
+                        order=locked_order,
+                        requested_amount=effective_amount,
+                        approved_amount=effective_amount,
+                        currency=locked_order.currency or "INR",
+                        payment_method=Order.PAYMENT_METHOD_RAZORPAY,
+                        status=RefundRecord.STATUS_PROCESSED,
+                        processed_at=now_ts,
+                        audit_note=f"Settlement recorded via Razorpay webhook ({event}): {rfnd_id}.",
+                    )
+
+                # Cumulative processed refunds calculation across all RefundRecords for this order
+                cumulative_refunded = (
+                    RefundRecord.objects.filter(
+                        order=locked_order,
+                        status=RefundRecord.STATUS_PROCESSED,
+                    ).aggregate(total=Sum("approved_amount"))["total"]
+                    or Decimal("0.00")
+                )
+
+                locked_order.refund_amount = cumulative_refunded
+                if rfnd_id:
+                    locked_order.razorpay_refund_id = rfnd_id
+                locked_order.refunded_at = now_ts
+                locked_order.refund_failure_reason = ""
+
+                # Full refund vs Partial refund status transitions
+                if cumulative_refunded >= locked_order.total_amount and locked_order.total_amount > Decimal("0.00"):
+                    locked_order.payment_status = Order.PAYMENT_STATUS_REFUNDED
+                    locked_order.refund_status = Order.REFUND_STATUS_PROCESSED
+                else:
+                    # Partial refund leaves payment_status as PAID and refund_status as PROCESSING
+                    if locked_order.payment_status != Order.PAYMENT_STATUS_REFUNDED:
+                        locked_order.payment_status = Order.PAYMENT_STATUS_PAID
+                    locked_order.refund_status = Order.REFUND_STATUS_PROCESSING
+
+                locked_order.save(update_fields=[
+                    "refund_status",
+                    "payment_status",
+                    "refund_amount",
+                    "razorpay_refund_id",
+                    "refunded_at",
+                    "refund_failure_reason",
+                    "updated_at",
+                ])
+
+                try:
+                    from core.emails import send_order_refund_email
+                    send_order_refund_email(locked_order, refund_record=ref_rec)
+                except Exception as mail_err:
+                    logger.warning(
+                        f"Failed to send webhook refund email for #{locked_order.order_number}: {mail_err}"
+                    )
+
+            elif event == "refund.created":
+                # Find or associate RefundRecord for this specific refund transaction
+                # 1. Exact match by external_reference
+                ref_rec = RefundRecord.objects.select_for_update().filter(
+                    order=locked_order, external_reference=rfnd_id
+                ).first()
+
+                # 2. Verified match by internal voucher reference (receipt or notes.refund_reference) ONLY
+                if not ref_rec and rfnd_id:
+                    receipt_ref = refund_entity.get("receipt", "").strip() or notes.get("refund_reference", "").strip()
+                    if receipt_ref:
+                        ref_rec = RefundRecord.objects.select_for_update().filter(
+                            order=locked_order,
+                            refund_reference=receipt_ref,
+                            external_reference="",
+                        ).first()
+
+                # Anti-downgrade check: if this specific refund is already processed, ignore out-of-order created event
+                if ref_rec and ref_rec.status == RefundRecord.STATUS_PROCESSED:
+                    logger.info(
+                        f"Razorpay webhook refund.created: #{locked_order.order_number} refund {rfnd_id} already processed. Ignoring."
+                    )
+                    return HttpResponse("OK", status=200)
+
+                # Order-level anti-downgrade check: if order is fully processed, do not change order status
+                if locked_order.refund_status != Order.REFUND_STATUS_PROCESSED:
+                    locked_order.refund_status = Order.REFUND_STATUS_PROCESSING
+                    if rfnd_id and not locked_order.razorpay_refund_id:
+                        locked_order.razorpay_refund_id = rfnd_id
+                    locked_order.save(update_fields=[
+                        "refund_status", "razorpay_refund_id", "updated_at"
+                    ])
+
+                if ref_rec:
+                    ref_rec.external_reference = rfnd_id or ref_rec.external_reference
+                    if ref_rec.status != RefundRecord.STATUS_PROCESSED:
+                        ref_rec.status = RefundRecord.STATUS_PROCESSING
+                    ref_rec.save(update_fields=["external_reference", "status", "updated_at"])
+                elif rfnd_id:
+                    # New distinct refund created without prior internal voucher; do NOT touch unverified empty vouchers
+                    now_ts = timezone.now()
+                    date_str = now_ts.strftime("%Y%m%d")
+                    rand_id = uuid.uuid4().hex[:6].upper()
+                    RefundRecord.objects.create(
+                        refund_reference=f"REF-{date_str}-{rand_id}",
+                        external_reference=rfnd_id,
+                        order=locked_order,
+                        requested_amount=amount_inr,
+                        approved_amount=amount_inr,
+                        currency=locked_order.currency or "INR",
+                        payment_method=Order.PAYMENT_METHOD_RAZORPAY,
+                        status=RefundRecord.STATUS_PROCESSING,
+                        audit_note=f"Refund created via Razorpay webhook ({event}): {rfnd_id}.",
+                    )
+
+            elif event == "refund.failed":
+                error_desc = refund_entity.get("error_description") or "Refund failed at payment gateway."
+
+                # Find or associate RefundRecord for this specific refund transaction
+                # 1. Exact match by external_reference
+                ref_rec = RefundRecord.objects.select_for_update().filter(
+                    order=locked_order, external_reference=rfnd_id
+                ).first()
+
+                # 2. Verified match by internal voucher reference (receipt or notes.refund_reference) ONLY
+                if not ref_rec and rfnd_id:
+                    receipt_ref = refund_entity.get("receipt", "").strip() or notes.get("refund_reference", "").strip()
+                    if receipt_ref:
+                        ref_rec = RefundRecord.objects.select_for_update().filter(
+                            order=locked_order,
+                            refund_reference=receipt_ref,
+                            external_reference="",
+                        ).first()
+
+                # Anti-downgrade check: if this specific refund is already processed, ignore spurious failed event
+                if ref_rec and ref_rec.status == RefundRecord.STATUS_PROCESSED:
+                    logger.warning(
+                        f"Razorpay webhook refund.failed: #{locked_order.order_number} refund {rfnd_id} already processed. Ignoring spurious failure."
+                    )
+                    return HttpResponse("OK", status=200)
+
+                # Order-level anti-downgrade: if order is fully processed, do not downgrade to failed
+                if locked_order.refund_status != Order.REFUND_STATUS_PROCESSED:
+                    locked_order.refund_status = Order.REFUND_STATUS_FAILED
+                    locked_order.refund_failure_reason = str(error_desc)[:255]
+                    locked_order.save(update_fields=["refund_status", "refund_failure_reason", "updated_at"])
+
+                if ref_rec:
+                    if ref_rec.status != RefundRecord.STATUS_PROCESSED:
+                        ref_rec.status = RefundRecord.STATUS_FAILED
+                        ref_rec.audit_note = f"Razorpay refund failed: {error_desc}"
+                        if rfnd_id and not ref_rec.external_reference:
+                            ref_rec.external_reference = rfnd_id
+                        ref_rec.save(update_fields=["external_reference", "status", "audit_note", "updated_at"])
+                elif rfnd_id:
+                    # New distinct failed refund recorded without altering unverified vouchers
+                    now_ts = timezone.now()
+                    date_str = now_ts.strftime("%Y%m%d")
+                    rand_id = uuid.uuid4().hex[:6].upper()
+                    RefundRecord.objects.create(
+                        refund_reference=f"REF-{date_str}-{rand_id}",
+                        external_reference=rfnd_id,
+                        order=locked_order,
+                        requested_amount=amount_inr,
+                        approved_amount=amount_inr,
+                        currency=locked_order.currency or "INR",
+                        payment_method=Order.PAYMENT_METHOD_RAZORPAY,
+                        status=RefundRecord.STATUS_FAILED,
+                        audit_note=f"Razorpay refund failed: {error_desc}",
+                    )
+
+                logger.warning(
+                    f"Razorpay webhook: refund {rfnd_id} for #{locked_order.order_number} failed: {error_desc}"
+                )
+
+            elif event == "refund.speed_changed":
+                speed_req = refund_entity.get("speed_requested", "")
+                speed_proc = refund_entity.get("speed_processed", "")
+                logger.info(
+                    f"Razorpay refund speed changed for #{locked_order.order_number} ({rfnd_id}): "
+                    f"requested={speed_req}, processed={speed_proc}"
+                )
 
     return HttpResponse("OK", status=200)
 
