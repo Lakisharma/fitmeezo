@@ -1949,7 +1949,12 @@ def checkout_view(request):
     shipping_fee = Decimal("0.00") if subtotal >= FREE_SHIPPING_THRESHOLD else STANDARD_SHIPPING_FEE
     total_payable = (subtotal + shipping_fee).quantize(Decimal("0.01"))
     total_discount = cart.total_discount
-    razorpay_enabled = getattr(settings, "RAZORPAY_ENABLED", False)
+    razorpay_enabled = getattr(settings, "RAZORPAY_ENABLED", False) or bool(
+        getattr(settings, "RAZORPAY_KEY_ID", "")
+        and getattr(settings, "RAZORPAY_KEY_SECRET", "")
+        and not getattr(settings, "RAZORPAY_KEY_ID", "").lower().startswith(("replace_", "your_", "todo"))
+        and not getattr(settings, "RAZORPAY_KEY_SECRET", "").lower().startswith(("replace_", "your_", "todo"))
+    )
 
     if request.method == "POST":
         address_mode = request.POST.get("address_mode", "").strip() or ("existing" if user_addresses.exists() else "new")
@@ -2095,7 +2100,13 @@ def razorpay_payment_page(request, order_number):
         messages.warning(request, f"Order #{order.order_number} is cancelled and cannot be paid.")
         return redirect("core:order_detail", order_number=order.order_number)
 
-    if not getattr(settings, "RAZORPAY_ENABLED", False):
+    razorpay_enabled = getattr(settings, "RAZORPAY_ENABLED", False) or bool(
+        getattr(settings, "RAZORPAY_KEY_ID", "")
+        and getattr(settings, "RAZORPAY_KEY_SECRET", "")
+        and not getattr(settings, "RAZORPAY_KEY_ID", "").lower().startswith(("replace_", "your_", "todo"))
+        and not getattr(settings, "RAZORPAY_KEY_SECRET", "").lower().startswith(("replace_", "your_", "todo"))
+    )
+    if not razorpay_enabled:
         messages.error(request, "Online payments are currently disabled.")
         return redirect("core:order_detail", order_number=order.order_number)
 

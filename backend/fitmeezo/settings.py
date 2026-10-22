@@ -17,8 +17,8 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables: process env takes precedence, followed by root .env, then backend/.env
-load_dotenv(BASE_DIR.parent / ".env", override=False)
-load_dotenv(BASE_DIR / ".env", override=False)
+load_dotenv(BASE_DIR.parent / ".env", override=True)
+load_dotenv(BASE_DIR / ".env", override=True)
 
 # ==============================================================================
 # CORE BRAND & LOCALIZATION METADATA

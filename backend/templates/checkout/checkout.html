@@ -236,60 +236,31 @@
             <h2 class="h5 fw-bold text-dark mb-0">Payment Method</h2>
           </div>
           <div class="card-body p-4">
-            <!-- Cash on Delivery Option -->
-            <div class="card border rounded-3 p-3 bg-light bg-opacity-50 mb-3 fm-payment-option-card border-primary" id="fmCardCOD">
-              <div class="d-flex align-items-start gap-3">
-                <input type="radio"
-                       name="payment_method"
-                       id="fmPaymentMethodCOD"
-                       value="cod"
-                       class="form-check-input mt-1 fm-payment-radio"
-                       checked>
-                <div class="flex-grow-1">
-                  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                    <label for="fmPaymentMethodCOD" class="fw-bold text-dark mb-0 fs-6 cursor-pointer" style="cursor: pointer;">
-                      <i class="bi bi-cash-stack text-success me-1 fs-5"></i> Cash on Delivery (COD)
-                    </label>
-                    <span class="badge bg-warning-subtle text-dark border border-warning-subtle small">
-                      <i class="bi bi-clock me-1"></i> Pay Upon Arrival
-                    </span>
-                  </div>
-                  <p class="text-secondary small mt-1 mb-2">
-                    Pay conveniently in cash or scan UPI QR code with your delivery associate when your package arrives at your doorstep.
-                  </p>
-                  <div class="d-flex align-items-center gap-3 text-muted small flex-wrap">
-                    <span><i class="bi bi-check-circle text-success me-1"></i>No advance payment</span>
-                    <span><i class="bi bi-shield-check text-success me-1"></i>100% Genuine product check</span>
-                    <span><i class="bi bi-qr-code-scan text-primary me-1"></i>Cash or UPI accepted</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
             <!-- Online Payment (Razorpay) Option -->
             {% if razorpay_enabled %}
-              <div class="card border rounded-3 p-3 bg-white mb-3 fm-payment-option-card" id="fmCardRazorpay">
+              <div class="card border rounded-3 p-3 mb-3 fm-payment-option-card border-primary bg-light bg-opacity-50" id="fmCardRazorpay" style="cursor: pointer; transition: all 0.2s ease;">
                 <div class="d-flex align-items-start gap-3">
                   <input type="radio"
                          name="payment_method"
                          id="fmPaymentMethodRazorpay"
                          value="razorpay"
-                         class="form-check-input mt-1 fm-payment-radio">
+                         class="form-check-input mt-1 fm-payment-radio"
+                         checked>
                   <div class="flex-grow-1">
                     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                       <label for="fmPaymentMethodRazorpay" class="fw-bold text-dark mb-0 fs-6 cursor-pointer" style="cursor: pointer;">
-                        <i class="bi bi-credit-card-2-front text-primary me-1 fs-5"></i> Online Payment (Razorpay)
+                        <i class="bi bi-credit-card-2-front text-primary me-1 fs-5"></i> Online Payment (UPI, Cards, NetBanking, Wallets)
                       </label>
-                      <span class="badge bg-success-subtle text-success border border-success-subtle small">
-                        <i class="bi bi-shield-check me-1"></i> Secure &amp; Instant
+                      <span class="badge bg-success text-white small">
+                        <i class="bi bi-shield-check me-1"></i> Recommended &amp; Instant
                       </span>
                     </div>
                     <p class="text-secondary small mt-1 mb-2">
-                      Pay instantly using UPI (Google Pay, PhonePe, Paytm), Credit / Debit Cards (Visa, Mastercard, RuPay), NetBanking, or Digital Wallets.
+                      Pay instantly &amp; securely via <strong>Google Pay, PhonePe, Paytm, BHIM UPI</strong>, Debit/Credit Cards (Visa, Mastercard, RuPay), NetBanking, or Digital Wallets.
                     </p>
                     <div class="d-flex align-items-center gap-3 text-muted small flex-wrap">
-                      <span><i class="bi bi-lightning-charge text-warning me-1"></i>Instant Order Confirmation</span>
-                      <span><i class="bi bi-lock-fill text-success me-1"></i>256-bit SSL Bank Grade Encryption</span>
+                      <span><i class="bi bi-lightning-charge text-warning me-1"></i>Zero Payment Gateway Surcharge</span>
+                      <span><i class="bi bi-shield-lock-fill text-success me-1"></i>256-bit Bank Grade SSL Security</span>
                     </div>
                   </div>
                 </div>
@@ -319,6 +290,36 @@
                 </div>
               </div>
             {% endif %}
+
+            <!-- Cash on Delivery Option -->
+            <div class="card border rounded-3 p-3 mb-3 fm-payment-option-card {% if not razorpay_enabled %}border-primary bg-light bg-opacity-50{% else %}bg-white{% endif %}" id="fmCardCOD" style="cursor: pointer; transition: all 0.2s ease;">
+              <div class="d-flex align-items-start gap-3">
+                <input type="radio"
+                       name="payment_method"
+                       id="fmPaymentMethodCOD"
+                       value="cod"
+                       class="form-check-input mt-1 fm-payment-radio"
+                       {% if not razorpay_enabled %}checked{% endif %}>
+                <div class="flex-grow-1">
+                  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <label for="fmPaymentMethodCOD" class="fw-bold text-dark mb-0 fs-6 cursor-pointer" style="cursor: pointer;">
+                      <i class="bi bi-cash-stack text-success me-1 fs-5"></i> Cash on Delivery (COD)
+                    </label>
+                    <span class="badge bg-warning-subtle text-dark border border-warning-subtle small">
+                      <i class="bi bi-clock me-1"></i> Pay Upon Arrival
+                    </span>
+                  </div>
+                  <p class="text-secondary small mt-1 mb-2">
+                    Pay conveniently in cash or scan UPI QR code with your delivery associate when your package arrives at your doorstep.
+                  </p>
+                  <div class="d-flex align-items-center gap-3 text-muted small flex-wrap">
+                    <span><i class="bi bi-check-circle text-success me-1"></i>No advance payment</span>
+                    <span><i class="bi bi-shield-check text-success me-1"></i>100% Genuine product check</span>
+                    <span><i class="bi bi-qr-code-scan text-primary me-1"></i>Cash or UPI accepted</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -467,13 +468,25 @@
 
     function updatePaymentUI() {
       if (rzpRadio && rzpRadio.checked) {
-        if (cardRzp) cardRzp.classList.add('border-primary', 'bg-light', 'bg-opacity-50');
-        if (cardCOD) cardCOD.classList.remove('border-primary');
+        if (cardRzp) {
+          cardRzp.classList.add('border-primary', 'bg-light', 'bg-opacity-50');
+          cardRzp.classList.remove('bg-white');
+        }
+        if (cardCOD) {
+          cardCOD.classList.remove('border-primary', 'bg-light', 'bg-opacity-50');
+          cardCOD.classList.add('bg-white');
+        }
         if (placeOrderText) placeOrderText.textContent = "Proceed to Online Payment (Razorpay)";
         if (placeOrderIcon) placeOrderIcon.className = "bi bi-credit-card-2-front me-2";
       } else {
-        if (cardCOD) cardCOD.classList.add('border-primary');
-        if (cardRzp) cardRzp.classList.remove('border-primary', 'bg-light', 'bg-opacity-50');
+        if (cardCOD) {
+          cardCOD.classList.add('border-primary', 'bg-light', 'bg-opacity-50');
+          cardCOD.classList.remove('bg-white');
+        }
+        if (cardRzp) {
+          cardRzp.classList.remove('border-primary', 'bg-light', 'bg-opacity-50');
+          cardRzp.classList.add('bg-white');
+        }
         if (placeOrderText) placeOrderText.textContent = "Place Order (Cash on Delivery)";
         if (placeOrderIcon) placeOrderIcon.className = "bi bi-bag-check-fill me-2";
       }
@@ -481,6 +494,24 @@
 
     if (codRadio) codRadio.addEventListener('change', updatePaymentUI);
     if (rzpRadio) rzpRadio.addEventListener('change', updatePaymentUI);
+
+    if (cardCOD) {
+      cardCOD.addEventListener('click', function(e) {
+        if (e.target.tagName !== 'INPUT' && codRadio) {
+          codRadio.checked = true;
+          updatePaymentUI();
+        }
+      });
+    }
+    if (cardRzp) {
+      cardRzp.addEventListener('click', function(e) {
+        if (e.target.tagName !== 'INPUT' && rzpRadio) {
+          rzpRadio.checked = true;
+          updatePaymentUI();
+        }
+      });
+    }
+
     updatePaymentUI();
 
     // Synchronize address mode and enable/disable form inputs

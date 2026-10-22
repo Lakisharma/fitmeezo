@@ -105,9 +105,15 @@
 
               <!-- Payment Status Badge -->
               {% if order.payment_status == 'paid' %}
-                <span class="badge bg-success text-white">Paid</span>
+                <span class="badge bg-success text-white"><i class="bi bi-shield-check me-1"></i> Paid</span>
+              {% elif order.payment_method == 'razorpay' %}
+                <span class="badge bg-warning-subtle text-dark border border-warning-subtle">
+                  <i class="bi bi-clock-history me-1"></i> Online Payment Pending
+                </span>
               {% else %}
-                <span class="badge bg-warning text-dark">COD (Unpaid)</span>
+                <span class="badge bg-secondary-subtle text-dark border">
+                  <i class="bi bi-cash-stack me-1"></i> COD (Pay on Delivery)
+                </span>
               {% endif %}
             </div>
           </div>
@@ -153,6 +159,11 @@
 
               <!-- Action Links -->
               <div class="col-12 col-md-4 text-md-end d-flex justify-content-md-end align-items-center gap-2 flex-wrap">
+                {% if order.payment_method == 'razorpay' and order.payment_status != 'paid' and order.status != 'cancelled' %}
+                  <a href="{% url 'core:razorpay_payment_page' order_number=order.order_number %}" class="btn btn-warning btn-sm fw-bold shadow-sm">
+                    <i class="bi bi-credit-card-2-front me-1"></i> Pay Online Now
+                  </a>
+                {% endif %}
                 {% if order.payment_status == 'paid' or order.payment_method == 'cod' %}
                   {% if order.status != 'cancelled' %}
                     <a href="{% url 'core:order_invoice' order_number=order.order_number %}" class="btn btn-outline-primary btn-sm" target="_blank" title="Download Invoice PDF">
