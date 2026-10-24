@@ -14,7 +14,7 @@ Supports:
 from decimal import Decimal
 from django.conf import settings
 from django.db import transaction
-from .models import Cart as CartModel, CartItem as CartItemModel, Product, ProductVariant
+from .models import Cart as CartModel, CartItem as CartItemModel, Product, ProductVariant, Seller
 
 SESSION_CART_KEY = "fitmeezo_cart"
 
@@ -241,6 +241,19 @@ class Cart:
         ) and getattr(product, "approval_status", Product.APPROVAL_APPROVED) != Product.APPROVAL_REJECTED
         if not product or not product.is_active or not is_approved:
             return False, "This product is currently inactive, unavailable or pending review and cannot be added to cart.", None
+
+        # 1b. Merchant validation: seller must not be in closure lifecycle or inactive
+        if getattr(product, "seller_id", None):
+            seller = product.seller
+            if seller and (
+                seller.status in (
+                    Seller.STATUS_CLOSURE_REQUESTED,
+                    Seller.STATUS_CLOSING,
+                    Seller.STATUS_CLOSED,
+                )
+                or not seller.is_active
+            ):
+                return False, f"The merchant for '{product.name}' is undergoing account closure and cannot accept new orders.", None
 
         # 2. Variant validation
         if product.has_size_variants or product.has_variants:

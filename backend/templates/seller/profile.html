@@ -128,12 +128,31 @@
             <a href="{% url 'core:seller_dashboard' %}" class="btn btn-outline-secondary btn-sm">
               <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
             </a>
-            <button type="submit" class="btn seller-btn-navy btn-sm px-4">
-              <i class="bi bi-check2-circle me-1"></i> Save Store Changes
-            </button>
+            {% if seller.status == 'closed' %}
+              <span class="badge bg-secondary p-2"><i class="bi bi-lock-fill me-1"></i> Read-Only (Account Closed)</span>
+            {% else %}
+              <button type="submit" class="btn seller-btn-navy btn-sm px-4">
+                <i class="bi bi-check2-circle me-1"></i> Save Store Changes
+              </button>
+            {% endif %}
           </div>
         </form>
       </div>
+
+      <!-- Account Closure Option (hidden if already closed) -->
+      {% if seller.status != 'closed' %}
+      <div class="card seller-card border-danger border-opacity-25 p-4 mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <h2 class="h6 fw-bold text-danger mb-1"><i class="bi bi-x-octagon me-1"></i> Close Merchant Account</h2>
+            <p class="small text-muted mb-0">Permanently cease operations, halt new customer orders, and initiate final settlement run-off.</p>
+          </div>
+          <a href="{% url 'core:seller_close_account' %}" class="btn btn-outline-danger btn-sm">
+            Request Closure
+          </a>
+        </div>
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>

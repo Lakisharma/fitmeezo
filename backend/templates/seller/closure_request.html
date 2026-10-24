@@ -1,0 +1,194 @@
+{% extends "seller/base.html" %}
+{% load static %}
+
+{% block title %}Close Merchant Account — {{ seller.store_name }} | {{ brand_name }}{% endblock %}
+
+{% block meta_description %}Initiate an account closure and settlement run-off request for your Fitmeezo seller store.{% endblock %}
+
+{% block page_header_title %}Account Closure Request{% endblock %}
+
+{% block content %}
+<div class="seller-closure-wrapper">
+  <!-- Breadcrumbs -->
+  <nav class="d-flex align-items-center gap-2 small text-muted mb-4" aria-label="Breadcrumbs">
+    <a href="{% url 'core:home' %}" class="text-decoration-none text-muted d-flex align-items-center gap-1">
+      <i class="bi bi-house"></i>
+      <span>Home</span>
+    </a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <a href="{% url 'core:seller_dashboard' %}" class="text-decoration-none text-muted">Dashboard</a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <a href="{% url 'core:seller_profile' %}" class="text-decoration-none text-muted">Profile</a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <span class="text-dark fw-semibold" aria-current="page">Account Closure</span>
+  </nav>
+
+  <div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+
+      <!-- Lifecycle Status Banners -->
+      {% if status_code == 'closure_requested' %}
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-body p-4 p-md-5 text-center">
+            <div class="mb-3">
+              <span class="badge bg-warning bg-opacity-25 text-warning-emphasis fs-6 px-3 py-2 rounded-pill">
+                <i class="bi bi-hourglass-split me-1"></i> Closure Review Pending
+              </span>
+            </div>
+            <h1 class="h4 fw-bold text-dark mb-2">Account Closure Request Submitted</h1>
+            <p class="text-secondary mb-4">
+              Your request to close merchant account <strong>{{ seller.store_name }}</strong> was received on
+              <span class="fw-semibold text-dark">{{ seller.closure_requested_at|date:"d M Y, h:i A" }}</span>.
+              A platform administrator is reviewing your account for pending orders, courier COD remittances, and settlement holds.
+            </p>
+
+            <div class="bg-light p-3 rounded-3 text-start mb-4 border">
+              <div class="small fw-bold text-muted mb-1 text-uppercase">Your Submitted Rationale:</div>
+              <div class="text-dark small">{{ seller.closure_request_reason|linebreaksbr }}</div>
+            </div>
+
+            <div class="alert alert-info d-flex align-items-center gap-2 text-start small mb-0">
+              <i class="bi bi-info-circle-fill fs-5 flex-shrink-0"></i>
+              <div>
+                <strong>Operational Notice:</strong> New orders have been halted on the public storefront.
+                Please fulfill all accepted open orders in your <a href="{% url 'core:seller_order_list' %}" class="alert-link">Orders Queue</a>
+                to expedite final clearance.
+              </div>
+            </div>
+          </div>
+        </div>
+
+      {% elif status_code == 'closing' %}
+        <div class="card border-0 shadow-sm mb-4 border-start border-4 border-primary">
+          <div class="card-body p-4 p-md-5 text-center">
+            <div class="mb-3">
+              <span class="badge bg-primary bg-opacity-10 text-primary fs-6 px-3 py-2 rounded-pill">
+                <i class="bi bi-arrow-repeat me-1"></i> Settlement Run-Off in Progress
+              </span>
+            </div>
+            <h1 class="h4 fw-bold text-dark mb-2">Account in Closing Run-off</h1>
+            <p class="text-secondary mb-4">
+              Administrator review was approved on <span class="fw-semibold text-dark">{{ seller.closure_approved_at|date:"d M Y, h:i A" }}</span>.
+              Your account is currently undergoing final cooling periods, return window clearance, and residual balance calculation.
+            </p>
+
+            <div class="row g-3 text-start mb-4">
+              <div class="col-md-6">
+                <div class="p-3 bg-light rounded-3 border">
+                  <div class="small text-muted fw-semibold">Orders Queue</div>
+                  <div class="small text-secondary mt-1">Check and fulfill outstanding shipments.</div>
+                  <a href="{% url 'core:seller_order_list' %}" class="btn btn-sm btn-outline-primary mt-2">Manage Orders</a>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <div class="p-3 bg-light rounded-3 border">
+                  <div class="small text-muted fw-semibold">Payout History</div>
+                  <div class="small text-secondary mt-1">View draft and processed disbursements.</div>
+                  <a href="{% url 'core:seller_payout_list' %}" class="btn btn-sm btn-outline-secondary mt-2">View Payouts</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      {% elif status_code == 'closed' %}
+        <div class="card border-0 shadow-sm mb-4 border-start border-4 border-secondary">
+          <div class="card-body p-4 p-md-5 text-center">
+            <div class="mb-3">
+              <span class="badge bg-secondary text-white fs-6 px-3 py-2 rounded-pill">
+                <i class="bi bi-shield-lock-fill me-1"></i> Account Closed
+              </span>
+            </div>
+            <h1 class="h4 fw-bold text-dark mb-2">Store Formally Closed</h1>
+            <p class="text-secondary mb-0">
+              This merchant account was finalized as closed on {{ seller.closed_at|date:"d M Y, h:i A" }}.
+              All financial transactions and orders are preserved in read-only mode for statutory compliance.
+            </p>
+          </div>
+        </div>
+
+      {% else %}
+        <!-- Closure Request Form for Approved Merchants -->
+        <div class="card border-0 shadow-sm mb-4">
+          <div class="card-body p-4 p-md-5">
+            <div class="d-flex align-items-center justify-content-between pb-3 mb-4 border-bottom flex-wrap gap-2">
+              <div>
+                <h1 class="h4 fw-bold text-dark mb-1">Request Account Closure</h1>
+                <p class="small text-secondary mb-0">Initiate store closure and final settlement run-off.</p>
+              </div>
+              <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1">
+                <i class="bi bi-exclamation-octagon me-1"></i> Sensitive Action
+              </span>
+            </div>
+
+            <!-- Mandatory Process Explanation Banner -->
+            <div class="alert alert-warning border-warning border-start border-4 d-flex align-items-start gap-3 shadow-sm mb-4" role="alert">
+              <i class="bi bi-shield-exclamation fs-3 text-warning-emphasis mt-1"></i>
+              <div class="flex-grow-1">
+                <h6 class="alert-heading fw-bold mb-1 text-warning-emphasis">Important Closure Guidelines</h6>
+                <ul class="small text-secondary mb-0 ps-3">
+                  <li class="mb-1"><strong>Immediate Storefront Halt:</strong> As soon as this request is submitted, all your products will stop accepting new customer orders.</li>
+                  <li class="mb-1"><strong>Order Fulfillment Required:</strong> You remain contractually responsible for packing and shipping any previously accepted customer orders.</li>
+                  <li class="mb-1"><strong>Settlement Clearance:</strong> Final payout requires all customer return windows (including the 120-hour delivery cooling period) to elapse and all courier COD cash remittances to be reconciled.</li>
+                  <li><strong>Threshold Waiver:</strong> Only final settlement balances may be disbursed below the standard ₹500 minimum payout threshold.</li>
+                </ul>
+              </div>
+            </div>
+
+            <form method="post" action="{% url 'core:seller_close_account' %}" novalidate id="sellerClosureForm">
+              {% csrf_token %}
+
+              {% if form.non_field_errors %}
+                <div class="alert alert-danger mb-4" role="alert">
+                  {% for error in form.non_field_errors %}
+                    <div><i class="bi bi-exclamation-triangle-fill me-1"></i> {{ error }}</div>
+                  {% endfor %}
+                </div>
+              {% endif %}
+
+              <div class="mb-4">
+                <label for="{{ form.reason.id_for_label }}" class="form-label fw-semibold text-dark">
+                  Reason for Account Closure <span class="text-danger">*</span>
+                </label>
+                {{ form.reason }}
+                <div class="form-text small text-muted">
+                  Minimum 10 characters, maximum 1000 characters. Please provide adequate detail for our merchant operations team.
+                </div>
+                {% if form.reason.errors %}
+                  <div class="text-danger small mt-1">
+                    {% for err in form.reason.errors %}{{ err }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              <div class="mb-4 p-3 bg-light rounded-3 border">
+                <div class="form-check">
+                  {{ form.confirm_checkbox }}
+                  <label class="form-check-label small fw-semibold text-dark" for="{{ form.confirm_checkbox.id_for_label }}">
+                    I confirm that I want to close my Fitmeezo merchant account. I understand that new orders will cease immediately and all open orders must be fulfilled before final settlement.
+                  </label>
+                </div>
+                {% if form.confirm_checkbox.errors %}
+                  <div class="text-danger small mt-2">
+                    {% for err in form.confirm_checkbox.errors %}{{ err }}{% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              <div class="d-flex align-items-center justify-content-between pt-3 border-top flex-wrap gap-2">
+                <a href="{% url 'core:seller_profile' %}" class="btn btn-outline-secondary">
+                  <i class="bi bi-arrow-left me-1"></i> Cancel &amp; Return to Profile
+                </a>
+                <button type="submit" class="btn btn-danger px-4" id="submitClosureBtn">
+                  <i class="bi bi-x-octagon-fill me-1"></i> Submit Account Closure Request
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}

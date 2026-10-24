@@ -352,7 +352,15 @@
             <span class="badge bg-danger ms-auto px-1.5 py-0.5" style="font-size: 11px;">{{ admin_pending_sellers_count }}</span>
           {% endif %}
         </a>
+        <a href="{% url 'custom_admin:seller_closure_list' %}" class="admin-nav-link {% if 'closure' in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-door-closed-fill"></i>
+          <span>Closure Requests</span>
+          {% if admin_pending_closures_count %}
+            <span class="badge bg-warning text-dark ms-auto px-1.5 py-0.5" style="font-size: 11px;">{{ admin_pending_closures_count }}</span>
+          {% endif %}
+        </a>
       {% endif %}
+
 
       <!-- 4. Products, 5. Add Product, 6. Categories, 7. Inventory -->
       {% if can_manage_products %}

@@ -69,6 +69,7 @@ from .views import (
     seller_product_variant_edit_view,
     seller_product_variant_toggle_view,
     seller_profile_view,
+    seller_closure_request_view,
     seller_register_view,
     seller_login_view,
     seller_send_otp_view,
@@ -236,6 +237,7 @@ urlpatterns = [
     path("seller/logout/", seller_logout_view, name="seller_logout"),
     path("seller/status/", seller_status_view, name="seller_status"),
     path("seller/profile/", seller_profile_view, name="seller_profile"),
+    path("seller/closure/", seller_closure_request_view, name="seller_close_account"),
     path("seller/dashboard/", seller_dashboard_view, name="seller_dashboard"),
 
     # Seller Portal Password Reset routes

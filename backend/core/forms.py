@@ -1410,6 +1410,49 @@ class SellerProfileUpdateForm(forms.ModelForm):
         return store_name
 
 
+class SellerClosureRequestForm(forms.Form):
+    """
+    Form for an approved seller to request account closure (Phase 3).
+    Requires a non-empty, meaningful reason (min 10 chars, max 1000 chars)
+    and an explicit acknowledgment that new customer orders halt immediately.
+    """
+    reason = forms.CharField(
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control fm-input",
+                "rows": 4,
+                "placeholder": "Please provide a detailed explanation for requesting account closure (minimum 10 characters)...",
+            }
+        ),
+        min_length=10,
+        max_length=1000,
+        required=True,
+        help_text="Explain the rationale for closing your merchant account (10-1000 characters).",
+        error_messages={
+            "required": "Please provide a reason for requesting account closure.",
+            "min_length": "Closure reason must be at least 10 characters long.",
+            "max_length": "Closure reason cannot exceed 1000 characters.",
+        },
+    )
+
+    confirm_checkbox = forms.BooleanField(
+        required=True,
+        label="I understand that submitting this request will immediately halt new orders for my store and that existing accepted orders must still be fulfilled.",
+        error_messages={
+            "required": "You must confirm that you understand the terms of account closure.",
+        },
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
+    def clean_reason(self):
+        reason = (self.cleaned_data.get("reason") or "").strip()
+        if len(reason) < 10:
+            raise ValidationError("Closure reason must contain at least 10 non-whitespace characters.")
+        if len(reason) > 1000:
+            raise ValidationError("Closure reason cannot exceed 1000 characters.")
+        return reason
+
+
 class SellerProductForm(forms.ModelForm):
     """
     Form for marketplace sellers to create and edit catalog merchandise.

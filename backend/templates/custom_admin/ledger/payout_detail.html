@@ -75,12 +75,18 @@
 
           <div class="col-6 col-md-3">
             <span class="text-muted d-block">Disbursement Rail</span>
-            <span class="fw-semibold text-dark">{{ batch.payout_method }}</span>
+            <span class="fw-semibold text-dark">{{ batch.get_payout_channel_display|default:batch.payout_method }}</span>
           </div>
 
           <div class="col-6 col-md-3">
-            <span class="text-muted d-block">Simulated External Ref</span>
-            <code class="fw-bold text-dark">{{ batch.external_reference|default:"Not generated" }}</code>
+            {% if batch.manual_utr_reference %}
+              <span class="text-muted d-block">Manual Bank UTR</span>
+              <code class="fw-bold text-primary">{{ batch.manual_utr_reference }}</code>
+              {% if batch.manual_transfer_date %}<span class="d-block text-muted" style="font-size:0.75rem;">Date: {{ batch.manual_transfer_date|date:"d M Y" }}</span>{% endif %}
+            {% else %}
+              <span class="text-muted d-block">Simulated External Ref</span>
+              <code class="fw-bold text-dark">{{ batch.external_reference|default:"Not generated" }}</code>
+            {% endif %}
           </div>
 
           <div class="col-6 col-md-3">
@@ -251,8 +257,94 @@
       </div>
     </div>
 
+    <!-- Manual Offline Bank Transfer Recording Card (Prompt 5) -->
+    {% if batch.status in 'draft,processing,pending' and batch.status != 'on_hold' %}
+      <div class="card border-0 shadow-sm mb-4 border-start border-primary border-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold text-primary">
+            <i class="bi bi-bank me-2"></i>Record External Bank Transfer
+          </h6>
+        </div>
+        <div class="card-body p-4">
+          <div class="alert alert-info py-2 px-3 small mb-3 border-0 bg-info bg-opacity-10 text-info-emphasis">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>Record an external transfer that has already occurred. This action does not transfer money.</strong>
+          </div>
+
+          {% if not batch.approved_at %}
+            <div class="alert alert-warning py-2 px-3 small mb-0 border-0 bg-warning bg-opacity-10 text-warning-emphasis">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              This batch must be approved for settlement before an external bank transfer can be recorded.
+            </div>
+          {% else %}
+            <!-- Confirmation Details Snapshot -->
+            <div class="p-2 bg-light rounded small mb-3 border">
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Batch Reference:</span>
+                <span class="fw-bold text-dark">{{ batch.batch_reference }}</span>
+              </div>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Recipient Seller:</span>
+                <span class="fw-semibold text-dark">{% if batch.seller %}{{ batch.seller.store_name }}{% else %}Platform Store{% endif %}</span>
+              </div>
+              <div class="d-flex justify-content-between mb-1">
+                <span class="text-muted">Disbursement Amount:</span>
+                <span class="fw-bold text-success fs-6">₹{{ batch.amount }}</span>
+              </div>
+              <div class="d-flex justify-content-between">
+                <span class="text-muted">Batch Status:</span>
+                <span class="badge bg-secondary">{{ batch.get_status_display }}</span>
+              </div>
+            </div>
+
+            <form method="post" action="{% url 'custom_admin:payout_record_manual_transfer' batch.batch_reference %}">
+              {% csrf_token %}
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Bank UTR / Transaction Reference *</label>
+                {{ manual_transfer_form.manual_utr_reference }}
+                <div class="form-text small">{{ manual_transfer_form.manual_utr_reference.help_text }}</div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small fw-semibold">Transfer Value Date *</label>
+                {{ manual_transfer_form.manual_transfer_date }}
+                <div class="form-text small">{{ manual_transfer_form.manual_transfer_date.help_text }}</div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label small">Internal Remarks / Notes (Optional)</label>
+                {{ manual_transfer_form.notes }}
+              </div>
+
+              <div class="form-check mb-3 p-2 bg-light rounded border">
+                {{ manual_transfer_form.confirmation }}
+                <label class="form-check-label small fw-bold text-dark ms-1">
+                  I confirm this bank transfer has already been executed externally.
+                </label>
+              </div>
+
+              <button type="submit" class="btn btn-primary w-100 fw-semibold" onclick="return confirm('Confirm recording external bank transfer for batch {{ batch.batch_reference }} (₹{{ batch.amount }})?');">
+                <i class="bi bi-check2-all me-1"></i>Record Completed Bank Transfer
+              </button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+
     <!-- Settlement Action Card (Simulation) -->
-    {% if batch.status in 'draft,processing' and batch.status != 'on_hold' %}
+    {% if batch.status in 'draft,processing' and batch.status != 'on_hold' and batch.batch_type == 'final_settlement' %}
+      <div class="card border-0 shadow-sm mb-4 border-start border-warning border-3">
+        <div class="card-header bg-white border-bottom py-3">
+          <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-shield-lock-fill text-warning me-2"></i>Final Settlement Disbursal Policy</h6>
+        </div>
+        <div class="card-body p-4">
+          <p class="small text-muted mb-0">
+            Mock settlement is strictly disabled for Account Closure Final Settlements. Funds must be disbursed via external banking rails and confirmed using the <strong>Record External Bank Transfer</strong> form above with an authentic Bank UTR and Value Date.
+          </p>
+        </div>
+      </div>
+    {% elif batch.status in 'draft,processing' and batch.status != 'on_hold' %}
       <div class="card border-0 shadow-sm mb-4">
         <div class="card-header bg-white border-bottom py-3">
           <h6 class="mb-0 fw-bold"><i class="bi bi-send-check text-success me-2"></i>Execute Mock Disbursement</h6>
@@ -311,6 +403,11 @@
         <h6 class="mb-0 fw-bold"><i class="bi bi-shield-shaded me-2 text-primary"></i>Audit Stamp</h6>
       </div>
       <div class="card-body p-3 small text-muted">
+        <div><strong>Disbursement Rail:</strong> <span class="badge bg-secondary">{{ batch.get_payout_channel_display|default:batch.payout_channel }}</span></div>
+        {% if batch.manual_utr_reference %}
+          <div><strong>Bank UTR:</strong> <code class="text-primary">{{ batch.manual_utr_reference }}</code></div>
+          <div><strong>Value Date:</strong> {{ batch.manual_transfer_date|date:"d M Y"|default:"N/A" }}</div>
+        {% endif %}
         <div><strong>Creator / Processor:</strong> {{ batch.processed_by.username|default:"System" }}</div>
         <div><strong>Approved By:</strong> {{ batch.approved_by.username|default:"Pending" }}</div>
         <div><strong>Processed Timestamp:</strong> {{ batch.processed_at|date:"d M Y, H:i:s"|default:"Pending" }}</div>

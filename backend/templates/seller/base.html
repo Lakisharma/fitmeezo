@@ -530,6 +530,13 @@
           <i class="bi bi-bank2"></i>
           <span>Bank Details</span>
         </a>
+
+        <!-- 10. Close Account -->
+        <a href="{% url 'core:seller_close_account' %}"
+           class="seller-nav-link {% if request.resolver_match.url_name == 'seller_close_account' %}active{% endif %} text-danger-emphasis">
+          <i class="bi bi-x-octagon"></i>
+          <span>Close Account</span>
+        </a>
       </nav>
 
       <!-- Sidebar Footer -->
@@ -559,11 +566,13 @@
         </div>
 
         <div class="seller-topbar-right">
-          <!-- Quick Action: Add Product -->
+          <!-- Quick Action: Add Product (hidden during closure lifecycle) -->
+          {% if seller.status != 'closed' and seller.status != 'closing' and seller.status != 'closure_requested' %}
           <a href="{% url 'core:seller_product_add' %}" class="btn seller-btn-gold btn-sm d-flex align-items-center gap-1 shadow-sm">
             <i class="bi bi-plus-circle-fill"></i>
             <span class="d-none d-md-inline">Add Product</span>
           </a>
+          {% endif %}
 
           <!-- User Menu Dropdown -->
           <div class="dropdown">
@@ -595,6 +604,40 @@
 
       <!-- Main Body Container -->
       <main id="main-content" class="seller-content" tabindex="-1">
+        <!-- Closure Status Lifecycle Banner -->
+        {% if seller.status == 'closed' %}
+          <div class="alert alert-dark border-secondary shadow-sm mb-4 d-flex align-items-center gap-3" role="alert">
+            <i class="bi bi-lock-fill fs-3 text-secondary"></i>
+            <div>
+              <h6 class="alert-heading fw-bold mb-1">Merchant Account Permanently Closed (Read-Only Mode)</h6>
+              <p class="small mb-0 text-muted">
+                This merchant account was formally closed on {{ seller.closed_at|date:"d M Y"|default:"record" }}.
+                You have historical read-only access to view and export your past orders, invoices, financial ledger, and store records.
+                Creating listings, modifying settings, or altering data is disabled.
+              </p>
+            </div>
+          </div>
+        {% elif seller.status == 'closing' %}
+          <div class="alert alert-warning border-warning shadow-sm mb-4 d-flex align-items-center gap-3" role="alert">
+            <i class="bi bi-hourglass-split fs-3 text-warning"></i>
+            <div>
+              <h6 class="alert-heading fw-bold mb-1">Account Closure Run-Off in Progress</h6>
+              <p class="small mb-0">
+                New customer orders and product additions are halted. Please fulfill all outstanding orders to complete offboarding clearance.
+              </p>
+            </div>
+          </div>
+        {% elif seller.status == 'closure_requested' %}
+          <div class="alert alert-info border-info shadow-sm mb-4 d-flex align-items-center gap-3" role="alert">
+            <i class="bi bi-clock-history fs-3 text-info"></i>
+            <div>
+              <h6 class="alert-heading fw-bold mb-1">Account Closure Request Pending Review</h6>
+              <p class="small mb-0">
+                Your account closure request has been submitted and is pending administrator review. New orders are halted.
+              </p>
+            </div>
+          </div>
+        {% endif %}
         <!-- Django Notification Messages -->
         {% if messages %}
           <div class="mb-4">

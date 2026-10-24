@@ -1,0 +1,192 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Seller Closure Requests — Fitmeezo Admin{% endblock %}
+{% block page_title %}Seller Closure Requests{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="fw-bold mb-1">Seller Account Closure Requests</h4>
+    <p class="text-muted small mb-0">
+      Review, approve, or reject merchant account closure requests. Monitor run-off and final-settlement status.
+    </p>
+  </div>
+  <a href="{% url 'custom_admin:seller_list' %}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left me-1"></i> Back to Sellers
+  </a>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-4">
+  <div class="col-sm-6 col-lg-3">
+    <div class="fm-card text-center py-3">
+      <div class="fs-3 fw-bold text-dark">{{ total_count }}</div>
+      <div class="small text-muted">All Lifecycle</div>
+    </div>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <a href="?status=pending{% if query %}&q={{ query }}{% endif %}" class="text-decoration-none">
+      <div class="fm-card text-center py-3 {% if status_filter == 'pending' %}border border-warning{% endif %}">
+        <div class="fs-3 fw-bold text-warning">{{ pending_count }}</div>
+        <div class="small text-muted">Pending Review</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <a href="?status=closing{% if query %}&q={{ query }}{% endif %}" class="text-decoration-none">
+      <div class="fm-card text-center py-3 {% if status_filter == 'closing' %}border border-info{% endif %}">
+        <div class="fs-3 fw-bold text-info">{{ closing_count }}</div>
+        <div class="small text-muted">Run-off (Closing)</div>
+      </div>
+    </a>
+  </div>
+  <div class="col-sm-6 col-lg-3">
+    <a href="?status=closed{% if query %}&q={{ query }}{% endif %}" class="text-decoration-none">
+      <div class="fm-card text-center py-3 {% if status_filter == 'closed' %}border border-secondary{% endif %}">
+        <div class="fs-3 fw-bold text-secondary">{{ closed_count }}</div>
+        <div class="small text-muted">Formally Closed</div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<!-- Filter Tabs & Search -->
+<div class="fm-card mb-4">
+  <div class="fm-card-body">
+    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mb-3">
+      <div class="btn-group" role="group">
+        <a href="?status=all{% if query %}&q={{ query }}{% endif %}"
+           class="btn btn-sm {% if status_filter == 'all' %}btn-dark{% else %}btn-outline-secondary{% endif %}">
+          All ({{ total_count }})
+        </a>
+        <a href="?status=pending{% if query %}&q={{ query }}{% endif %}"
+           class="btn btn-sm {% if status_filter == 'pending' %}btn-warning text-dark{% else %}btn-outline-warning{% endif %}">
+          Pending ({{ pending_count }})
+        </a>
+        <a href="?status=closing{% if query %}&q={{ query }}{% endif %}"
+           class="btn btn-sm {% if status_filter == 'closing' %}btn-info text-white{% else %}btn-outline-info{% endif %}">
+          Run-off ({{ closing_count }})
+        </a>
+        <a href="?status=closed{% if query %}&q={{ query }}{% endif %}"
+           class="btn btn-sm {% if status_filter == 'closed' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+          Closed ({{ closed_count }})
+        </a>
+      </div>
+      <form method="get" class="d-flex gap-2">
+        <input type="hidden" name="status" value="{{ status_filter }}">
+        <input type="text" name="q" value="{{ query }}" placeholder="Search store, email, username…"
+               class="form-control form-control-sm" style="min-width: 240px;">
+        <button type="submit" class="btn btn-sm btn-fm-primary">
+          <i class="bi bi-search"></i>
+        </button>
+        {% if query %}
+          <a href="?status={{ status_filter }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-x-lg"></i>
+          </a>
+        {% endif %}
+      </form>
+    </div>
+
+    {% if sellers %}
+    <div class="table-responsive">
+      <table class="table mb-0" id="closureTable">
+        <thead>
+          <tr>
+            <th>Store</th>
+            <th>Email</th>
+            <th>Status</th>
+            <th>Requested</th>
+            <th>Approved By</th>
+            <th>Closure Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for seller in sellers %}
+          <tr>
+            <td>
+              <div class="fw-semibold text-dark">{{ seller.store_name }}</div>
+              <div class="text-muted small">{{ seller.legal_business_name|default:"—" }}</div>
+            </td>
+            <td class="small">{{ seller.support_email }}</td>
+            <td>
+              {% if seller.status == "closure_requested" %}
+                <span class="badge bg-warning text-dark">Pending Review</span>
+              {% elif seller.status == "closing" %}
+                <span class="badge bg-info text-white">Run-off</span>
+              {% elif seller.status == "closed" %}
+                <span class="badge bg-secondary">Closed</span>
+              {% else %}
+                <span class="badge bg-light text-dark">{{ seller.get_status_display }}</span>
+              {% endif %}
+            </td>
+            <td class="small text-muted">
+              {% if seller.closure_requested_at %}
+                {{ seller.closure_requested_at|date:"d M Y H:i" }}
+              {% else %}—{% endif %}
+            </td>
+            <td class="small text-muted">
+              {% if seller.closure_approved_by %}
+                {{ seller.closure_approved_by.username }}
+                {% if seller.closure_approved_at %}
+                  <br><span class="text-muted" style="font-size:0.75rem;">{{ seller.closure_approved_at|date:"d M Y" }}</span>
+                {% endif %}
+              {% else %}—{% endif %}
+            </td>
+            <td class="small text-muted" style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+              {{ seller.closure_notes|default:"—"|truncatechars:60 }}
+            </td>
+            <td>
+              <a href="{% url 'custom_admin:seller_closure_detail' seller_id=seller.pk %}"
+                 class="btn btn-sm btn-outline-primary" id="closure-detail-{{ seller.pk }}">
+                Review <i class="bi bi-arrow-right ms-1"></i>
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination -->
+    {% if page_obj.has_other_pages %}
+    <nav class="mt-3">
+      <ul class="pagination pagination-sm justify-content-end mb-0">
+        {% if page_obj.has_previous %}
+          <li class="page-item">
+            <a class="page-link" href="?status={{ status_filter }}{% if query %}&q={{ query }}{% endif %}&page={{ page_obj.previous_page_number }}">
+              &laquo;
+            </a>
+          </li>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+          <li class="page-item {% if num == page_obj.number %}active{% endif %}">
+            <a class="page-link" href="?status={{ status_filter }}{% if query %}&q={{ query }}{% endif %}&page={{ num }}">{{ num }}</a>
+          </li>
+        {% endfor %}
+        {% if page_obj.has_next %}
+          <li class="page-item">
+            <a class="page-link" href="?status={{ status_filter }}{% if query %}&q={{ query }}{% endif %}&page={{ page_obj.next_page_number }}">
+              &raquo;
+            </a>
+          </li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-5">
+      <i class="bi bi-door-closed text-muted" style="font-size:3rem;"></i>
+      <p class="text-muted mt-2 mb-0">
+        {% if query %}
+          No sellers matching <strong>"{{ query }}"</strong> in this filter.
+        {% else %}
+          No seller closure requests found for the selected filter.
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

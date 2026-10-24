@@ -195,6 +195,14 @@ def create_order_from_cart(
                 # Merchant validation for third-party seller merchandise
                 seller = product.seller
                 if seller is not None:
+                    if seller.status in (
+                        Seller.STATUS_CLOSURE_REQUESTED,
+                        Seller.STATUS_CLOSING,
+                        Seller.STATUS_CLOSED,
+                    ):
+                        raise CheckoutValidationError(
+                            f"The merchant for '{product.name}' ({seller.store_name}) is undergoing account closure and is no longer accepting new orders. Please remove it from your cart."
+                        )
                     if not seller.is_active or seller.status != Seller.STATUS_APPROVED:
                         raise CheckoutValidationError(
                             f"The merchant for '{product.name}' ({seller.store_name}) is currently unavailable or unapproved. Please remove it from your cart."

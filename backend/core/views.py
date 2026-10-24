@@ -62,6 +62,7 @@ from .forms import (
     SellerReturnActionForm,
     ProcessRefundForm,
     SellerBankDetailsForm,
+    SellerClosureRequestForm,
 )
 from .models import (
     Address,
@@ -131,6 +132,8 @@ from .services import (
     CheckoutError,
     CheckoutValidationError,
 )
+from django.contrib.admin.models import CHANGE
+from .admin_permissions import log_admin_action
 
 FREE_SHIPPING_THRESHOLD = Decimal("499.00")
 STANDARD_SHIPPING_FEE = Decimal("49.00")
@@ -3158,6 +3161,114 @@ def seller_profile_view(request):
     return render(request, "seller/profile.html", context)
 
 
+@login_required(login_url="core:account_login")
+def seller_closure_request_view(request):
+    """
+    Dedicated seller-facing account closure request view (Phase 3).
+    - Requires authenticated seller.
+    - Strictly checks that user owns the seller profile.
+    - Only merchants in STATUS_APPROVED can initiate an account closure request.
+    - Idempotent and concurrency-safe: duplicate/stale requests are handled safely.
+    - Halts new orders immediately by transitioning status to STATUS_CLOSURE_REQUESTED.
+    """
+    seller = getattr(request.user, "seller_profile", None)
+    if not seller:
+        messages.warning(request, "You do not have a registered seller account.")
+        return redirect("core:seller_register")
+
+    # If seller is already in a closure lifecycle state, show status and prevent double submission
+    if seller.status == Seller.STATUS_CLOSURE_REQUESTED:
+        if request.method == "POST":
+            messages.info(request, "A closure request for your store is already pending administrator review.")
+            return redirect("core:seller_close_account")
+        context = {
+            "seller": seller,
+            "status_code": "closure_requested",
+            "brand_name": getattr(settings, "BRAND_NAME", "Fitmeezo"),
+        }
+        return render(request, "seller/closure_request.html", context)
+
+    if seller.status == Seller.STATUS_CLOSING:
+        if request.method == "POST":
+            messages.info(request, "Your store is already approved for closure and is currently in run-off.")
+            return redirect("core:seller_close_account")
+        context = {
+            "seller": seller,
+            "status_code": "closing",
+            "brand_name": getattr(settings, "BRAND_NAME", "Fitmeezo"),
+        }
+        return render(request, "seller/closure_request.html", context)
+
+    if seller.status == Seller.STATUS_CLOSED:
+        if request.method == "POST":
+            return HttpResponseForbidden("Your account is already permanently closed. No further closure actions are available.")
+        context = {
+            "seller": seller,
+            "status_code": "closed",
+            "brand_name": getattr(settings, "BRAND_NAME", "Fitmeezo"),
+        }
+        return render(request, "seller/closure_request.html", context)
+
+    if seller.status != Seller.STATUS_APPROVED:
+        messages.error(
+            request,
+            f"Cannot request closure: merchant account status is '{seller.get_status_display()}'. Only active, approved sellers can request closure."
+        )
+        return redirect("core:seller_status")
+
+    if request.method == "POST":
+        form = SellerClosureRequestForm(request.POST)
+        if form.is_valid():
+            with transaction.atomic():
+                locked_seller = Seller.objects.select_for_update().get(pk=seller.pk)
+                if locked_seller.status != Seller.STATUS_APPROVED:
+                    messages.warning(
+                        request,
+                        f"Cannot submit closure request: store status has changed to '{locked_seller.get_status_display()}'."
+                    )
+                    return redirect("core:seller_close_account")
+
+                reason = form.cleaned_data["reason"]
+                now = timezone.now()
+                locked_seller.status = Seller.STATUS_CLOSURE_REQUESTED
+                locked_seller.closure_requested_at = now
+                locked_seller.closure_request_reason = reason
+                locked_seller.save(
+                    update_fields=[
+                        "status",
+                        "closure_requested_at",
+                        "closure_request_reason",
+                        "updated_at",
+                    ]
+                )
+
+                log_admin_action(
+                    request.user,
+                    locked_seller,
+                    CHANGE,
+                    f"Seller requested account closure. Reason: {reason[:120]}",
+                )
+
+            messages.success(
+                request,
+                "Your account closure request has been submitted successfully and is pending administrator review. "
+                "New customer orders have been halted immediately. You must fulfill any existing accepted orders."
+            )
+            return redirect("core:seller_close_account")
+        else:
+            messages.error(request, "Please provide a valid explanation reason (10 to 1000 characters) and confirm the terms.")
+    else:
+        form = SellerClosureRequestForm()
+
+    context = {
+        "seller": seller,
+        "form": form,
+        "status_code": "eligible",
+        "brand_name": getattr(settings, "BRAND_NAME", "Fitmeezo"),
+    }
+    return render(request, "seller/closure_request.html", context)
+
+
 @seller_required
 def seller_dashboard_view(request):
     """
@@ -3274,6 +3385,10 @@ def seller_product_add_view(request):
     if not seller:
         messages.warning(request, "You do not have an active seller profile.")
         return redirect("core:seller_register")
+
+    if seller.status in (Seller.STATUS_CLOSURE_REQUESTED, Seller.STATUS_CLOSING, Seller.STATUS_CLOSED):
+        messages.error(request, "Adding new products is disabled because your merchant account is undergoing account closure.")
+        return redirect("core:seller_product_list")
 
     if request.method == "POST":
         form = SellerProductForm(request.POST, request.FILES)
@@ -4015,8 +4130,14 @@ def seller_order_packing_summary_view(request, pk):
         )
     else:
         seller = getattr(request.user, "seller_profile", None)
-        if not seller or not seller.is_active or seller.status != Seller.STATUS_APPROVED or not seller.has_valid_gstin:
-            raise PermissionDenied("Access restricted to approved, active marketplace sellers.")
+        allowed_statuses = (Seller.STATUS_APPROVED, Seller.STATUS_CLOSING, Seller.STATUS_CLOSED)
+        if (
+            not seller
+            or not seller.has_valid_gstin
+            or seller.status not in allowed_statuses
+            or (seller.status == Seller.STATUS_APPROVED and not seller.is_active)
+        ):
+            raise PermissionDenied("Access restricted to authorized marketplace sellers.")
 
         package = get_object_or_404(
             SellerOrder.objects.select_related("order", "seller").prefetch_related("items"),
@@ -4064,8 +4185,14 @@ def seller_order_shipping_label_view(request, pk):
         )
     else:
         seller = getattr(request.user, "seller_profile", None)
-        if not seller or not seller.is_active or seller.status != Seller.STATUS_APPROVED or not seller.has_valid_gstin:
-            raise PermissionDenied("Access restricted to approved, active marketplace sellers.")
+        allowed_statuses = (Seller.STATUS_APPROVED, Seller.STATUS_CLOSING, Seller.STATUS_CLOSED)
+        if (
+            not seller
+            or not seller.has_valid_gstin
+            or seller.status not in allowed_statuses
+            or (seller.status == Seller.STATUS_APPROVED and not seller.is_active)
+        ):
+            raise PermissionDenied("Access restricted to authorized marketplace sellers.")
 
         package = get_object_or_404(
             SellerOrder.objects.select_related("order", "seller").prefetch_related("items"),
@@ -4117,8 +4244,14 @@ def seller_order_invoice_pdf_view(request, pk):
         )
     else:
         seller = getattr(request.user, "seller_profile", None)
-        if not seller or not seller.is_active or seller.status != Seller.STATUS_APPROVED:
-            raise PermissionDenied("Access restricted to approved, active marketplace sellers.")
+        allowed_statuses = (Seller.STATUS_APPROVED, Seller.STATUS_CLOSING, Seller.STATUS_CLOSED)
+        if (
+            not seller
+            or not seller.has_valid_gstin
+            or seller.status not in allowed_statuses
+            or (seller.status == Seller.STATUS_APPROVED and not seller.is_active)
+        ):
+            raise PermissionDenied("Access restricted to authorized marketplace sellers.")
 
         package = get_object_or_404(
             SellerOrder.objects.select_related("order", "seller").prefetch_related("items", "invoices"),

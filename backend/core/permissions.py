@@ -8,6 +8,7 @@ Provides server-side decorators, class mixins, and DRF permissions for:
 from functools import wraps
 from django.contrib import messages
 from django.contrib.auth.views import redirect_to_login
+from django.http import HttpResponseForbidden, JsonResponse
 from django.shortcuts import redirect
 from rest_framework import permissions
 
@@ -31,16 +32,27 @@ def is_approved_seller(user) -> bool:
     )
 
 
+def is_seller_closed(user) -> bool:
+    """
+    Returns True if the user has a linked Seller profile in STATUS_CLOSED.
+    """
+    if not (user and user.is_authenticated):
+        return False
+    seller = getattr(user, "seller_profile", None)
+    return bool(seller and seller.status == Seller.STATUS_CLOSED)
+
+
 def seller_required(view_func):
     """
     View decorator that enforces:
     1. User is authenticated.
     2. User has an associated Seller profile.
-    3. Seller profile status is APPROVED and is_active is True.
+    3. Seller profile status is in APPROVED, CLOSURE_REQUESTED, CLOSING, or CLOSED.
     4. Seller has a valid submitted GSTIN.
 
-    If the seller is pending, rejected, suspended, or missing valid GSTIN,
-    redirects to the seller status page with an informative flash message.
+    Phase 4 Enforcement for Closed Sellers (STATUS_CLOSED):
+    - Retains read-only historical access for safe HTTP methods (GET, HEAD, OPTIONS).
+    - Blocks all mutating HTTP methods (POST, PUT, PATCH, DELETE) with HTTP 403 Forbidden.
     """
     @wraps(view_func)
     def _wrapped_view(request, *args, **kwargs):
@@ -76,7 +88,18 @@ def seller_required(view_func):
             )
             return redirect("core:seller_status")
 
-        if not seller.is_active:
+        allowed_portal_statuses = (
+            Seller.STATUS_APPROVED,
+            Seller.STATUS_CLOSURE_REQUESTED,
+            Seller.STATUS_CLOSING,
+            Seller.STATUS_CLOSED,
+        )
+
+        if not seller.is_active and seller.status not in (
+            Seller.STATUS_CLOSURE_REQUESTED,
+            Seller.STATUS_CLOSING,
+            Seller.STATUS_CLOSED,
+        ):
             messages.warning(
                 request,
                 f"Your seller account '{seller.store_name}' is currently deactivated."
@@ -90,9 +113,21 @@ def seller_required(view_func):
             )
             return redirect("core:seller_status")
 
-        if seller.status != Seller.STATUS_APPROVED:
-            messages.error(request, "Access restricted to approved sellers only.")
+        if seller.status not in allowed_portal_statuses:
+            messages.error(request, "Access restricted to approved or operational run-off sellers only.")
             return redirect("core:seller_status")
+
+        # Phase 4: Enforce read-only access for closed sellers across all seller_required views
+        if seller.status == Seller.STATUS_CLOSED:
+            if request.method not in ("GET", "HEAD", "OPTIONS"):
+                if request.headers.get("x-requested-with") == "XMLHttpRequest" or request.content_type == "application/json":
+                    return JsonResponse(
+                        {"error": "This merchant account is permanently closed. Account is restricted to read-only mode."},
+                        status=403,
+                    )
+                return HttpResponseForbidden(
+                    "This merchant account is permanently closed. Account is restricted to read-only mode."
+                )
 
         return view_func(request, *args, **kwargs)
 
@@ -115,4 +150,27 @@ class IsApprovedSeller(permissions.BasePermission):
     message = "Access restricted to approved, active seller accounts."
 
     def has_permission(self, request, view):
+        return is_approved_seller(request.user)
+
+
+class IsSellerReadOnlyOrApproved(permissions.BasePermission):
+    """
+    DRF Permission class allowing read-only access to closed sellers,
+    while restricting mutations to active approved sellers.
+    """
+    message = "Mutations restricted to active approved sellers. Closed accounts have read-only access."
+
+    def has_permission(self, request, view):
+        if not (request.user and request.user.is_authenticated):
+            return False
+        seller = getattr(request.user, "seller_profile", None)
+        if not seller:
+            return False
+        if request.method in permissions.SAFE_METHODS:
+            return seller.status in (
+                Seller.STATUS_APPROVED,
+                Seller.STATUS_CLOSURE_REQUESTED,
+                Seller.STATUS_CLOSING,
+                Seller.STATUS_CLOSED,
+            )
         return is_approved_seller(request.user)

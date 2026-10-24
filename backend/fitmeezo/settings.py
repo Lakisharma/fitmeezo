@@ -561,7 +561,7 @@ FITMEEZO_MOCK_REFUNDS = os.getenv("FITMEEZO_MOCK_REFUNDS", "True").lower() in ("
 # Safe mock payout mode: strictly prevents real bank transfers or Razorpay Route calls
 FITMEEZO_MOCK_PAYOUTS = os.getenv("FITMEEZO_MOCK_PAYOUTS", "True").lower() in ("true", "1", "t", "yes")
 # Cooling/holding window in days post-delivery before order funds qualify for payout eligibility
-FITMEEZO_PAYOUT_HOLD_DAYS_AFTER_DELIVERY = int(os.getenv("FITMEEZO_PAYOUT_HOLD_DAYS_AFTER_DELIVERY", "7"))
+FITMEEZO_PAYOUT_HOLD_DAYS_AFTER_DELIVERY = int(os.getenv("FITMEEZO_PAYOUT_HOLD_DAYS_AFTER_DELIVERY", "5"))
 # Minimum positive balance required to generate a payout batch (in INR)
 FITMEEZO_MIN_PAYOUT_THRESHOLD = Decimal(os.getenv("FITMEEZO_MIN_PAYOUT_THRESHOLD", "1.00"))
 # Policy rules for gateway fee, return shipping, and discount funding

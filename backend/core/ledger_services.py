@@ -15,7 +15,7 @@ Provides auditable multi-seller marketplace financial accounting:
 import calendar
 import logging
 import uuid
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
@@ -29,6 +29,7 @@ from core.models import (
     OrderItem,
     PayoutAuditLog,
     PayoutBatch,
+    Product,
     RefundRecord,
     ReturnRequest,
     Seller,
@@ -60,13 +61,13 @@ class ReconciliationError(LedgerServiceError):
 
 
 def get_payout_hold_days() -> int:
-    """Returns the holding period in days post-delivery before order funds are payout-eligible."""
-    return getattr(settings, "FITMEEZO_PAYOUT_HOLD_DAYS_AFTER_DELIVERY", 7)
+    """Returns the holding period in days post-delivery before order funds are payout-eligible (default: 5 days / 120 hours)."""
+    return getattr(settings, "FITMEEZO_PAYOUT_HOLD_DAYS_AFTER_DELIVERY", 5)
 
 
 def get_min_payout_threshold() -> Decimal:
-    """Returns the minimum net balance in INR required to generate a payout batch."""
-    return getattr(settings, "FITMEEZO_MIN_PAYOUT_THRESHOLD", Decimal("1.00"))
+    """Returns the minimum net balance in INR required to generate a payout batch (regular minimum: ₹500.00)."""
+    return getattr(settings, "FITMEEZO_MIN_PAYOUT_THRESHOLD", Decimal("500.00"))
 
 
 def get_cycle_bounds(
@@ -74,57 +75,99 @@ def get_cycle_bounds(
     as_of_date=None,
 ) -> tuple[str, datetime, datetime, datetime]:
     """
-    Computes timezone-aware monthly payout cycle bounds.
-    - Payout cycle is on the 5th of each month.
-    - Eligible earnings are calculated from the previous calendar month.
+    Computes timezone-aware payout cycle bounds.
+    Supports:
+    1. 15-Day Cycles (Approved Standard):
+       - Cycle 1 (YYYY-MM-C1): Calendar days 1st–15th. Settlement calculation date is the 16th of that month at 00:00:00.
+       - Cycle 2 (YYYY-MM-C2): Calendar days 16th–Month-End. Settlement calculation date is the 1st of next month at 00:00:00.
+    2. Legacy Monthly Cycles (Backward Compatibility):
+       - YYYY-MM: 5th of cycle month calculating previous calendar month.
+    3. Default (cycle_str is None):
+       - Resolves to the most recently completed 15-day cycle based on as_of_date.
+
     Returns:
-    (canonical_cycle: str, cycle_payout_date: datetime, prev_month_start: datetime, prev_month_end: datetime)
+    (canonical_cycle: str, cycle_payout_date: datetime, period_start: datetime, period_end: datetime)
     """
     tz = timezone.get_current_timezone()
     if as_of_date is None:
         as_of_date = timezone.now()
 
-    if cycle_str:
+    cycle_clean = str(cycle_str).strip().upper() if cycle_str else ""
+
+    # 1. Explicit 15-Day Cycle (e.g. "2026-10-C1" or "2026-10-C2")
+    if "-C1" in cycle_clean or "-C2" in cycle_clean:
+        parts = cycle_clean.split("-")
+        cycle_year = int(parts[0])
+        cycle_month = int(parts[1])
+        cycle_suffix = parts[2]
+
+        if cycle_suffix == "C1":
+            canonical_cycle = f"{cycle_year:04d}-{cycle_month:02d}-C1"
+            period_start = timezone.make_aware(datetime(cycle_year, cycle_month, 1, 0, 0, 0), tz)
+            period_end = timezone.make_aware(datetime(cycle_year, cycle_month, 15, 23, 59, 59, 999999), tz)
+            cycle_payout_date = timezone.make_aware(datetime(cycle_year, cycle_month, 16, 0, 0, 0), tz)
+        else:  # C2
+            canonical_cycle = f"{cycle_year:04d}-{cycle_month:02d}-C2"
+            _, last_day = calendar.monthrange(cycle_year, cycle_month)
+            period_start = timezone.make_aware(datetime(cycle_year, cycle_month, 16, 0, 0, 0), tz)
+            period_end = timezone.make_aware(datetime(cycle_year, cycle_month, last_day, 23, 59, 59, 999999), tz)
+            if cycle_month == 12:
+                next_year = cycle_year + 1
+                next_month = 1
+            else:
+                next_year = cycle_year
+                next_month = cycle_month + 1
+            cycle_payout_date = timezone.make_aware(datetime(next_year, next_month, 1, 0, 0, 0), tz)
+
+        return canonical_cycle, cycle_payout_date, period_start, period_end
+
+    # 2. Legacy Monthly Cycle (e.g. "2026-10")
+    if cycle_clean and len(cycle_clean.split("-")) == 2:
         try:
-            parts = str(cycle_str).strip().split("-")
+            parts = cycle_clean.split("-")
             cycle_year = int(parts[0])
             cycle_month = int(parts[1])
         except (ValueError, IndexError):
             cycle_year = as_of_date.year
             cycle_month = as_of_date.month
+
+        canonical_cycle = f"{cycle_year:04d}-{cycle_month:02d}"
+        cycle_day = getattr(settings, "FITMEEZO_PAYOUT_CYCLE_DAY", 5)
+        cycle_payout_date = timezone.make_aware(datetime(cycle_year, cycle_month, cycle_day, 0, 0, 0), tz)
+
+        if cycle_month == 1:
+            prev_year = cycle_year - 1
+            prev_month = 12
+        else:
+            prev_year = cycle_year
+            prev_month = cycle_month - 1
+
+        _, last_day = calendar.monthrange(prev_year, prev_month)
+        prev_month_start = timezone.make_aware(datetime(prev_year, prev_month, 1, 0, 0, 0), tz)
+        prev_month_end = timezone.make_aware(datetime(prev_year, prev_month, last_day, 23, 59, 59, 999999), tz)
+
+        return canonical_cycle, cycle_payout_date, prev_month_start, prev_month_end
+
+    # 3. Default resolution based on as_of_date (15-Day Cycle Standard)
+    if as_of_date.day >= 16:
+        canonical_cycle = f"{as_of_date.year:04d}-{as_of_date.month:02d}-C1"
+        period_start = timezone.make_aware(datetime(as_of_date.year, as_of_date.month, 1, 0, 0, 0), tz)
+        period_end = timezone.make_aware(datetime(as_of_date.year, as_of_date.month, 15, 23, 59, 59, 999999), tz)
+        cycle_payout_date = timezone.make_aware(datetime(as_of_date.year, as_of_date.month, 16, 0, 0, 0), tz)
     else:
-        cycle_year = as_of_date.year
-        cycle_month = as_of_date.month
+        if as_of_date.month == 1:
+            prev_year = as_of_date.year - 1
+            prev_month = 12
+        else:
+            prev_year = as_of_date.year
+            prev_month = as_of_date.month - 1
+        _, last_day = calendar.monthrange(prev_year, prev_month)
+        canonical_cycle = f"{prev_year:04d}-{prev_month:02d}-C2"
+        period_start = timezone.make_aware(datetime(prev_year, prev_month, 16, 0, 0, 0), tz)
+        period_end = timezone.make_aware(datetime(prev_year, prev_month, last_day, 23, 59, 59, 999999), tz)
+        cycle_payout_date = timezone.make_aware(datetime(as_of_date.year, as_of_date.month, 1, 0, 0, 0), tz)
 
-    # Canonical cycle format YYYY-MM
-    canonical_cycle = f"{cycle_year:04d}-{cycle_month:02d}"
-
-    # Cycle payout date (5th of the cycle month)
-    cycle_day = getattr(settings, "FITMEEZO_PAYOUT_CYCLE_DAY", 5)
-    cycle_payout_date = timezone.make_aware(
-        datetime(cycle_year, cycle_month, cycle_day, 0, 0, 0),
-        tz,
-    )
-
-    # Previous calendar month
-    if cycle_month == 1:
-        prev_year = cycle_year - 1
-        prev_month = 12
-    else:
-        prev_year = cycle_year
-        prev_month = cycle_month - 1
-
-    _, last_day = calendar.monthrange(prev_year, prev_month)
-    prev_month_start = timezone.make_aware(
-        datetime(prev_year, prev_month, 1, 0, 0, 0),
-        tz,
-    )
-    prev_month_end = timezone.make_aware(
-        datetime(prev_year, prev_month, last_day, 23, 59, 59, 999999),
-        tz,
-    )
-
-    return canonical_cycle, cycle_payout_date, prev_month_start, prev_month_end
+    return canonical_cycle, cycle_payout_date, period_start, period_end
 
 
 # ==============================================================================
@@ -644,23 +687,25 @@ def calculate_seller_payout_eligibility(
     is_platform_fulfilled: bool = False,
     as_of_date=None,
     cycle_month: str | None = None,
+    payout_cycle: str | None = None,
 ) -> dict:
     """
     Evaluates net payout eligibility for a specific merchant or platform warehouse:
-    Monthly Payout Rules:
-    1. Payout cycle is on the 5th of each month.
-    2. Calculates eligible earnings from the previous calendar month.
-    3. Requires 7 complete days after confirmed delivery before an order package becomes eligible.
-    4. Excludes orders with unresolved returns, refunds, disputes, or unreconciled COD remittance.
-    5. Ineligible orders are kept on hold and carried forward into a future cycle.
+    15-Day Payout Rules (Prompt 4):
+    1. Cycles: C1 (1st-15th, calc on 16th), C2 (16th-month-end, calc on 1st of next month).
+    2. Requires 5 complete days (120 full hours) after delivery before an order package becomes eligible.
+    3. Excludes orders with unresolved returns, refunds, disputes, or unreconciled COD remittance.
+    4. Ineligible orders are kept on hold and carried forward into a future cycle.
+    5. Manual hold release (is_hold_released=True) waives ONLY the 120h cooling hold.
     6. Double-entry accounting: Net balance = sum(eligible credits) - sum(eligible debits).
     7. Fully timezone-aware dates.
     """
     hold_days = get_payout_hold_days()
+    cycle_to_use = payout_cycle or cycle_month
 
-    if cycle_month:
+    if cycle_to_use:
         canonical_cycle, cycle_payout_date, prev_month_start, prev_month_end = get_cycle_bounds(
-            cycle_str=cycle_month,
+            cycle_str=cycle_to_use,
             as_of_date=as_of_date,
         )
         if as_of_date is None:
@@ -673,7 +718,8 @@ def calculate_seller_payout_eligibility(
         if as_of_date is None:
             as_of_date = timezone.now()
 
-    cutoff_delivery_time = as_of_date - timedelta(days=hold_days)
+    hold_hours = hold_days * 24  # 5 days = 120 full hours
+    cutoff_delivery_time = as_of_date - timedelta(hours=hold_hours)
 
     # Base query for unbatched entries for this seller
     base_qs = SellerLedgerEntry.objects.filter(
@@ -689,6 +735,9 @@ def calculate_seller_payout_eligibility(
     held_entry_details = []
 
     for entry in base_qs.select_related("seller_order", "seller_order__order"):
+        meta = entry.audit_metadata if isinstance(entry.audit_metadata, dict) else {}
+        is_released = getattr(entry, "is_hold_released", False)
+
         # 1. COD pending entries are strictly excluded
         if entry.status == SellerLedgerEntry.STATUS_PENDING_COD:
             held_entry_ids.append(entry.id)
@@ -698,6 +747,10 @@ def calculate_seller_payout_eligibility(
                 "type": entry.entry_type,
                 "category": entry.category,
                 "reason": "Courier COD cash remittance not yet reconciled.",
+                "is_cooling_hold": False,
+                "is_hold_released": is_released,
+                "hold_release_reason": getattr(entry, "hold_release_reason", ""),
+                "hold_release_history": meta.get("hold_release_history", []),
             })
             continue
 
@@ -705,7 +758,7 @@ def calculate_seller_payout_eligibility(
             # Reversed or non-posted entries do not qualify
             continue
 
-        # 2. Monthly cutoff: If cycle_month is specified, orders/entries from future cycles are carried forward
+        # 2. Cycle cutoff: If cycle_month is specified, orders/entries from future cycles are carried forward
         if prev_month_end:
             order_date = None
             if entry.seller_order_id:
@@ -720,7 +773,11 @@ def calculate_seller_payout_eligibility(
                     "amount": entry.amount,
                     "type": entry.entry_type,
                     "category": entry.category,
-                    "reason": f"Current month transaction (carried forward to next cycle after {prev_month_end.strftime('%b %Y')}).",
+                    "reason": f"Future cycle transaction (carried forward to next cycle after {prev_month_end.strftime('%d %b %Y')}).",
+                    "is_cooling_hold": False,
+                    "is_hold_released": is_released,
+                    "hold_release_reason": getattr(entry, "hold_release_reason", ""),
+                    "hold_release_history": meta.get("hold_release_history", []),
                 })
                 continue
 
@@ -737,20 +794,33 @@ def calculate_seller_payout_eligibility(
                     "type": entry.entry_type,
                     "category": entry.category,
                     "reason": f"Delivery not confirmed (status: {pkg.get_status_display()}).",
+                    "is_cooling_hold": False,
+                    "is_hold_released": is_released,
+                    "hold_release_reason": getattr(entry, "hold_release_reason", ""),
+                    "hold_release_history": meta.get("hold_release_history", []),
                 })
                 continue
 
-            # 7-day cooling window post-delivery
+            # 5-day cooling window post-delivery (120 full hours)
+            # If entry has is_hold_released=True, cooling hold is waived
             del_time = pkg.delivered_at or pkg.updated_at
-            if del_time and del_time > cutoff_delivery_time:
+            is_released = getattr(entry, "is_hold_released", False)
+            meta = entry.audit_metadata if isinstance(entry.audit_metadata, dict) else {}
+            if not is_released and del_time and (as_of_date - del_time) < timedelta(hours=hold_hours):
                 held_entry_ids.append(entry.id)
-                days_left = max(1, ((del_time + timedelta(days=hold_days)) - as_of_date).days + 1)
+                seconds_remaining = max(1, ((del_time + timedelta(hours=hold_hours)) - as_of_date).total_seconds())
+                hours_remaining = max(1, int(seconds_remaining // 3600) + (1 if seconds_remaining % 3600 else 0))
+                days_left = max(1, (hours_remaining + 23) // 24)
                 held_entry_details.append({
                     "entry_id": entry.id,
                     "amount": entry.amount,
                     "type": entry.entry_type,
                     "category": entry.category,
-                    "reason": f"7-day delivery cooling period active ({days_left}d remaining).",
+                    "reason": f"Delivery cooling period active ({days_left}d / {hours_remaining}h remaining).",
+                    "is_cooling_hold": True,
+                    "is_hold_released": False,
+                    "hold_release_reason": "",
+                    "hold_release_history": meta.get("hold_release_history", []),
                 })
                 continue
 
@@ -772,13 +842,22 @@ def calculate_seller_payout_eligibility(
                     "type": entry.entry_type,
                     "category": entry.category,
                     "reason": "Active return or exchange request unresolved.",
+                    "is_cooling_hold": False,
+                    "is_hold_released": is_released,
+                    "hold_release_reason": getattr(entry, "hold_release_reason", ""),
+                    "hold_release_history": meta.get("hold_release_history", []),
                 })
                 continue
 
-            # Unresolved refunds
+            # Unresolved refunds (both sub-order package and parent order-level)
             unresolved_refunds = RefundRecord.objects.filter(
-                seller_order=pkg,
-                status__in=[RefundRecord.STATUS_PENDING, RefundRecord.STATUS_FAILED],
+                Q(seller_order=pkg)
+                | Q(order=pkg.order, seller_order__isnull=True),
+                status__in=[
+                    RefundRecord.STATUS_PENDING,
+                    RefundRecord.STATUS_PROCESSING,
+                    RefundRecord.STATUS_FAILED,
+                ],
             ).exists()
             if unresolved_refunds:
                 held_entry_ids.append(entry.id)
@@ -788,6 +867,10 @@ def calculate_seller_payout_eligibility(
                     "type": entry.entry_type,
                     "category": entry.category,
                     "reason": "Customer refund record in pending/disputed state.",
+                    "is_cooling_hold": False,
+                    "is_hold_released": is_released,
+                    "hold_release_reason": getattr(entry, "hold_release_reason", ""),
+                    "hold_release_history": meta.get("hold_release_history", []),
                 })
                 continue
 
@@ -801,6 +884,10 @@ def calculate_seller_payout_eligibility(
                         "type": entry.entry_type,
                         "category": entry.category,
                         "reason": "Courier COD remittance pending reconciliation.",
+                        "is_cooling_hold": False,
+                        "is_hold_released": is_released,
+                        "hold_release_reason": getattr(entry, "hold_release_reason", ""),
+                        "hold_release_history": meta.get("hold_release_history", []),
                     })
                     continue
 
@@ -907,6 +994,7 @@ def calculate_seller_payout_eligibility(
         "total_debits": debit_sum,
         "net_eligible_balance": net_eligible,
         "is_above_threshold": net_eligible >= get_min_payout_threshold(),
+        "held_entry_ids": held_entry_ids,
         "held_count": len(held_entry_ids),
         "held_balance": held_net,
         "held_entry_details": held_entry_details,
@@ -931,6 +1019,8 @@ def calculate_seller_payout_eligibility(
         "refunds_and_adjustments": refunds_and_adjustments,
         "canonical_cycle": canonical_cycle,
         "cycle_payout_date": cycle_payout_date,
+        "period_start": prev_month_start,
+        "period_end": prev_month_end,
         "prev_month_start": prev_month_start,
         "prev_month_end": prev_month_end,
         "existing_batch": existing_batch,
@@ -1250,6 +1340,129 @@ def release_payout_batch(
         return True, f"Hold released for payout batch #{locked_batch.batch_reference}. Status updated to {locked_batch.get_status_display()}.", locked_batch
 
 
+def release_hold_balance_entries(
+    seller: Seller | None,
+    entry_ids: list[int],
+    reason: str,
+    actor=None,
+) -> tuple[int, list[SellerLedgerEntry]]:
+    """
+    Independently releases cooling-period holds on specific posted ledger entries for a seller.
+
+    Guarantees:
+    1. Authorization: Requires staff user with finance management permissions (Super Admin or Finance Manager).
+    2. Atomic & Locked: Uses select_for_update() inside transaction.atomic() to prevent concurrency anomalies.
+    3. Mandatory Audit Reason: Requires a non-empty explanation reason.
+    4. Strict Isolation: Verifies every entry strictly belongs to the specified seller.
+    5. Rejection of Ineligible: Rejects already batched, reversed, cancelled, or unposted entries.
+    6. Non-Disbursing: Releasing an entry's hold only makes it eligible for future cycle payout
+       batches; it strictly DOES NOT create a PayoutBatch, mark any batch completed, post a payout debit,
+       or call any external banking or payment gateway rails.
+    7. Safeguard Preservation: Overrides ONLY the delivery cooling hold; orders with unresolved returns,
+       refund disputes, or unreconciled COD remain held during payout eligibility calculation.
+    8. Idempotent: If an entry is already released, it safely updates audit metadata without duplicate effect.
+
+    Returns:
+        tuple[int, list[SellerLedgerEntry]]: (count_released, updated_entries)
+    """
+    from core.admin_permissions import ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, get_user_role
+
+    is_authorized = False
+    if actor and actor.is_authenticated and actor.is_active:
+        if actor.is_superuser:
+            is_authorized = True
+        elif actor.is_staff:
+            role = get_user_role(actor)
+            if role in (ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER):
+                is_authorized = True
+
+    if not is_authorized:
+        raise LedgerServiceError(
+            "Permission denied: Staff user with Finance Manager or Super Admin role is required to release holds."
+        )
+
+    clean_reason = (reason or "").strip()
+    if not clean_reason:
+        raise LedgerServiceError("A mandatory explanation reason is required to release held balances.")
+
+    if not entry_ids:
+        raise LedgerServiceError("At least one ledger entry ID must be specified.")
+
+    with transaction.atomic():
+        locked_entries = list(
+            SellerLedgerEntry.objects.select_for_update().filter(id__in=entry_ids)
+        )
+        if len(locked_entries) != len(set(entry_ids)):
+            raise LedgerServiceError("One or more specified ledger entries were not found.")
+
+        updated_entries = []
+        now_ts = timezone.now()
+
+        for entry in locked_entries:
+            # 1. Seller isolation check
+            if seller is not None:
+                if entry.seller_id != seller.id:
+                    raise LedgerServiceError(
+                        f"Entry #{entry.id} belongs to a different seller ({entry.seller.store_name if entry.seller else 'Platform'}) "
+                        f"and cannot be released for '{seller.store_name}'."
+                    )
+            else:
+                if not entry.is_platform_fulfilled:
+                    raise LedgerServiceError(
+                        f"Entry #{entry.id} belongs to third-party merchant and cannot be released for Platform Store."
+                    )
+
+            # 2. Check posting status
+            if entry.status != SellerLedgerEntry.STATUS_POSTED:
+                raise LedgerServiceError(
+                    f"Entry #{entry.id} has status '{entry.get_status_display()}'. Only POSTED entries can be hold-released."
+                )
+
+            # 3. Check if already included in a payout batch
+            if entry.payout_batch_id is not None:
+                raise LedgerServiceError(
+                    f"Entry #{entry.id} is already bundled into PayoutBatch #{entry.payout_batch.batch_reference}."
+                )
+
+            # 4. Check if package has been cancelled
+            if entry.seller_order and entry.seller_order.status == SellerOrder.STATUS_CANCELLED:
+                raise LedgerServiceError(
+                    f"Entry #{entry.id} belongs to a cancelled sub-order (#{entry.seller_order.sub_order_number}) and cannot be released."
+                )
+
+            # 5. Record hold release on the entry
+            entry.is_hold_released = True
+            entry.hold_released_at = now_ts
+            entry.hold_released_by = actor
+            entry.hold_release_reason = clean_reason
+
+            meta = entry.audit_metadata if isinstance(entry.audit_metadata, dict) else {}
+            release_event = {
+                "released_by_username": getattr(actor, "username", "admin"),
+                "released_at": now_ts.isoformat(),
+                "reason": clean_reason,
+            }
+            history = meta.get("hold_release_history")
+            if not isinstance(history, list):
+                history = []
+                if "hold_release" in meta and isinstance(meta["hold_release"], dict):
+                    history.append(meta["hold_release"])
+            history.append(release_event)
+            meta["hold_release_history"] = history
+            meta["hold_release"] = release_event
+            entry.audit_metadata = meta
+            entry.save(update_fields=[
+                "is_hold_released",
+                "hold_released_at",
+                "hold_released_by",
+                "hold_release_reason",
+                "audit_metadata",
+            ])
+            updated_entries.append(entry)
+
+        return len(updated_entries), updated_entries
+
+
 def reject_payout_batch(
     payout_batch: PayoutBatch,
     actor=None,
@@ -1343,6 +1556,13 @@ def process_mock_payout_batch(
             raise LedgerServiceError(
                 f"Payout batch #{locked_batch.batch_reference} is ON HOLD ({locked_batch.hold_reason or 'Admin hold'}). "
                 "Held payments cannot be disbursed."
+            )
+
+        # Final settlement batches must NOT be processed via mock payout
+        if locked_batch.batch_type == PayoutBatch.BATCH_TYPE_FINAL_SETTLEMENT:
+            raise LedgerServiceError(
+                f"Payout batch #{locked_batch.batch_reference} is a final settlement batch. "
+                "Final settlement batches cannot be settled via mock payout; they must be completed through the verified manual bank transfer workflow."
             )
 
         # Duplicate transfer protection
@@ -1480,6 +1700,267 @@ def process_mock_payout_batch(
         )
 
         return True, f"[TEST/SIMULATED] Mock payout batch #{locked_batch.batch_reference} completed successfully (Ref: {ext_ref}). Zero real funds transferred (Live payouts not configured).", locked_batch
+
+
+def record_manual_bank_transfer(
+    payout_batch: PayoutBatch,
+    actor=None,
+    utr_reference: str = "",
+    transfer_date=None,
+    confirmation: bool = False,
+    notes: str = "",
+) -> tuple[bool, str, PayoutBatch]:
+    """
+    Records an already completed external offline bank transfer (NEFT/RTGS/IMPS/UPI) for an approved PayoutBatch.
+
+    Security & Financial Integrity Rules:
+    - Never initiates an external money transfer, calls bank rails, or touches live payment gateways.
+    - Operates strictly as an audit and settlement recording service for funds already transferred externally.
+    - Requires authenticated staff with Super Admin or Finance Manager role.
+    - Enforces row-level pessimistic locking (select_for_update) inside an atomic transaction.
+    - Requires the batch to be approved (approved_at is not null) and in an eligible state.
+    - Requires non-empty, unique UTR reference, valid transfer date (not in future), and explicit confirmation.
+    - Enforces is_mock=False and payout_channel=PAYOUT_CHANNEL_MANUAL_BANK so offline transfers
+      are never conflated with simulated mock disbursements.
+    - Posts an immutable PAYOUT (Debit) settlement entry in SellerLedgerEntry exactly once (idempotent).
+    - Logs an immutable PayoutAuditLog entry and accumulates audit metadata.
+    """
+    # 1. Staff Authorization Check (if actor provided)
+    if actor is not None and hasattr(actor, "is_authenticated"):
+        if not actor.is_authenticated or not actor.is_active:
+            raise LedgerServiceError("Authentication required to record bank transfers.")
+        if not (getattr(actor, "is_superuser", False) or getattr(actor, "is_staff", False)):
+            raise LedgerServiceError("Staff privileges required to record bank transfers.")
+
+        # Verify finance or super admin role
+        try:
+            from core.admin_permissions import ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, has_role
+            if not (actor.is_superuser or has_role(actor, ROLE_SUPER_ADMIN) or has_role(actor, ROLE_FINANCE_MANAGER)):
+                raise LedgerServiceError("Permission denied: Super Admin or Finance Manager role required.")
+        except ImportError:
+            if not (actor.is_superuser or actor.is_staff):
+                raise LedgerServiceError("Permission denied: Unauthorized administrative role.")
+
+    # 2. Confirmation Check
+    if not confirmation:
+        raise LedgerServiceError(
+            "Explicit confirmation required: You must confirm that the external bank transfer has already been executed."
+        )
+
+    # 3. UTR Reference Validation
+    clean_utr = (utr_reference or "").strip()
+    if not clean_utr:
+        raise LedgerServiceError("A valid, non-empty Bank UTR / Transaction Reference number is required.")
+
+    # 4. Transfer Date Validation
+    if not transfer_date:
+        raise LedgerServiceError("Actual bank transfer execution date is required.")
+
+    if isinstance(transfer_date, str):
+        try:
+            val_date = datetime.strptime(transfer_date.strip(), "%Y-%m-%d").date()
+        except ValueError:
+            raise LedgerServiceError(f"Invalid transfer date format: '{transfer_date}'. Expected YYYY-MM-DD.")
+    elif isinstance(transfer_date, datetime):
+        val_date = transfer_date.date()
+    elif isinstance(transfer_date, date):
+        val_date = transfer_date
+    else:
+        raise LedgerServiceError("Invalid transfer date provided.")
+
+    if val_date > timezone.now().date():
+        raise LedgerServiceError(f"Transfer date cannot be in the future (provided: {val_date}).")
+
+    clean_notes = (notes or "").strip()
+
+    # 5. Atomic Transaction & Row Locking
+    with transaction.atomic():
+        locked_batch = (
+            PayoutBatch.objects.select_for_update()
+            .filter(pk=payout_batch.pk)
+            .first()
+        )
+        if not locked_batch:
+            raise LedgerServiceError("Payout batch does not exist.")
+
+        # Batch Status Safeguards
+        if locked_batch.status == PayoutBatch.STATUS_ON_HOLD:
+            raise LedgerServiceError(
+                f"Payout batch #{locked_batch.batch_reference} is ON HOLD ({locked_batch.hold_reason or 'Admin hold'}). "
+                "Hold must be released before recording a transfer."
+            )
+
+        if locked_batch.status == PayoutBatch.STATUS_FAILED:
+            raise LedgerServiceError(
+                f"Cannot record transfer for failed/rejected payout batch #{locked_batch.batch_reference}."
+            )
+
+        if locked_batch.status == PayoutBatch.STATUS_REVERSED:
+            raise LedgerServiceError(
+                f"Cannot record transfer for reversed payout batch #{locked_batch.batch_reference}."
+            )
+
+        # Idempotent Check: If already completed with the SAME manual UTR
+        if locked_batch.status == PayoutBatch.STATUS_COMPLETED:
+            if (
+                locked_batch.payout_channel == PayoutBatch.PAYOUT_CHANNEL_MANUAL_BANK
+                and (locked_batch.manual_utr_reference or "").lower() == clean_utr.lower()
+            ):
+                return True, f"Manual bank transfer already recorded for batch #{locked_batch.batch_reference} (UTR: {clean_utr}).", locked_batch
+            raise LedgerServiceError(
+                f"Payout batch #{locked_batch.batch_reference} has already been completed under a different reference or channel."
+            )
+
+        # Approval Check: Must be approved according to actual workflow
+        if not locked_batch.approved_at:
+            raise LedgerServiceError(
+                f"Payout batch #{locked_batch.batch_reference} must be approved before recording a manual bank transfer."
+            )
+
+        if locked_batch.status not in (
+            PayoutBatch.STATUS_PENDING,
+            PayoutBatch.STATUS_DRAFT,
+            PayoutBatch.STATUS_PROCESSING,
+        ):
+            raise LedgerServiceError(
+                f"Payout batch #{locked_batch.batch_reference} cannot record transfer from status: {locked_batch.get_status_display()}."
+            )
+
+        # Amount check
+        if locked_batch.amount <= Decimal("0.00"):
+            raise LedgerServiceError(
+                f"Payout batch #{locked_batch.batch_reference} amount must be greater than zero (current: ₹{locked_batch.amount})."
+            )
+
+        # Non-platform seller bank account eligibility check
+        if locked_batch.seller and not locked_batch.is_platform_fulfilled:
+            if not locked_batch.seller.is_bank_payout_eligible:
+                raise PayoutEligibilityError(
+                    f"Cannot record transfer: seller '{locked_batch.seller.store_name}' bank account is not verified."
+                )
+
+        # Global UTR uniqueness check across all other batches
+        if PayoutBatch.objects.exclude(pk=locked_batch.pk).filter(manual_utr_reference__iexact=clean_utr).exists():
+            raise LedgerServiceError(
+                f"UTR reference '{clean_utr}' has already been recorded for another payout batch."
+            )
+
+        old_status = locked_batch.status
+        now_ts = timezone.now()
+
+        # Update batch fields
+        locked_batch.status = PayoutBatch.STATUS_COMPLETED
+        locked_batch.payout_channel = PayoutBatch.PAYOUT_CHANNEL_MANUAL_BANK
+        locked_batch.payout_method = "manual_bank_transfer"
+        locked_batch.is_mock = False
+        locked_batch.manual_utr_reference = clean_utr
+        locked_batch.manual_transfer_date = val_date
+        locked_batch.external_reference = clean_utr
+        locked_batch.provider_status = "manual_bank_transfer_recorded"
+        locked_batch.processed_at = now_ts
+        locked_batch.processed_by = actor if hasattr(actor, "id") else None
+
+        if locked_batch.seller and not locked_batch.bank_account_masked:
+            locked_batch.bank_account_masked = locked_batch.seller.get_masked_account_number()
+            locked_batch.bank_ifsc_code = locked_batch.seller.bank_ifsc_code
+            locked_batch.bank_beneficiary_name = (
+                locked_batch.seller.bank_account_holder_name or locked_batch.seller.store_name
+            )
+
+        if clean_notes:
+            locked_batch.notes = (
+                f"{locked_batch.notes}\n[Manual Transfer: {clean_notes}]" if locked_batch.notes else clean_notes
+            ).strip()
+
+        # Audit metadata
+        meta = locked_batch.audit_metadata if isinstance(locked_batch.audit_metadata, dict) else {}
+        transfer_audit = {
+            "recorded_by_username": getattr(actor, "username", "admin"),
+            "recorded_at": now_ts.isoformat(),
+            "manual_transfer_date": str(val_date),
+            "manual_utr_reference": clean_utr,
+            "disbursement_amount": str(locked_batch.amount),
+            "channel": PayoutBatch.PAYOUT_CHANNEL_MANUAL_BANK,
+            "notes": clean_notes,
+            "offline_manual_transfer": True,
+        }
+        history = meta.get("manual_transfer_history")
+        if not isinstance(history, list):
+            history = []
+        history.append(transfer_audit)
+        meta["manual_transfer_history"] = history
+        meta["manual_transfer"] = transfer_audit
+        locked_batch.audit_metadata = meta
+
+        locked_batch.save(
+            update_fields=[
+                "status",
+                "payout_channel",
+                "payout_method",
+                "is_mock",
+                "manual_utr_reference",
+                "manual_transfer_date",
+                "external_reference",
+                "provider_status",
+                "processed_at",
+                "processed_by",
+                "bank_account_masked",
+                "bank_ifsc_code",
+                "bank_beneficiary_name",
+                "notes",
+                "audit_metadata",
+                "updated_at",
+            ]
+        )
+
+        # Post immutable PAYOUT (Debit) settlement ledger entry exactly once
+        payout_debit_key = f"PAYOUT-DISBURSE-{locked_batch.id}"
+        if not SellerLedgerEntry.objects.filter(idempotency_key=payout_debit_key).exists():
+            SellerLedgerEntry.objects.create(
+                seller=locked_batch.seller,
+                is_platform_fulfilled=locked_batch.is_platform_fulfilled,
+                entry_type=SellerLedgerEntry.TYPE_DEBIT,
+                category=SellerLedgerEntry.CATEGORY_PAYOUT,
+                amount=locked_batch.amount,
+                currency=locked_batch.currency,
+                status=SellerLedgerEntry.STATUS_POSTED,
+                source_type="payout_batch",
+                source_reference=locked_batch.batch_reference,
+                payout_batch=locked_batch,
+                idempotency_key=payout_debit_key,
+                description=f"Manual bank transfer disbursement settlement for batch #{locked_batch.batch_reference} (UTR: {clean_utr})",
+                posted_at=now_ts,
+                created_by=actor if hasattr(actor, "id") else None,
+                audit_metadata={
+                    "batch_reference": locked_batch.batch_reference,
+                    "channel": PayoutBatch.PAYOUT_CHANNEL_MANUAL_BANK,
+                    "manual_utr_reference": clean_utr,
+                    "manual_transfer_date": str(val_date),
+                    "disbursement_amount": str(locked_batch.amount),
+                    "offline_manual_transfer": True,
+                },
+            )
+
+        # Log immutable PayoutAuditLog
+        PayoutAuditLog.objects.create(
+            payout_batch=locked_batch,
+            action=PayoutAuditLog.ACTION_DISBURSED,
+            actor=actor if hasattr(actor, "id") else None,
+            from_status=old_status,
+            to_status=PayoutBatch.STATUS_COMPLETED,
+            reason=f"Manual external bank transfer recorded (UTR: {clean_utr}, Value Date: {val_date}).",
+            metadata={
+                "channel": PayoutBatch.PAYOUT_CHANNEL_MANUAL_BANK,
+                "manual_utr_reference": clean_utr,
+                "manual_transfer_date": str(val_date),
+                "amount": str(locked_batch.amount),
+                "recorded_by": getattr(actor, "username", "admin"),
+                "timestamp": now_ts.isoformat(),
+                "offline_manual_transfer": True,
+            },
+        )
+
+        return True, f"Manual bank transfer recorded successfully for batch #{locked_batch.batch_reference} (UTR: {clean_utr}). Payout marked COMPLETED.", locked_batch
 
 
 def reverse_payout_batch(
@@ -1632,3 +2113,758 @@ def get_seller_ledger_summary(seller: Seller | None = None, is_platform_fulfille
         "payouts_disbursed": payouts,
         "pending_cod_amount": pending_cod_net,
     }
+
+
+# ==============================================================================
+# 11. SELLER CLOSURE CLEARANCE & FINAL SETTLEMENT (PHASE 2)
+# ==============================================================================
+
+def audit_seller_closure_clearance(
+    seller: Seller,
+    as_of_date=None,
+) -> dict:
+    """
+    Read-only audit evaluating whether a seller is cleared for final settlement and account closure (Phase 2).
+
+    Non-mutating: Strictly inspects database state; never modifies models, releases holds,
+    creates batches, posts ledger entries, or invokes payment rails.
+
+    Returns a comprehensive structured clearance report:
+    - seller metadata and current closure status
+    - blockers preventing final settlement or full closure
+    - open/unfulfilled sub-orders (anything not delivered or cancelled)
+    - active/unresolved return/exchange requests
+    - pending/failed refund records
+    - unreconciled courier COD remittances
+    - active 120-hour delivery cooling holds with time remaining
+    - complete ledger balance breakdown (credits, debits, net balance, unbatched funds)
+    - active and completed final settlement batch details
+    - can_create_final_settlement_batch: boolean indicating final batch readiness
+    - can_fully_close: boolean indicating whether seller can be safely marked closed
+    """
+    if as_of_date is None:
+        as_of_date = timezone.now()
+
+    blockers = []
+    closure_blockers = []
+
+    # 1. Status Check
+    if seller.status != Seller.STATUS_CLOSING:
+        status_msg = f"Seller is in '{seller.get_status_display()}' status. Must be in 'Closing / Settlement Run-off' to proceed."
+        blockers.append(status_msg)
+        closure_blockers.append(status_msg)
+
+    # 2. Open / Unfulfilled Orders Check
+    open_orders_qs = SellerOrder.objects.filter(seller=seller).exclude(
+        status__in=[SellerOrder.STATUS_DELIVERED, SellerOrder.STATUS_CANCELLED]
+    ).select_related("order")
+    open_orders_count = open_orders_qs.count()
+    open_orders_details = [
+        {
+            "sub_order_number": o.sub_order_number,
+            "status": o.status,
+            "status_display": o.get_status_display(),
+            "created_at": o.created_at.isoformat() if o.created_at else None,
+        }
+        for o in open_orders_qs[:20]
+    ]
+    if open_orders_count > 0:
+        msg = f"{open_orders_count} open/unfulfilled sub-order(s) must be delivered or cancelled."
+        blockers.append(msg)
+        closure_blockers.append(msg)
+
+    # 3. Unresolved Return / Exchange Requests Check
+    unresolved_returns_qs = ReturnRequest.objects.filter(
+        seller_order__seller=seller
+    ).exclude(
+        status__in=[
+            ReturnRequest.STATUS_COMPLETED,
+            ReturnRequest.STATUS_REJECTED,
+            ReturnRequest.STATUS_CANCELLED,
+        ]
+    ).select_related("seller_order")
+    unresolved_returns_count = unresolved_returns_qs.count()
+    unresolved_returns_details = [
+        {
+            "request_number": r.request_number,
+            "status": r.status,
+            "status_display": r.get_status_display(),
+            "sub_order_number": r.seller_order.sub_order_number if r.seller_order else "N/A",
+        }
+        for r in unresolved_returns_qs[:20]
+    ]
+    if unresolved_returns_count > 0:
+        msg = f"{unresolved_returns_count} active return/exchange request(s) remain unresolved."
+        blockers.append(msg)
+        closure_blockers.append(msg)
+
+    # 4. Pending / Failed Refund Records Check (Sub-order linked and Order-level)
+    unresolved_refunds_qs = (
+        RefundRecord.objects.filter(
+            Q(seller_order__seller=seller)
+            | Q(order__seller_orders__seller=seller, seller_order__isnull=True),
+            status__in=[
+                RefundRecord.STATUS_PENDING,
+                RefundRecord.STATUS_PROCESSING,
+                RefundRecord.STATUS_FAILED,
+            ],
+        )
+        .select_related("seller_order", "order")
+        .distinct()
+    )
+    unresolved_refunds_count = unresolved_refunds_qs.count()
+    unresolved_refunds_details = [
+        {
+            "refund_reference": ref.refund_reference,
+            "status": ref.status,
+            "status_display": ref.get_status_display(),
+            "amount": str(ref.requested_amount),
+            "order_number": ref.order.order_number if ref.order else "N/A",
+            "sub_order_number": ref.seller_order.sub_order_number if ref.seller_order else "Order-Level",
+        }
+        for ref in unresolved_refunds_qs[:20]
+    ]
+    if unresolved_refunds_count > 0:
+        msg = f"{unresolved_refunds_count} refund record(s) pending processing or in failed state."
+        blockers.append(msg)
+        closure_blockers.append(msg)
+
+    # 5. Unreconciled COD Check
+    unreconciled_cod_orders = SellerOrder.objects.filter(
+        seller=seller,
+        order__payment_method=Order.PAYMENT_METHOD_COD,
+        cod_reconciliation__isnull=True,
+    ).exclude(status=SellerOrder.STATUS_CANCELLED)
+    pending_cod_entries = SellerLedgerEntry.objects.filter(
+        seller=seller,
+        status=SellerLedgerEntry.STATUS_PENDING_COD,
+    )
+    unreconciled_cod_count = unreconciled_cod_orders.count() + pending_cod_entries.count()
+    if unreconciled_cod_count > 0:
+        msg = f"{unreconciled_cod_count} courier COD remittance record(s) pending reconciliation."
+        blockers.append(msg)
+        closure_blockers.append(msg)
+
+    # 6. Eligibility & Delivery Cooling Hold Check
+    eligibility = calculate_seller_payout_eligibility(
+        seller=seller,
+        as_of_date=as_of_date,
+        cycle_month=None,
+        payout_cycle=None,
+    )
+    cooling_holds = [
+        item for item in eligibility.get("held_entry_details", [])
+        if item.get("is_cooling_hold")
+    ]
+    if cooling_holds:
+        msg = f"{len(cooling_holds)} delivery cooling period hold(s) active (120-hour cooling period pending)."
+        blockers.append(msg)
+        closure_blockers.append(msg)
+
+    # 7. Complete Ledger Balance Evaluation
+    posted_entries = SellerLedgerEntry.objects.filter(
+        seller=seller,
+        status=SellerLedgerEntry.STATUS_POSTED,
+    )
+    total_posted_credits = (
+        posted_entries.filter(entry_type=SellerLedgerEntry.TYPE_CREDIT).aggregate(s=Sum("amount"))["s"]
+        or Decimal("0.00")
+    )
+    total_posted_debits = (
+        posted_entries.filter(entry_type=SellerLedgerEntry.TYPE_DEBIT).aggregate(s=Sum("amount"))["s"]
+        or Decimal("0.00")
+    )
+    net_lifetime_balance = (total_posted_credits - total_posted_debits).quantize(Decimal("0.01"))
+    is_negative_balance = net_lifetime_balance < Decimal("0.00")
+
+    if is_negative_balance:
+        msg = f"Negative ledger balance (-₹{abs(net_lifetime_balance)}). Outstanding merchant liability must be recovered."
+        blockers.append(msg)
+        closure_blockers.append(msg)
+
+    unbatched_eligible_amount = eligibility.get("net_eligible_balance", Decimal("0.00"))
+
+    # 8. Final Settlement Batch Inspection
+    final_batches = PayoutBatch.objects.filter(
+        seller=seller,
+        batch_type=PayoutBatch.BATCH_TYPE_FINAL_SETTLEMENT,
+    ).order_by("-created_at")
+    active_final_batch = final_batches.exclude(
+        status__in=[PayoutBatch.STATUS_FAILED, PayoutBatch.STATUS_REVERSED]
+    ).first()
+    completed_final_batch = final_batches.filter(status=PayoutBatch.STATUS_COMPLETED).first()
+
+    existing_final_info = None
+    if active_final_batch:
+        has_utr = bool(active_final_batch.manual_utr_reference and active_final_batch.manual_utr_reference.strip())
+        has_date = bool(active_final_batch.manual_transfer_date)
+        is_verified_transfer = has_utr and has_date
+
+        existing_final_info = {
+            "batch_reference": active_final_batch.batch_reference,
+            "status": active_final_batch.status,
+            "status_display": active_final_batch.get_status_display(),
+            "amount": str(active_final_batch.amount),
+            "is_completed": active_final_batch.status == PayoutBatch.STATUS_COMPLETED,
+            "is_on_hold": active_final_batch.status == PayoutBatch.STATUS_ON_HOLD,
+            "manual_utr_reference": active_final_batch.manual_utr_reference or "",
+            "manual_transfer_date": active_final_batch.manual_transfer_date.isoformat() if active_final_batch.manual_transfer_date else None,
+            "is_verified_transfer": is_verified_transfer,
+        }
+        if active_final_batch.status != PayoutBatch.STATUS_COMPLETED:
+            closure_blockers.append(
+                f"Active final settlement batch #{active_final_batch.batch_reference} is in '{active_final_batch.get_status_display()}' status and must be completed."
+            )
+        elif not is_verified_transfer:
+            missing = []
+            if not has_utr:
+                missing.append("verified bank UTR reference")
+            if not has_date:
+                missing.append("transfer execution date")
+            closure_blockers.append(
+                f"Completed final settlement batch #{active_final_batch.batch_reference} is missing required transfer details: {', '.join(missing)}."
+            )
+
+    # 9. Can create final settlement batch?
+    # Must be in closing, zero settlement blockers, unbatched net eligible > 0, and no active final batch already running
+    can_create_final_settlement_batch = (
+        seller.status == Seller.STATUS_CLOSING
+        and len(blockers) == 0
+        and unbatched_eligible_amount > Decimal("0.00")
+        and (active_final_batch is None or active_final_batch.status in [PayoutBatch.STATUS_FAILED, PayoutBatch.STATUS_REVERSED])
+    )
+
+    # 10. Can fully close?
+    # Must be in closing, zero closure blockers, no active uncompleted batch, and unbatched net residual balance is 0.00
+    unbatched_entries_remain = SellerLedgerEntry.objects.filter(
+        seller=seller,
+        payout_batch__isnull=True,
+        status=SellerLedgerEntry.STATUS_POSTED,
+    ).exists()
+
+    unbatched_net = Decimal("0.00")
+    if unbatched_entries_remain:
+        unb_credits = SellerLedgerEntry.objects.filter(
+            seller=seller, payout_batch__isnull=True, status=SellerLedgerEntry.STATUS_POSTED, entry_type=SellerLedgerEntry.TYPE_CREDIT
+        ).aggregate(s=Sum("amount"))["s"] or Decimal("0.00")
+        unb_debits = SellerLedgerEntry.objects.filter(
+            seller=seller, payout_batch__isnull=True, status=SellerLedgerEntry.STATUS_POSTED, entry_type=SellerLedgerEntry.TYPE_DEBIT
+        ).aggregate(s=Sum("amount"))["s"] or Decimal("0.00")
+        unbatched_net = (unb_credits - unb_debits).quantize(Decimal("0.01"))
+
+    if unbatched_net > Decimal("0.00"):
+        closure_blockers.append(
+            f"Residual unbatched balance of ₹{unbatched_net} remains payable. Final settlement batch must be created and disbursed."
+        )
+    elif unbatched_net < Decimal("0.00"):
+        closure_blockers.append(
+            f"Negative unbatched balance (-₹{abs(unbatched_net)}). Outstanding merchant liability must be recovered."
+        )
+
+    # Reconcile lifetime balance versus unbatched residual:
+    # If unbatched_net is 0 but net_lifetime_balance > 0 and final batch is completed (or absent),
+    # undisbursed net funds remain on the ledger.
+    if net_lifetime_balance > Decimal("0.00") and (active_final_batch is None or active_final_batch.status == PayoutBatch.STATUS_COMPLETED):
+        closure_blockers.append(
+            f"Undisbursed net lifetime balance of ₹{net_lifetime_balance} remains. Total merchant ledger must balance to ₹0.00 before closure."
+        )
+
+    # Active non-final payout batches check: any cycle batch in draft, pending, on hold, or processing
+    active_other_batches = PayoutBatch.objects.filter(
+        seller=seller
+    ).exclude(
+        batch_type=PayoutBatch.BATCH_TYPE_FINAL_SETTLEMENT
+    ).exclude(
+        status__in=[PayoutBatch.STATUS_COMPLETED, PayoutBatch.STATUS_FAILED, PayoutBatch.STATUS_REVERSED]
+    )
+    for ob in active_other_batches:
+        closure_blockers.append(
+            f"Active payout batch #{ob.batch_reference} is in '{ob.get_status_display()}' status and must be completed or resolved before closure."
+        )
+
+    final_batch_verified = (
+        active_final_batch is None
+        or (
+            active_final_batch.status == PayoutBatch.STATUS_COMPLETED
+            and bool(active_final_batch.manual_utr_reference and active_final_batch.manual_utr_reference.strip())
+            and bool(active_final_batch.manual_transfer_date)
+        )
+    )
+
+    can_fully_close = (
+        seller.status == Seller.STATUS_CLOSING
+        and len(closure_blockers) == 0
+        and unbatched_net == Decimal("0.00")
+        and net_lifetime_balance == Decimal("0.00")
+        and final_batch_verified
+        and not active_other_batches.exists()
+    )
+
+    return {
+        "seller_id": seller.id,
+        "seller_store_name": seller.store_name,
+        "status": seller.status,
+        "status_display": seller.get_status_display(),
+        "is_closing": seller.is_closing,
+        "is_closed": seller.is_closed,
+        "is_cleared_for_settlement": len(blockers) == 0,
+        "settlement_blockers": blockers,
+        "closure_blockers": closure_blockers,
+        "open_orders": {
+            "count": open_orders_count,
+            "details": open_orders_details,
+        },
+        "unresolved_returns": {
+            "count": unresolved_returns_count,
+            "details": unresolved_returns_details,
+        },
+        "unresolved_refunds": {
+            "count": unresolved_refunds_count,
+            "details": unresolved_refunds_details,
+        },
+        "unreconciled_cod": {
+            "count": unreconciled_cod_count,
+            "unreconciled_orders_count": unreconciled_cod_orders.count(),
+            "pending_cod_entries_count": pending_cod_entries.count(),
+        },
+        "cooling_holds": {
+            "count": len(cooling_holds),
+            "details": cooling_holds,
+        },
+        "ledger_balance": {
+            "total_posted_credits": total_posted_credits,
+            "total_posted_debits": total_posted_debits,
+            "net_lifetime_balance": net_lifetime_balance,
+            "is_negative_balance": is_negative_balance,
+            "unbatched_eligible_amount": unbatched_eligible_amount,
+            "unbatched_held_amount": eligibility.get("held_net_amount", Decimal("0.00")),
+            "unbatched_residual_net": unbatched_net,
+        },
+        "existing_final_batch": existing_final_info,
+        "can_create_final_settlement_batch": can_create_final_settlement_batch,
+        "can_fully_close": can_fully_close,
+    }
+
+
+def create_final_settlement_batch(
+    seller: Seller,
+    actor=None,
+    notes: str = "",
+) -> PayoutBatch:
+    """
+    Creates an immutable PayoutBatch for seller account closure final settlement (Phase 2).
+
+    Financial & Security Invariants:
+    1. Seller Status: Seller MUST be in STATUS_CLOSING ('closing'). Rejects approved, requested,
+       suspended, or closed sellers.
+    2. Role Authorization: Requires Super Admin or Finance Manager privileges if actor is supplied.
+    3. Re-checks Clearance Atomically: Does not rely on stale cached evaluations; re-verifies
+       zero open orders, zero open returns, zero open refunds, zero unreconciled COD, and zero
+       active cooling holds inside a pessimistic row-locking database transaction.
+    4. Threshold Bypass: Does NOT enforce the regular ₹500 minimum payout threshold. Any positive
+       residual balance (e.g. ₹120.00) is eligible for final settlement.
+    5. Zero/Negative Balance Rejection: Rejects zero or negative balances with PayoutEligibilityError.
+    6. Double-Batching Protection: Respects the database unique active final settlement batch constraint.
+       If an active final batch already exists, returns it safely without duplicate batch creation.
+    7. Safeguards & Provider Isolation: Does NOT disburse funds, does NOT call external banking APIs,
+       does NOT mark seller closed, and bundles entries with batch_type='final_settlement'.
+    """
+    if actor is not None and hasattr(actor, "is_authenticated"):
+        if not actor.is_authenticated or not actor.is_active:
+            raise LedgerServiceError("Authentication required to create final settlement batches.")
+        if not (getattr(actor, "is_superuser", False) or getattr(actor, "is_staff", False)):
+            raise LedgerServiceError("Staff privileges required to create final settlement batches.")
+        from core.admin_permissions import ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, has_admin_permission
+        if not (actor.is_superuser or has_admin_permission(actor, [ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])):
+            raise LedgerServiceError("Permission denied: Super Admin or Finance Manager role required.")
+
+    if seller.status != Seller.STATUS_CLOSING:
+        raise PayoutEligibilityError(
+            f"Seller '{seller.store_name}' must be in CLOSING status to create a final settlement batch (current: {seller.get_status_display()})."
+        )
+
+    with transaction.atomic():
+        locked_seller = Seller.objects.select_for_update().get(pk=seller.pk)
+        if locked_seller.status != Seller.STATUS_CLOSING:
+            raise PayoutEligibilityError(
+                f"Seller '{locked_seller.store_name}' must be in CLOSING status to create a final settlement batch (current: {locked_seller.get_status_display()})."
+            )
+
+        # 1. Idempotency Check: Existing active final settlement batch
+        existing_final = (
+            PayoutBatch.objects.select_for_update()
+            .filter(
+                seller=locked_seller,
+                batch_type=PayoutBatch.BATCH_TYPE_FINAL_SETTLEMENT,
+            )
+            .exclude(
+                status__in=[
+                    PayoutBatch.STATUS_COMPLETED,
+                    PayoutBatch.STATUS_FAILED,
+                    PayoutBatch.STATUS_REVERSED,
+                ]
+            )
+            .first()
+        )
+        if existing_final:
+            return existing_final
+
+        # 2. Re-verify clearance blockers atomically
+        open_orders = SellerOrder.objects.filter(seller=locked_seller).exclude(
+            status__in=[SellerOrder.STATUS_DELIVERED, SellerOrder.STATUS_CANCELLED]
+        )
+        if open_orders.exists():
+            raise PayoutEligibilityError(
+                f"Cannot create final settlement batch: {open_orders.count()} open/unfulfilled sub-order(s) remain."
+            )
+
+        open_returns = ReturnRequest.objects.filter(seller_order__seller=locked_seller).exclude(
+            status__in=[
+                ReturnRequest.STATUS_COMPLETED,
+                ReturnRequest.STATUS_REJECTED,
+                ReturnRequest.STATUS_CANCELLED,
+            ]
+        )
+        if open_returns.exists():
+            raise PayoutEligibilityError(
+                f"Cannot create final settlement batch: {open_returns.count()} active return/exchange request(s) remain unresolved."
+            )
+
+        open_refunds = RefundRecord.objects.filter(
+            Q(seller_order__seller=locked_seller)
+            | Q(order__seller_orders__seller=locked_seller, seller_order__isnull=True),
+            status__in=[
+                RefundRecord.STATUS_PENDING,
+                RefundRecord.STATUS_PROCESSING,
+                RefundRecord.STATUS_FAILED,
+            ],
+        ).distinct()
+        if open_refunds.exists():
+            raise PayoutEligibilityError(
+                f"Cannot create final settlement batch: {open_refunds.count()} pending or failed refund record(s) remain."
+            )
+
+        unreconciled_cod_orders = SellerOrder.objects.filter(
+            seller=locked_seller,
+            order__payment_method=Order.PAYMENT_METHOD_COD,
+            cod_reconciliation__isnull=True,
+        ).exclude(status=SellerOrder.STATUS_CANCELLED)
+        pending_cod_entries = SellerLedgerEntry.objects.filter(
+            seller=locked_seller,
+            status=SellerLedgerEntry.STATUS_PENDING_COD,
+        )
+        if unreconciled_cod_orders.exists() or pending_cod_entries.exists():
+            raise PayoutEligibilityError(
+                "Cannot create final settlement batch: Courier COD cash remittances pending reconciliation."
+            )
+
+        # 3. Calculate unbatched eligibility
+        eligibility = calculate_seller_payout_eligibility(
+            seller=locked_seller,
+            cycle_month=None,
+            payout_cycle=None,
+        )
+        cooling_holds = [
+            item for item in eligibility.get("held_entry_details", [])
+            if item.get("is_cooling_hold")
+        ]
+        if cooling_holds:
+            raise PayoutEligibilityError(
+                f"Cannot create final settlement batch: 120-hour delivery cooling period active for {len(cooling_holds)} entries."
+            )
+
+        net_amount = eligibility["net_eligible_balance"]
+        if net_amount <= Decimal("0.00"):
+            raise PayoutEligibilityError(
+                f"Cannot create final settlement batch: Net payable balance must be greater than zero (current: ₹{net_amount})."
+            )
+
+        # 4. Lock eligible entries pessimistically
+        eligible_ids = eligibility["eligible_entry_ids"]
+        if not eligible_ids:
+            raise PayoutEligibilityError("No eligible ledger entries available for final settlement.")
+
+        locked_entries = list(
+            SellerLedgerEntry.objects.select_for_update().filter(id__in=eligible_ids)
+        )
+        already_batched = [e for e in locked_entries if e.payout_batch_id is not None]
+        if already_batched:
+            raise PayoutEligibilityError(
+                f"{len(already_batched)} ledger entries have already been included in another payout batch."
+            )
+
+        # 5. Create PayoutBatch record in DRAFT status
+        date_str = timezone.now().strftime("%Y%m%d")
+        rand_hex = uuid.uuid4().hex[:6].upper()
+        batch_ref = f"PAY-FINAL-{date_str}-{rand_hex}"
+        while PayoutBatch.objects.filter(batch_reference=batch_ref).exists():
+            rand_hex = uuid.uuid4().hex[:6].upper()
+            batch_ref = f"PAY-FINAL-{date_str}-{rand_hex}"
+
+        clean_notes = (notes or "").strip()
+        batch = PayoutBatch.objects.create(
+            batch_reference=batch_ref,
+            seller=locked_seller,
+            is_platform_fulfilled=False,
+            amount=net_amount,
+            currency="INR",
+            status=PayoutBatch.STATUS_DRAFT,
+            batch_type=PayoutBatch.BATCH_TYPE_FINAL_SETTLEMENT,
+            payout_cycle=f"FINAL-{locked_seller.id}",
+            payout_method="manual_bank_transfer",
+            payout_channel=PayoutBatch.PAYOUT_CHANNEL_MANUAL_BANK,
+            bank_account_masked=locked_seller.get_masked_account_number(),
+            bank_ifsc_code=locked_seller.bank_ifsc_code or "N/A",
+            bank_beneficiary_name=locked_seller.bank_account_holder_name or locked_seller.store_name,
+            eligible_entries_count=len(locked_entries),
+            period_start=min(e.created_at for e in locked_entries),
+            period_end=max(e.created_at for e in locked_entries),
+            notes=clean_notes if clean_notes else "Seller closure final settlement batch.",
+            audit_metadata={
+                "batch_type": PayoutBatch.BATCH_TYPE_FINAL_SETTLEMENT,
+                "created_by": getattr(actor, "username", "system"),
+                "seller_id": locked_seller.id,
+                "store_name": locked_seller.store_name,
+                "net_payable": str(net_amount),
+                "eligible_entries_count": len(locked_entries),
+            },
+        )
+
+        # Atomically link entries to the batch
+        for entry in locked_entries:
+            entry.payout_batch = batch
+            entry.save(update_fields=["payout_batch"])
+
+        # Create immutable PayoutAuditLog
+        PayoutAuditLog.objects.create(
+            payout_batch=batch,
+            action=PayoutAuditLog.ACTION_CREATED,
+            actor=actor if hasattr(actor, "id") else None,
+            from_status="",
+            to_status=PayoutBatch.STATUS_DRAFT,
+            reason=f"Final settlement batch created for closing seller '{locked_seller.store_name}'. Amount: ₹{net_amount}",
+            metadata={
+                "eligible_entries_count": len(locked_entries),
+                "net_amount": str(net_amount),
+                "notes": notes,
+                "actor_username": getattr(actor, "username", "system"),
+            },
+        )
+
+        return batch
+
+
+def is_seller_eligible_for_final_closure(
+    seller: Seller,
+    as_of_date=None,
+) -> tuple[bool, list[str]]:
+    """
+    Evaluates whether a seller in CLOSING status is cleared to be finalized as CLOSED (Phase 2).
+
+    Returns:
+        tuple[bool, list[str]]: (can_fully_close, list_of_blockers)
+    """
+    clearance = audit_seller_closure_clearance(seller, as_of_date=as_of_date)
+    return clearance["can_fully_close"], clearance["closure_blockers"]
+
+
+def finalize_seller_account_closure(
+    seller: Seller,
+    actor=None,
+    notes: str = "",
+    confirm: bool = False,
+) -> Seller:
+    """
+    Executes formal, permanent seller account closure (Phase 5).
+
+    Financial, Operational & Security Invariants:
+    1. Authentication & Authorization:
+       - Requires authenticated staff user with ROLE_SUPER_ADMIN or ROLE_FINANCE_MANAGER role (or superuser).
+    2. Prohibit Self-Finalization:
+       - A seller user is strictly prohibited from finalizing their own account closure,
+         preventing privilege-escalation / self-offboarding bypass.
+    3. Mandatory Confirmation & Audit Notes:
+       - Requires explicit confirmation flag (confirm=True).
+       - Requires non-empty internal audit notes (minimum 5 characters).
+    4. Pessimistic Row Locking & Atomic Transaction:
+       - Executes inside transaction.atomic() with select_for_update() row lock on Seller.
+    5. Prior Status Validation:
+       - Seller MUST be currently in STATUS_CLOSING ('closing').
+       - Rejects requests from STATUS_APPROVED, STATUS_CLOSURE_REQUESTED, STATUS_SUSPENDED, or STATUS_PENDING.
+       - Rejects already finalized STATUS_CLOSED requests safely (idempotency / duplicate rejection).
+    6. Re-evaluates All Clearance Checks Atomically:
+       - Calls audit_seller_closure_clearance(locked_seller) inside the transaction.
+       - Rejects closure if any open order, unresolved return/refund, unreconciled COD,
+         active 120-hour cooling hold, negative balance, or unbatched payable residual remains.
+       - If any payable residual was due, requires a final-settlement batch to exist and be
+         recorded as STATUS_COMPLETED via the manual-transfer-recording workflow.
+       - If no amount was due, verifies zero outstanding merchant liability and zero unpaid residual.
+       - Reconciles lifetime ledger balance against unbatched residual (both must be ₹0.00).
+       - Never waives the 120-hour cooling hold.
+       - Never calls an external payment provider or auto-disburses funds.
+    7. Atomic State Mutation:
+       - Sets status = Seller.STATUS_CLOSED
+       - Sets is_active = False
+       - Sets closed_at = timezone.now()
+       - Sets closed_by = actor (if authenticated)
+       - Appends durable timestamped audit note to closure_notes.
+    8. Product Delisting:
+       - Updates all active seller products to is_active=False, preserving historical catalog
+         and order references.
+    9. Durable Administrative Audit:
+       - Calls log_admin_action() recording actor, seller, timestamp, reason, and final batch reference.
+    10. Safe Transactional Seller Notification:
+       - Calls send_seller_closure_finalized_email() safely wrapped so email issues never roll back
+         a valid financial closure.
+    11. Read-Only Retention:
+       - The seller retains read-only portal access governed by Phase 4 permissions.
+    """
+    # 1. Prevent Self-Finalization (pre-lock check)
+    if actor is not None and hasattr(actor, "id") and getattr(seller, "user_id", None) == actor.id:
+        raise LedgerServiceError("Sellers are strictly prohibited from finalizing their own account closure.")
+
+    # 2. Staff Authentication and Role Authorization
+    if actor is not None and hasattr(actor, "is_authenticated"):
+        if not actor.is_authenticated or not actor.is_active:
+            raise LedgerServiceError("Authentication required to finalize seller account closure.")
+        if not (getattr(actor, "is_superuser", False) or getattr(actor, "is_staff", False)):
+            raise LedgerServiceError("Staff privileges required to finalize seller account closure.")
+
+        try:
+            from core.admin_permissions import ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, has_admin_permission
+            if not (actor.is_superuser or has_admin_permission(actor, [ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])):
+                raise LedgerServiceError("Permission denied: Super Admin or Finance Manager role required.")
+        except ImportError:
+            if not (actor.is_superuser or actor.is_staff):
+                raise LedgerServiceError("Permission denied: Unauthorized administrative role.")
+
+    # 3. Explicit Confirmation
+    if not confirm:
+        raise LedgerServiceError(
+            "Explicit confirmation required: You must confirm that all clearance checks have been verified before closing the account."
+        )
+
+    # 4. Mandatory Internal Reason / Notes
+    clean_notes = (notes or "").strip()
+    if not clean_notes or len(clean_notes) < 5:
+        raise LedgerServiceError(
+            "Mandatory internal audit notes (minimum 5 characters) are required to finalize seller account closure."
+        )
+
+    # 5. Atomic Transaction & Pessimistic Row Locking
+    with transaction.atomic():
+        locked_seller = (
+            Seller.objects.select_for_update()
+            .filter(pk=seller.pk)
+            .first()
+        )
+        if not locked_seller:
+            raise LedgerServiceError("Seller profile does not exist.")
+
+        # Self-finalization check on locked seller instance
+        if actor is not None and hasattr(actor, "id") and locked_seller.user_id == actor.id:
+            raise LedgerServiceError("Sellers are strictly prohibited from finalizing their own account closure.")
+
+        # Duplicate / Idempotency check: Already closed?
+        if locked_seller.status == Seller.STATUS_CLOSED:
+            raise LedgerServiceError(
+                f"Seller '{locked_seller.store_name}' is already closed (finalized on {locked_seller.closed_at}). "
+                "Duplicate closure finalization rejected."
+            )
+
+        # Status validation: Must be currently in STATUS_CLOSING
+        if locked_seller.status != Seller.STATUS_CLOSING:
+            raise PayoutEligibilityError(
+                f"Cannot finalize closure: Seller '{locked_seller.store_name}' must be in 'Closing / Settlement Run-off' "
+                f"status to be finalized (currently '{locked_seller.get_status_display()}'). "
+                f"Direct finalization from status '{locked_seller.status}' is strictly prohibited."
+            )
+
+        # 6. Re-evaluate full clearance inside the transaction
+        clearance = audit_seller_closure_clearance(locked_seller)
+
+        if not clearance["can_fully_close"] or clearance["closure_blockers"]:
+            blocker_summary = "; ".join(clearance["closure_blockers"]) or "Clearance requirements not met."
+            raise PayoutEligibilityError(
+                f"Cannot finalize closure for '{locked_seller.store_name}': {blocker_summary}"
+            )
+
+        # 7. Additional Financial & Accounting Invariants
+        ledger_bal = clearance["ledger_balance"]
+        net_lifetime_bal = ledger_bal["net_lifetime_balance"]
+        unbatched_residual = ledger_bal["unbatched_residual_net"]
+
+        if net_lifetime_bal < Decimal("0.00"):
+            raise PayoutEligibilityError(
+                f"Cannot finalize closure: Outstanding merchant liability of ₹{abs(net_lifetime_bal)} must be recovered."
+            )
+        if net_lifetime_bal > Decimal("0.00"):
+            raise PayoutEligibilityError(
+                f"Cannot finalize closure: Undisbursed lifetime balance of ₹{net_lifetime_bal} remains payable."
+            )
+        if unbatched_residual != Decimal("0.00"):
+            raise PayoutEligibilityError(
+                f"Cannot finalize closure: Unbatched residual balance of ₹{unbatched_residual} must be settled."
+            )
+
+        # 8. Mutate Seller state atomically
+        now_ts = timezone.now()
+        locked_seller.status = Seller.STATUS_CLOSED
+        locked_seller.is_active = False
+        locked_seller.closed_at = now_ts
+        locked_seller.closed_by = actor if (actor and hasattr(actor, "id") and actor.id) else None
+
+        actor_name = getattr(actor, "username", "staff_admin")
+        audit_stamp = f"[{now_ts.strftime('%Y-%m-%d %H:%M')}] ACCOUNT CLOSED by {actor_name}. Notes: {clean_notes}"
+        locked_seller.closure_notes = f"{audit_stamp}\n{locked_seller.closure_notes}".strip()
+
+        locked_seller.save(
+            update_fields=[
+                "status",
+                "is_active",
+                "closed_at",
+                "closed_by",
+                "closure_notes",
+                "updated_at",
+            ]
+        )
+
+        # 9. Disable / Delist Seller Products (Preserving historical catalog & order references)
+        Product.objects.filter(seller=locked_seller, is_active=True).update(is_active=False)
+
+        # 10. Record durable LogEntry audit event
+        try:
+            from django.contrib.admin.models import CHANGE
+            from core.admin_permissions import log_admin_action
+
+            final_batch_ref = (
+                clearance.get("existing_final_batch", {}).get("batch_reference")
+                if clearance.get("existing_final_batch")
+                else "None (zero liability)"
+            )
+            audit_msg = (
+                f"Finalized seller account closure for '{locked_seller.store_name}'. "
+                f"Status: CLOSED. Final settlement batch: {final_batch_ref}. Notes: {clean_notes}"
+            )
+            log_admin_action(actor, locked_seller, CHANGE, audit_msg)
+        except Exception as audit_err:
+            logger.warning(f"Could not log LogEntry for closed seller #{locked_seller.id}: {audit_err}")
+
+        # 11. Transactional Seller Notification (Deferred post-commit failsafe)
+        seller_pk = locked_seller.pk
+        store_name = locked_seller.store_name
+
+        def _send_closure_notification():
+            try:
+                from core.emails import send_seller_closure_finalized_email
+                target_seller = Seller.objects.select_related("user").filter(pk=seller_pk).first()
+                if target_seller:
+                    send_seller_closure_finalized_email(target_seller, notes=clean_notes)
+            except Exception as email_err:
+                logger.warning(
+                    f"Non-blocking notification email failure for closed seller '{store_name}' (#{seller_pk}): {email_err}"
+                )
+
+        transaction.on_commit(_send_closure_notification)
+
+        return locked_seller

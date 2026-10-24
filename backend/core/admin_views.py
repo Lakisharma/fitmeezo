@@ -11,7 +11,7 @@ from django.contrib import messages
 import csv
 from django.contrib.auth import login, logout, get_user_model
 from django.core.paginator import Paginator
-from django.db import models
+from django.db import models, IntegrityError, transaction
 from django.db.models import Count, Q, Sum
 from django.http import HttpResponse, HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
@@ -28,8 +28,12 @@ from .admin_forms import (
     AdminOrderStatusForm,
     AdminPayoutHoldForm,
     AdminPayoutProcessForm,
+    AdminPayoutRecordManualTransferForm,
     AdminPayoutRejectForm,
     AdminPayoutReverseForm,
+    AdminReleaseHoldBalanceEntriesForm,
+    AdminSellerClosureActionForm,
+    AdminSellerFinalClosureForm,
     AdminProductForm,
     AdminProductImageForm,
     AdminProductVariantForm,
@@ -71,10 +75,17 @@ from .ledger_services import (
     hold_payout_batch,
     process_mock_payout_batch,
     reconcile_cod_remittance,
+    record_manual_bank_transfer,
     reject_payout_batch,
+    release_hold_balance_entries,
     release_payout_batch,
     reverse_payout_batch,
+    audit_seller_closure_clearance,
+    create_final_settlement_batch,
+    is_seller_eligible_for_final_closure,
+    finalize_seller_account_closure,
     LedgerServiceError,
+    PayoutEligibilityError,
 )
 from .payout_adapters import get_payout_system_status
 from .forms import AdminBankVerificationForm
@@ -84,7 +95,7 @@ from .services import cancel_order
 User = get_user_model()
 
 
-from django.contrib.admin.models import LogEntry
+from django.contrib.admin.models import LogEntry, CHANGE
 from .admin_permissions import (
     ALL_ROLES,
     ROLE_FINANCE_MANAGER,
@@ -1154,6 +1165,9 @@ def admin_payout_batch_detail_view(request, batch_reference):
     reverse_form = AdminPayoutReverseForm()
     hold_form = AdminPayoutHoldForm()
     reject_form = AdminPayoutRejectForm()
+    manual_transfer_form = AdminPayoutRecordManualTransferForm(
+        initial={"manual_transfer_date": timezone.now().date()}
+    )
     payout_system_status = get_payout_system_status()
 
     context = {
@@ -1164,9 +1178,53 @@ def admin_payout_batch_detail_view(request, batch_reference):
         "reverse_form": reverse_form,
         "hold_form": hold_form,
         "reject_form": reject_form,
+        "manual_transfer_form": manual_transfer_form,
         "payout_system_status": payout_system_status,
     }
     return render(request, "custom_admin/ledger/payout_detail.html", context)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
+@require_POST
+def admin_payout_batch_record_manual_transfer_view(request, batch_reference):
+    """
+    Records an already completed external offline bank transfer on an approved payout batch (Prompt 5).
+    Strictly audit-recording only; does not initiate money movement or gateway calls.
+    """
+    batch = get_object_or_404(PayoutBatch, batch_reference=batch_reference)
+    next_url = request.POST.get("next") or reverse("custom_admin:payout_detail", kwargs={"batch_reference": batch.batch_reference})
+
+    form = AdminPayoutRecordManualTransferForm(request.POST)
+    if form.is_valid():
+        utr = form.cleaned_data["manual_utr_reference"]
+        transfer_date = form.cleaned_data["manual_transfer_date"]
+        confirmation = form.cleaned_data["confirmation"]
+        notes = form.cleaned_data.get("notes", "")
+
+        try:
+            success, msg, updated_batch = record_manual_bank_transfer(
+                payout_batch=batch,
+                actor=request.user,
+                utr_reference=utr,
+                transfer_date=transfer_date,
+                confirmation=confirmation,
+                notes=notes,
+            )
+            if success:
+                messages.success(request, msg)
+            else:
+                messages.warning(request, msg)
+        except (LedgerServiceError, PayoutEligibilityError) as err:
+            messages.error(request, f"Manual transfer recording rejected: {err}")
+        except IntegrityError:
+            messages.error(request, f"Duplicate reference error: UTR reference '{utr}' is already used.")
+        except Exception as exc:
+            messages.error(request, f"Unexpected error while recording manual transfer: {exc}")
+    else:
+        err_msgs = [f"{field}: {', '.join(errs)}" for field, errs in form.errors.items()]
+        messages.error(request, f"Validation failed: {'; '.join(err_msgs)}")
+
+    return redirect(next_url)
 
 
 @admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
@@ -1176,6 +1234,14 @@ def admin_payout_batch_process_view(request, batch_reference):
     Executes mock disbursement settlement on a DRAFT or PROCESSING payout batch.
     """
     batch = get_object_or_404(PayoutBatch, batch_reference=batch_reference)
+    if batch.batch_type == PayoutBatch.BATCH_TYPE_FINAL_SETTLEMENT:
+        messages.error(
+            request,
+            f"Cannot execute mock settlement on final settlement batch #{batch.batch_reference}. "
+            "Final settlements must be disbursed and recorded via the verified manual bank transfer workflow."
+        )
+        return redirect("custom_admin:payout_detail", batch_reference=batch.batch_reference)
+
     form = AdminPayoutProcessForm(request.POST)
 
     simulate_failure = False
@@ -1254,6 +1320,7 @@ def admin_seller_payout_management_view(request):
     store_query = request.GET.get("store", "").strip()
     selected_status = request.GET.get("status", "").strip()
     selected_hold = request.GET.get("hold", "").strip()
+    selected_channel = request.GET.get("channel", "").strip()
 
     # Base active sellers filter
     sellers_qs = Seller.objects.filter(is_active=True).order_by("store_name")
@@ -1267,16 +1334,41 @@ def admin_seller_payout_management_view(request):
     # All sellers for filter dropdown
     all_sellers_dropdown = Seller.objects.filter(is_active=True).order_by("store_name").only("id", "store_name")
 
-    # Available recent cycles for the dropdown (current + 5 previous months)
+    # Available cycles for dropdown: Semi-monthly (C1, C2) and legacy monthly
+    db_cycles = set(
+        PayoutBatch.objects.exclude(payout_cycle="").values_list("payout_cycle", flat=True).distinct()
+    )
+    candidates = [default_cycle]
+    if selected_cycle and selected_cycle not in candidates:
+        candidates.append(selected_cycle)
+
+    dt_cursor = now
+    for _ in range(4):
+        y = dt_cursor.year
+        m = dt_cursor.month
+        c2 = f"{y:04d}-{m:02d}-C2"
+        c1 = f"{y:04d}-{m:02d}-C1"
+        legacy = f"{y:04d}-{m:02d}"
+        for c in (c2, c1, legacy):
+            if c not in candidates:
+                candidates.append(c)
+        first_curr = dt_cursor.replace(day=1)
+        dt_cursor = first_curr - timedelta(days=1)
+
+    for c in sorted(db_cycles, reverse=True):
+        if c not in candidates:
+            candidates.append(c)
+
     cycle_options = []
-    curr_dt = now
-    for _ in range(6):
-        c_code, c_payout, p_start, p_end = get_cycle_bounds(as_of_date=curr_dt)
-        label = f"{c_payout.strftime('%B %Y')} Cycle (5th {c_payout.strftime('%b %Y')} - Sales for {p_start.strftime('%b %Y')})"
-        cycle_options.append({"code": c_code, "label": label})
-        # Step back one month
-        first_of_curr = curr_dt.replace(day=1)
-        curr_dt = first_of_curr - timedelta(days=1)
+    for c_str in candidates:
+        code, c_payout, p_start, p_end = get_cycle_bounds(cycle_str=c_str, as_of_date=now)
+        if "-C1" in code:
+            lbl = f"{code} (1st–15th {p_start.strftime('%b %Y')} • Calc: 16th {p_end.strftime('%b')})"
+        elif "-C2" in code:
+            lbl = f"{code} (16th–{p_end.day}th {p_start.strftime('%b %Y')} • Calc: 1st {c_payout.strftime('%b')})"
+        else:
+            lbl = f"{code} Legacy Monthly (1st–{p_end.day}th {p_start.strftime('%b %Y')} • Calc: 5th {c_payout.strftime('%b')})"
+        cycle_options.append({"code": code, "label": lbl})
 
     # Global summary metrics for this cycle across all active sellers
     total_seller_payable = Decimal("0.00")
@@ -1390,10 +1482,30 @@ def admin_seller_payout_management_view(request):
                 status_badge = "bg-primary-subtle text-primary border"
                 status_code = "eligible"
 
+        held_details = elig.get("held_entry_details", [])
+        held_reasons = []
+        for d in held_details:
+            r = d.get("reason", "")
+            if r and r not in held_reasons:
+                held_reasons.append(r)
+
+        has_unreconciled_cod = any("cod" in d.get("reason", "").lower() for d in held_details)
+        has_unresolved_returns = any(
+            ("return" in d.get("reason", "").lower() or "refund" in d.get("reason", "").lower() or "dispute" in d.get("reason", "").lower())
+            for d in held_details
+        )
+        has_cooling_hold = any(d.get("is_cooling_hold", False) for d in held_details)
+        has_releasable_hold = any(d.get("is_cooling_hold", False) and not d.get("is_hold_released", False) for d in held_details)
+
         row = {
             "seller": s,
             "eligibility": elig,
             "batch": batch,
+            "batch_reference": batch.batch_reference if batch else "",
+            "is_approved": is_approved,
+            "payout_channel": batch.payout_channel if batch else "",
+            "manual_utr_reference": batch.manual_utr_reference if batch else "",
+            "manual_transfer_date": batch.manual_transfer_date if batch else None,
             "sales_volume": elig["eligible_sales"],
             "commission": elig["eligible_commission"],
             "refunds_and_adjustments": elig["refunds_and_adjustments"],
@@ -1407,6 +1519,11 @@ def admin_seller_payout_management_view(request):
             "status_badge": status_badge,
             "status_code": status_code,
             "is_held": is_held,
+            "has_unreconciled_cod": has_unreconciled_cod,
+            "has_unresolved_returns": has_unresolved_returns,
+            "has_cooling_hold": has_cooling_hold,
+            "has_releasable_hold": has_releasable_hold,
+            "held_reasons": held_reasons,
             "can_generate_batch": (not batch and elig["is_above_threshold"] and s.is_bank_payout_eligible),
             "can_approve": (batch and batch.status in [PayoutBatch.STATUS_DRAFT, PayoutBatch.STATUS_PROCESSING] and not batch.approved_at and s.is_bank_payout_eligible),
             "can_hold": (batch and batch.status != PayoutBatch.STATUS_ON_HOLD and batch.status not in [PayoutBatch.STATUS_COMPLETED, PayoutBatch.STATUS_REVERSED]),
@@ -1442,6 +1559,18 @@ def admin_seller_payout_management_view(request):
             elif selected_hold == "not_held" and (is_held or row["amount_on_hold"] > Decimal("0.00")):
                 continue
 
+            # Channel filter
+            if selected_channel:
+                if selected_channel == "manual_bank_transfer":
+                    if not (batch and batch.payout_channel == PayoutBatch.PAYOUT_CHANNEL_MANUAL_BANK):
+                        continue
+                elif selected_channel == "mock_bank_transfer":
+                    if not (batch and batch.payout_channel == PayoutBatch.PAYOUT_CHANNEL_MOCK):
+                        continue
+                elif selected_channel == "unbatched":
+                    if batch is not None:
+                        continue
+
             seller_rows.append(row)
 
     hold_form = AdminPayoutHoldForm()
@@ -1454,12 +1583,16 @@ def admin_seller_payout_management_view(request):
         "cycle_payout_date": cycle_payout_date,
         "prev_month_start": prev_month_start,
         "prev_month_end": prev_month_end,
+        "cycle_start_date": prev_month_start,
+        "cycle_end_date": prev_month_end,
+        "settlement_date": cycle_payout_date,
         "cycle_options": cycle_options,
         "all_sellers_dropdown": all_sellers_dropdown,
         "selected_seller_id": selected_seller_id,
         "store_query": store_query,
         "selected_status": selected_status,
         "selected_hold": selected_hold,
+        "selected_channel": selected_channel,
         # Summary cards
         "total_seller_payable": total_seller_payable,
         "eligible_cycle_count": eligible_cycle_count,
@@ -1485,7 +1618,7 @@ def admin_seller_payout_review_view(request, seller_id):
     """
     Dedicated drill-down review console for an individual seller's monthly payout cycle.
     Provides line-item financial reconciliation, cooling period audits,
-    unresolved return/COD status, and masked bank verification overview.
+    unresolved return/COD status, hold release controls, and masked bank verification overview.
     """
     seller = get_object_or_404(Seller, pk=seller_id)
     now = timezone.now()
@@ -1510,8 +1643,14 @@ def admin_seller_payout_review_view(request, seller_id):
     if active_batch:
         audit_logs = active_batch.audit_logs.select_related("actor").order_by("-created_at")
 
+    has_releasable_holds = any(
+        d.get("is_cooling_hold", False) and not d.get("is_hold_released", False)
+        for d in eligibility.get("held_entry_details", [])
+    )
+
     hold_form = AdminPayoutHoldForm()
     reject_form = AdminPayoutRejectForm()
+    release_hold_form = AdminReleaseHoldBalanceEntriesForm()
     payout_system_status = get_payout_system_status()
 
     context = {
@@ -1520,14 +1659,63 @@ def admin_seller_payout_review_view(request, seller_id):
         "cycle_payout_date": cycle_payout_date,
         "prev_month_start": prev_month_start,
         "prev_month_end": prev_month_end,
+        "cycle_start_date": prev_month_start,
+        "cycle_end_date": prev_month_end,
+        "settlement_date": cycle_payout_date,
         "eligibility": eligibility,
         "active_batch": active_batch,
         "audit_logs": audit_logs,
+        "has_releasable_holds": has_releasable_holds,
         "hold_form": hold_form,
         "reject_form": reject_form,
+        "release_hold_form": release_hold_form,
         "payout_system_status": payout_system_status,
     }
     return render(request, "custom_admin/ledger/seller_payout_review.html", context)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
+@require_POST
+def admin_seller_release_hold_entries_view(request, seller_id):
+    """
+    Safely releases cooling-period holds on selected ledger entries for a seller (Prompt 6).
+    Delegates strictly to release_hold_balance_entries service.
+    Strictly atomic, POST-only, role-restricted, server-side validated, non-disbursing.
+    Never creates a PayoutBatch, posts a payout debit, marks a payout completed,
+    or calls any payment gateway or banking rails.
+    """
+    seller = get_object_or_404(Seller, pk=seller_id)
+    cycle = request.POST.get("cycle", "").strip()
+    next_url = request.POST.get("next") or (
+        f"{reverse('custom_admin:seller_payout_review', kwargs={'seller_id': seller.id})}?cycle={cycle}"
+        if cycle else reverse("custom_admin:seller_payout_review", kwargs={"seller_id": seller.id})
+    )
+
+    form = AdminReleaseHoldBalanceEntriesForm(request.POST)
+    if form.is_valid():
+        entry_ids = form.cleaned_data["entry_ids"]
+        reason = form.cleaned_data["reason"]
+
+        try:
+            count, updated = release_hold_balance_entries(
+                seller=seller,
+                entry_ids=entry_ids,
+                reason=reason,
+                actor=request.user,
+            )
+            messages.success(
+                request,
+                f"Successfully released delivery cooling hold on {count} ledger entry(ies) for {seller.store_name}."
+            )
+        except (LedgerServiceError, PayoutEligibilityError) as err:
+            messages.error(request, f"Hold release failed: {err}")
+        except Exception as exc:
+            messages.error(request, f"Unexpected error while releasing hold: {exc}")
+    else:
+        err_msgs = [f"{field}: {', '.join(errs)}" for field, errs in form.errors.items()]
+        messages.error(request, f"Validation failed: {'; '.join(err_msgs)}")
+
+    return redirect(next_url)
 
 
 @admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
@@ -2270,5 +2458,281 @@ def admin_return_refund_view(request, request_number):
     return redirect("custom_admin:return_detail", request_number=return_req.request_number)
 
 
+# ==============================================================================
+# PHASE 3: SELLER CLOSURE REVIEW & FINAL SETTLEMENT PREPARATION
+# ==============================================================================
+
+@admin_role_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
+def admin_seller_closure_list_view(request):
+    """
+    List view for monitoring seller account closures (Phase 3).
+    Restricted strictly to Super Admin and Finance Manager.
+    Filters sellers by lifecycle state:
+    - Pending Review (closure_requested)
+    - Run-off in Progress (closing)
+    - Formally Finalized (closed)
+    """
+    status_filter = request.GET.get("status", "all").strip().lower()
+    query = request.GET.get("q", "").strip()
+
+    base_qs = Seller.objects.select_related("user", "closure_approved_by", "closed_by").filter(
+        status__in=[
+            Seller.STATUS_CLOSURE_REQUESTED,
+            Seller.STATUS_CLOSING,
+            Seller.STATUS_CLOSED,
+        ]
+    ).order_by("-updated_at")
+
+    if status_filter == "pending":
+        sellers_qs = base_qs.filter(status=Seller.STATUS_CLOSURE_REQUESTED)
+    elif status_filter == "closing":
+        sellers_qs = base_qs.filter(status=Seller.STATUS_CLOSING)
+    elif status_filter == "closed":
+        sellers_qs = base_qs.filter(status=Seller.STATUS_CLOSED)
+    else:
+        sellers_qs = base_qs
+
+    if query:
+        sellers_qs = sellers_qs.filter(
+            Q(store_name__icontains=query)
+            | Q(legal_business_name__icontains=query)
+            | Q(support_email__icontains=query)
+            | Q(user__username__icontains=query)
+        )
+
+    # Counts for tab badges
+    pending_count = base_qs.filter(status=Seller.STATUS_CLOSURE_REQUESTED).count()
+    closing_count = base_qs.filter(status=Seller.STATUS_CLOSING).count()
+    closed_count = base_qs.filter(status=Seller.STATUS_CLOSED).count()
+    total_count = base_qs.count()
+
+    paginator = Paginator(sellers_qs, 20)
+    page_number = request.GET.get("page", 1)
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        "sellers": page_obj,
+        "page_obj": page_obj,
+        "status_filter": status_filter,
+        "query": query,
+        "pending_count": pending_count,
+        "closing_count": closing_count,
+        "closed_count": closed_count,
+        "total_count": total_count,
+    }
+    return render(request, "custom_admin/sellers/closure_list.html", context)
 
 
+@admin_role_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
+def admin_seller_closure_detail_view(request, seller_id):
+    """
+    Detailed review page for seller closure requests & settlement clearance (Phase 3).
+    - Requires Super Admin or Finance Manager role.
+    - Evaluates clearance via audit_seller_closure_clearance().
+    - Displays identity, timeline, blockers (orders, returns, refunds, COD, holds),
+      ledger balance, and existing final settlement batch.
+    - Provides server-side actions:
+      * Approve Closure Request (transitions closure_requested -> closing)
+      * Reject Closure Request (transitions closure_requested -> approved, audit logged)
+      * Create Final Settlement Batch (in DRAFT, if clearance permits and status is closing)
+    """
+    seller = get_object_or_404(
+        Seller.objects.select_related("user", "closure_approved_by", "closed_by"),
+        pk=seller_id,
+    )
+    clearance = audit_seller_closure_clearance(seller)
+    action_form = AdminSellerClosureActionForm()
+    final_closure_form = AdminSellerFinalClosureForm()
+
+    context = {
+        "seller": seller,
+        "clearance": clearance,
+        "action_form": action_form,
+        "final_closure_form": final_closure_form,
+        "can_approve_or_reject": seller.status == Seller.STATUS_CLOSURE_REQUESTED,
+        "is_closing": seller.status == Seller.STATUS_CLOSING,
+        "is_closed": seller.status == Seller.STATUS_CLOSED,
+        "can_create_final_batch": (
+            seller.status == Seller.STATUS_CLOSING
+            and clearance["can_create_final_settlement_batch"]
+        ),
+        "can_fully_close": (
+            seller.status == Seller.STATUS_CLOSING
+            and clearance["can_fully_close"]
+        ),
+    }
+    return render(request, "custom_admin/sellers/closure_detail.html", context)
+
+
+@require_POST
+@admin_role_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
+def admin_seller_closure_action_view(request, seller_id):
+    """
+    Handles administrative approval or rejection of a seller closure request (Phase 3).
+    - POST only, CSRF protected.
+    - Super Admin or Finance Manager role required.
+    - Uses database transaction with row-level locking (select_for_update).
+    - Re-checks seller status atomically: rejects stale or duplicate submissions safely.
+    - Approval: transitions 'closure_requested' -> 'closing'.
+    - Rejection: transitions 'closure_requested' -> 'approved' (audited, requires explicit reason).
+    """
+    seller = get_object_or_404(Seller, pk=seller_id)
+    form = AdminSellerClosureActionForm(request.POST)
+
+    if not form.is_valid():
+        error_msg = "; ".join([" ".join(errs) for errs in form.errors.values()])
+        messages.error(request, f"Action validation failed: {error_msg}")
+        return redirect("custom_admin:seller_closure_detail", seller_id=seller.pk)
+
+    action = form.cleaned_data["action"]
+    notes = form.cleaned_data.get("notes", "").strip()
+    reason = form.cleaned_data.get("reason", "").strip()
+    now = timezone.now()
+
+    with transaction.atomic():
+        locked_seller = Seller.objects.select_for_update().get(pk=seller_id)
+
+        if locked_seller.status != Seller.STATUS_CLOSURE_REQUESTED:
+            messages.warning(
+                request,
+                f"Cannot process request: Seller '{locked_seller.store_name}' status has already changed to '{locked_seller.get_status_display()}'."
+            )
+            return redirect("custom_admin:seller_closure_detail", seller_id=locked_seller.pk)
+
+        if action == AdminSellerClosureActionForm.ACTION_APPROVE:
+            locked_seller.status = Seller.STATUS_CLOSING
+            locked_seller.closure_approved_at = now
+            locked_seller.closure_approved_by = request.user
+            if notes:
+                entry_note = f"[{now.strftime('%Y-%m-%d %H:%M')}] Closure approved by {request.user.username}: {notes}"
+                locked_seller.closure_notes = f"{entry_note}\n{locked_seller.closure_notes}".strip()
+            locked_seller.save(
+                update_fields=[
+                    "status",
+                    "closure_approved_at",
+                    "closure_approved_by",
+                    "closure_notes",
+                    "updated_at",
+                ]
+            )
+            log_admin_action(
+                request.user,
+                locked_seller,
+                CHANGE,
+                f"Approved account closure request. Transitioned to run-off (closing). Notes: {notes or 'Standard approval'}",
+            )
+            messages.success(
+                request,
+                f"Closure request approved for '{locked_seller.store_name}'. The seller is now in run-off state. "
+                "Fulfillment and clearance checks are active."
+            )
+
+        elif action == AdminSellerClosureActionForm.ACTION_REJECT:
+            if not reason:
+                messages.error(request, "A specific explanation reason is required when rejecting a seller closure request.")
+                return redirect("custom_admin:seller_closure_detail", seller_id=locked_seller.pk)
+
+            locked_seller.status = Seller.STATUS_APPROVED
+            entry_note = f"[{now.strftime('%Y-%m-%d %H:%M')}] Closure request REJECTED by {request.user.username}. Reason: {reason}"
+            locked_seller.closure_notes = f"{entry_note}\n{locked_seller.closure_notes}".strip()
+            locked_seller.closure_requested_at = None
+            locked_seller.closure_request_reason = ""
+            locked_seller.save(
+                update_fields=[
+                    "status",
+                    "closure_notes",
+                    "closure_requested_at",
+                    "closure_request_reason",
+                    "updated_at",
+                ]
+            )
+            log_admin_action(
+                request.user,
+                locked_seller,
+                CHANGE,
+                f"Rejected account closure request. Reverted to approved status. Reason: {reason}",
+            )
+            messages.warning(
+                request,
+                f"Closure request for '{locked_seller.store_name}' was rejected. "
+                "The merchant has been returned to active approved status."
+            )
+
+    return redirect("custom_admin:seller_closure_detail", seller_id=seller_id)
+
+
+@require_POST
+@admin_role_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
+def admin_seller_closure_create_final_batch_view(request, seller_id):
+    """
+    Creates a final-settlement PayoutBatch in DRAFT status for a closing seller (Phase 3).
+    - Requires Super Admin or Finance Manager role.
+    - Delegates to create_final_settlement_batch().
+    - Never completes or disburses the batch; never calls payment providers; never closes the seller.
+    - Redirects to the payout batch detail page or reports clearance errors.
+    """
+    seller = get_object_or_404(Seller, pk=seller_id)
+    notes = request.POST.get("batch_notes", "").strip()
+
+    try:
+        batch = create_final_settlement_batch(
+            seller=seller,
+            actor=request.user,
+            notes=notes or f"Final settlement prepared for closing merchant '{seller.store_name}'.",
+        )
+        messages.success(
+            request,
+            f"Final settlement batch #{batch.batch_reference} created in DRAFT status (Amount: ₹{batch.amount}). "
+            "Please review bank details and approve according to standard finance payout workflow."
+        )
+        return redirect("custom_admin:payout_batch_detail", batch_reference=batch.batch_reference)
+    except (PayoutEligibilityError, LedgerServiceError) as err:
+        messages.error(request, f"Cannot create final settlement batch: {err}")
+        return redirect("custom_admin:seller_closure_detail", seller_id=seller.pk)
+    except Exception as exc:
+        messages.error(request, f"Unexpected error during final settlement batch creation: {exc}")
+        return redirect("custom_admin:seller_closure_detail", seller_id=seller.pk)
+
+
+@require_POST
+@admin_role_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
+def admin_seller_closure_finalize_view(request, seller_id):
+    """
+    POST-only admin action to finalize seller account closure (Phase 5).
+    - Requires Super Admin or Finance Manager role and active authentication.
+    - Protected by CSRF.
+    - Validates explicit confirmation checkbox and mandatory internal notes.
+    - Calls finalize_seller_account_closure() which locks seller record,
+      re-evaluates all clearance checks atomically, transitions status to STATUS_CLOSED,
+      delists active products, logs administrative audit, and dispatches seller email.
+    - Safely catches PayoutEligibilityError and LedgerServiceError reporting clean messages.
+    """
+    seller = get_object_or_404(Seller, pk=seller_id)
+    form = AdminSellerFinalClosureForm(request.POST)
+
+    if not form.is_valid():
+        first_err = next(iter(form.errors.values()))[0] if form.errors else "Invalid submission."
+        messages.error(request, f"Cannot finalize account closure: {first_err}")
+        return redirect("custom_admin:seller_closure_detail", seller_id=seller.pk)
+
+    confirm = form.cleaned_data["confirm_closure"]
+    notes = form.cleaned_data["closure_notes"]
+
+    try:
+        closed_seller = finalize_seller_account_closure(
+            seller=seller,
+            actor=request.user,
+            notes=notes,
+            confirm=confirm,
+        )
+        messages.success(
+            request,
+            f"Seller account '{closed_seller.store_name}' has been successfully and permanently CLOSED. "
+            "Products have been unlisted, and the seller has been transitioned to read-only historical portal access."
+        )
+    except (PayoutEligibilityError, LedgerServiceError) as err:
+        messages.error(request, f"Cannot finalize account closure: {err}")
+    except Exception as exc:
+        messages.error(request, f"Unexpected error during account closure finalization: {exc}")
+
+    return redirect("custom_admin:seller_closure_detail", seller_id=seller.pk)

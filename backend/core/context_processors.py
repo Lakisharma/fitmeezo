@@ -28,6 +28,7 @@ def brand_context(request):
     admin_pending_sellers_count = 0
     admin_pending_products_count = 0
     admin_pending_payouts_count = 0
+    admin_pending_closures_count = 0
     admin_low_stock_count = 0
     user = getattr(request, "user", None)
     if user and user.is_authenticated and (user.is_staff or user.is_superuser):
@@ -53,6 +54,7 @@ def brand_context(request):
             admin_pending_sellers_count = Seller.objects.filter(status="pending").count()
             admin_pending_products_count = Product.objects.filter(approval_status="pending").count()
             admin_pending_payouts_count = PayoutBatch.objects.filter(status="pending").count()
+            admin_pending_closures_count = Seller.objects.filter(status=Seller.STATUS_CLOSURE_REQUESTED).count()
             admin_low_stock_count = Product.objects.filter(is_active=True, stock_quantity__lt=10).count()
         except Exception:
             pass
@@ -63,6 +65,7 @@ def brand_context(request):
         + admin_pending_sellers_count
         + admin_pending_products_count
         + admin_pending_payouts_count
+        + admin_pending_closures_count
     )
 
     return {
@@ -92,6 +95,7 @@ def brand_context(request):
         "admin_pending_sellers_count": admin_pending_sellers_count,
         "admin_pending_products_count": admin_pending_products_count,
         "admin_pending_payouts_count": admin_pending_payouts_count,
+        "admin_pending_closures_count": admin_pending_closures_count,
         "admin_low_stock_count": admin_low_stock_count,
         "admin_total_notifications_count": admin_total_notifications_count,
     }

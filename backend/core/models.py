@@ -142,12 +142,18 @@ class Seller(models.Model):
     STATUS_APPROVED = "approved"
     STATUS_REJECTED = "rejected"
     STATUS_SUSPENDED = "suspended"
+    STATUS_CLOSURE_REQUESTED = "closure_requested"
+    STATUS_CLOSING = "closing"
+    STATUS_CLOSED = "closed"
 
     STATUS_CHOICES = [
         (STATUS_PENDING, "Pending Approval"),
         (STATUS_APPROVED, "Approved"),
         (STATUS_REJECTED, "Rejected"),
         (STATUS_SUSPENDED, "Suspended"),
+        (STATUS_CLOSURE_REQUESTED, "Closure Requested"),
+        (STATUS_CLOSING, "Closing / Settlement Run-off"),
+        (STATUS_CLOSED, "Closed / Terminated"),
     ]
 
     BUSINESS_TYPE_INDIVIDUAL = "individual"
@@ -400,6 +406,49 @@ class Seller(models.Model):
         help_text="Timestamp when seller profile was last updated.",
     )
 
+    # Closure & Offboarding Lifecycle (Phase 1)
+    closure_requested_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when seller initiated an account closure request.",
+    )
+    closure_request_reason = models.TextField(
+        blank=True,
+        default="",
+        help_text="Reason provided by merchant when requesting account closure.",
+    )
+    closure_approved_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when staff approved closure initiation (transitioned to closing).",
+    )
+    closure_approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="approved_seller_closures",
+        help_text="Staff administrator who approved closure initiation.",
+    )
+    closed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when seller account was formally and finally closed.",
+    )
+    closed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="finalized_seller_closures",
+        help_text="Staff administrator who finalized seller account closure.",
+    )
+    closure_notes = models.TextField(
+        blank=True,
+        default="",
+        help_text="Internal staff notes regarding offboarding clearance, liabilities, and final settlement.",
+    )
+
     class Meta:
         ordering = ["-created_at"]
         verbose_name = "Seller"
@@ -448,14 +497,26 @@ class Seller(models.Model):
         return "••••••••"
 
     @property
+    def is_closure_requested(self) -> bool:
+        return self.status == self.STATUS_CLOSURE_REQUESTED
+
+    @property
+    def is_closing(self) -> bool:
+        return self.status == self.STATUS_CLOSING
+
+    @property
+    def is_closed(self) -> bool:
+        return self.status == self.STATUS_CLOSED
+
+    @property
     def is_bank_payout_eligible(self) -> bool:
         """
-        Returns True strictly if seller is approved, bank verification status is verified,
-        and essential bank fields are provided.
+        Returns True strictly if seller is approved or closing (for final settlement),
+        bank verification status is verified, and essential bank fields are provided.
         Never treats seller-entered details alone as proof of bank ownership.
         """
         return (
-            self.status == self.STATUS_APPROVED
+            self.status in (self.STATUS_APPROVED, self.STATUS_CLOSING)
             and self.bank_verification_status == "verified"
             and bool(self.bank_account_number)
             and bool(self.bank_ifsc_code)
@@ -4179,6 +4240,34 @@ class PayoutBatch(models.Model):
         (STATUS_ON_HOLD, "On Hold"),
     )
 
+    PAYOUT_CHANNEL_MOCK = "mock_bank_transfer"
+    PAYOUT_CHANNEL_MANUAL_BANK = "manual_bank_transfer"
+    PAYOUT_CHANNEL_RAZORPAY_ROUTE = "razorpay_route"
+    PAYOUT_CHANNEL_RAZORPAYX = "razorpayx"
+
+    PAYOUT_CHANNEL_CHOICES = (
+        (PAYOUT_CHANNEL_MOCK, "Simulated Sandbox / Mock Transfer"),
+        (PAYOUT_CHANNEL_MANUAL_BANK, "Manual Offline Bank Transfer (NEFT/RTGS/IMPS/UPI)"),
+        (PAYOUT_CHANNEL_RAZORPAY_ROUTE, "Razorpay Route (Marketplace API)"),
+        (PAYOUT_CHANNEL_RAZORPAYX, "RazorpayX Commercial Payout"),
+    )
+
+    BATCH_TYPE_CYCLE = "cycle"
+    BATCH_TYPE_FINAL_SETTLEMENT = "final_settlement"
+
+    BATCH_TYPE_CHOICES = (
+        (BATCH_TYPE_CYCLE, "Routine Cycle Payout"),
+        (BATCH_TYPE_FINAL_SETTLEMENT, "Seller Final Settlement"),
+    )
+
+    batch_type = models.CharField(
+        max_length=30,
+        choices=BATCH_TYPE_CHOICES,
+        default=BATCH_TYPE_CYCLE,
+        db_index=True,
+        help_text="Discriminator identifying whether this batch is a routine cycle run or account closure final settlement.",
+    )
+
     batch_reference = models.CharField(
         max_length=64,
         unique=True,
@@ -4227,6 +4316,25 @@ class PayoutBatch(models.Model):
         blank=True,
         default="",
         help_text="Simulated external transaction reference (e.g. MOCK-PAY-XXXX).",
+    )
+    payout_channel = models.CharField(
+        max_length=30,
+        choices=PAYOUT_CHANNEL_CHOICES,
+        default=PAYOUT_CHANNEL_MOCK,
+        db_index=True,
+        help_text="Execution rail used to disburse this batch.",
+    )
+    manual_utr_reference = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Bank Unique Transaction Reference (UTR) or IMPS reference for manual bank transfers.",
+    )
+    manual_transfer_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Actual value date when offline bank transfer was executed by finance staff.",
     )
     bank_account_masked = models.CharField(
         max_length=30,
@@ -4389,7 +4497,21 @@ class PayoutBatch(models.Model):
                 condition=~models.Q(payout_cycle="") & ~models.Q(status__in=["failed", "reversed"]),
                 name="unique_active_seller_payout_cycle",
             ),
+            models.UniqueConstraint(
+                fields=["manual_utr_reference"],
+                condition=~models.Q(manual_utr_reference=""),
+                name="unique_non_blank_payout_batch_manual_utr",
+            ),
+            models.UniqueConstraint(
+                fields=["seller"],
+                condition=models.Q(batch_type="final_settlement") & ~models.Q(status__in=["failed", "reversed"]),
+                name="unique_active_seller_final_settlement_batch",
+            ),
         ]
+
+    @property
+    def is_final_settlement(self) -> bool:
+        return self.batch_type == self.BATCH_TYPE_FINAL_SETTLEMENT
 
     def __str__(self):
         seller_label = self.seller.store_name if self.seller else "Platform Fulfillment"
@@ -4652,6 +4774,31 @@ class SellerLedgerEntry(models.Model):
         default=dict,
         blank=True,
         help_text="Detailed rate snapshots, commission calculations, and operational context.",
+    )
+    # Manual Hold Release Audit Fields
+    is_hold_released = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="True if platform finance administrator manually released cooling hold for payout eligibility.",
+    )
+    hold_released_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when cooling hold was manually released.",
+    )
+    hold_released_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="released_ledger_holds",
+        help_text="Staff administrator who authorized the manual hold release.",
+    )
+    hold_release_reason = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Mandatory audit explanation for premature hold release.",
     )
 
     class Meta:

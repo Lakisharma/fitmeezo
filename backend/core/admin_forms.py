@@ -11,6 +11,7 @@ from django import forms
 from django.contrib.auth import authenticate, get_user_model
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 from django.utils.text import slugify
 
 from .models import (
@@ -904,6 +905,131 @@ class AdminPayoutRejectForm(forms.Form):
         return reason
 
 
+class AdminPayoutRecordManualTransferForm(forms.Form):
+    """
+    Form for recording an already completed external offline bank transfer (Prompt 5).
+    Strictly audit-recording only; does not initiate money movement or gateway calls.
+    """
+
+    manual_utr_reference = forms.CharField(
+        max_length=100,
+        required=True,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "e.g. UTR1234567890 or IMPS Reference",
+                "required": True,
+            }
+        ),
+        help_text="Unique bank transaction reference / UTR number from bank statement or payment receipt.",
+    )
+    manual_transfer_date = forms.DateField(
+        required=True,
+        widget=forms.DateInput(
+            attrs={
+                "class": "form-control",
+                "type": "date",
+                "required": True,
+            }
+        ),
+        help_text="Actual value date when offline bank transfer was executed by finance staff.",
+    )
+    confirmation = forms.BooleanField(
+        required=True,
+        widget=forms.CheckboxInput(
+            attrs={
+                "class": "form-check-input",
+                "required": True,
+            }
+        ),
+        help_text="I confirm this bank transfer has already been executed externally and funds have debited our account.",
+    )
+    notes = forms.CharField(
+        required=False,
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 2,
+                "placeholder": "Optional internal bank remarks or transaction reference notes",
+            }
+        ),
+        help_text="Optional remarks for internal audit records.",
+    )
+
+    def clean_manual_utr_reference(self):
+        utr = self.cleaned_data.get("manual_utr_reference", "").strip()
+        if not utr:
+            raise ValidationError("A valid, non-empty Bank UTR / Reference number is required.")
+        return utr
+
+    def clean_manual_transfer_date(self):
+        val_date = self.cleaned_data.get("manual_transfer_date")
+        if not val_date:
+            raise ValidationError("A valid bank transfer execution date is required.")
+        if val_date > timezone.now().date():
+            raise ValidationError("Transfer date cannot be in the future.")
+        return val_date
+
+    def clean_confirmation(self):
+        confirmed = self.cleaned_data.get("confirmation")
+        if not confirmed:
+            raise ValidationError("You must confirm that the external bank transfer has already occurred.")
+        return confirmed
+
+
+class AdminReleaseHoldBalanceEntriesForm(forms.Form):
+    """
+    Form for administrative release of cooling-period holds on specific seller ledger entries (Prompt 6).
+    Waives ONLY the 120-hour delivery cooling period.
+    Never bypasses delivery, COD reconciliation, active returns, refunds, or reversals.
+    """
+
+    entry_ids = forms.CharField(
+        widget=forms.HiddenInput(),
+        required=True,
+        help_text="Comma-separated or JSON list of SellerLedgerEntry IDs to release.",
+    )
+    reason = forms.CharField(
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Mandatory explanation for releasing cooling hold on these entries",
+                "required": True,
+            }
+        ),
+        help_text="Mandatory explanation for releasing the delivery cooling hold.",
+    )
+
+    def clean_reason(self):
+        reason = self.cleaned_data.get("reason", "").strip()
+        if not reason:
+            raise ValidationError("A mandatory explanation reason is required to release held balances.")
+        return reason
+
+    def clean_entry_ids(self):
+        raw = self.cleaned_data.get("entry_ids", "").strip()
+        if not raw:
+            raise ValidationError("At least one ledger entry must be selected.")
+
+        ids = []
+        if raw.startswith("["):
+            try:
+                parsed = json.loads(raw)
+                ids = [int(x) for x in parsed if str(x).isdigit()]
+            except (ValueError, TypeError):
+                pass
+        if not ids:
+            for part in raw.split(","):
+                part = part.strip()
+                if part.isdigit():
+                    ids.append(int(part))
+
+        if not ids:
+            raise ValidationError("No valid ledger entry IDs were provided.")
+        return list(set(ids))
+
+
 class AdminSellerActionForm(forms.Form):
     """
     Form for administrative seller approval, rejection, suspension, and reactivation.
@@ -1093,4 +1219,86 @@ class AdminReportFilterForm(forms.Form):
     )
 
 
+class AdminSellerClosureActionForm(forms.Form):
+    """
+    Form for Super Admin or Finance Manager to review and approve or reject
+    a seller account closure request (Phase 3).
+    """
+    ACTION_APPROVE = "approve"
+    ACTION_REJECT = "reject"
+    ACTION_CHOICES = [
+        (ACTION_APPROVE, "Approve Closure Run-off"),
+        (ACTION_REJECT, "Reject Closure Request"),
+    ]
 
+    action = forms.ChoiceField(
+        choices=ACTION_CHOICES,
+        widget=forms.HiddenInput(),
+    )
+    notes = forms.CharField(
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Internal administrator notes or audit instructions...",
+            }
+        ),
+        required=False,
+        max_length=1000,
+        help_text="Optional administrative notes recorded in the seller's offboarding audit history.",
+    )
+    reason = forms.CharField(
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Mandatory explanation reason if rejecting this closure request...",
+            }
+        ),
+        required=False,
+        max_length=1000,
+        help_text="Mandatory rationale if rejecting the closure request.",
+    )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        action = cleaned_data.get("action")
+        reason = (cleaned_data.get("reason") or "").strip()
+        if action == self.ACTION_REJECT and not reason:
+            self.add_error("reason", "A specific explanation reason is required when rejecting a seller closure request.")
+        return cleaned_data
+
+
+class AdminSellerFinalClosureForm(forms.Form):
+    """
+    Form for Super Admin or Finance Manager to execute final account closure
+    for a seller in STATUS_CLOSING after all clearance checks pass (Phase 5).
+    """
+    confirm_closure = forms.BooleanField(
+        required=True,
+        label="I confirm that all financial, order, return, and cooling-period clearance checks have been verified, and I authorize the permanent closure of this seller account.",
+        error_messages={"required": "You must confirm that all clearance checks have been verified before finalizing closure."},
+    )
+    closure_notes = forms.CharField(
+        widget=forms.Textarea(
+            attrs={
+                "class": "form-control",
+                "rows": 3,
+                "placeholder": "Mandatory internal audit notes explaining the closure approval and settlement verification...",
+            }
+        ),
+        required=True,
+        min_length=5,
+        max_length=1500,
+        help_text="Mandatory internal audit documentation recorded in the seller's offboarding log.",
+        error_messages={
+            "required": "Internal audit notes are required to finalize seller account closure.",
+            "min_length": "Closure audit notes must be at least 5 characters long.",
+        },
+    )
+
+    def clean_closure_notes(self):
+        notes = (self.cleaned_data.get("closure_notes") or "").strip()
+        if len(notes) < 5:
+            raise forms.ValidationError("Closure audit notes must be at least 5 characters long.")
+        return notes

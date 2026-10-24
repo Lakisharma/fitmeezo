@@ -260,3 +260,55 @@ def send_order_refund_email(order, refund_record=None) -> bool:
         return False
 
 
+def send_seller_closure_finalized_email(seller, notes: str = "") -> bool:
+    """
+    Sends an account closure finalization notification email to the seller (Phase 5).
+    Informs the vendor that all order, return, refund, cooling, and financial clearance
+    checks have passed and the account is permanently closed with read-only portal access.
+
+    Fails safely with try-except so email transport errors never roll back the primary
+    account closure transaction.
+    """
+    if not seller or not seller.user or not seller.user.email:
+        logger.info(f"Skipping closure email for seller #{getattr(seller, 'id', 'N/A')}: no valid email address.")
+        return False
+
+    recipient_email = seller.user.email.strip()
+    brand_name = getattr(settings, "BRAND_NAME", "Fitmeezo")
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", f"{brand_name} <support@fitmeezo.com>")
+    subject = f"Account Formally Closed: {seller.store_name} | {brand_name}"
+
+    text_content = (
+        f"Dear {seller.store_name} Team,\n\n"
+        f"This is official confirmation that your merchant account on {brand_name} has been "
+        f"formally and permanently CLOSED following complete operational and financial clearance.\n\n"
+        f"Summary of Clearance:\n"
+        f"- All customer orders, returns, and refunds are fully settled.\n"
+        f"- All delivery cooling hold periods have concluded.\n"
+        f"- Final balance and payout settlements have been reconciled.\n"
+        f"- Products have been deactivated and unlisted from the storefront.\n\n"
+        f"Historical Records & Portal Access:\n"
+        f"Your seller account remains accessible in read-only mode. You may log in at any time "
+        f"to inspect and download past orders, customer invoices, and financial reports for your tax records.\n\n"
+        f"Administrator Audit Notes:\n"
+        f"{notes or 'Account offboarding completed in accordance with marketplace terms.'}\n\n"
+        f"Thank you for being part of {brand_name}.\n\n"
+        f"Warm regards,\n"
+        f"{brand_name} Finance & Marketplace Governance Team\n"
+    )
+
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content,
+            from_email=from_email,
+            to=[recipient_email],
+        )
+        msg.send(fail_silently=False)
+        logger.info(f"Seller closure notification email dispatched to {recipient_email} for seller #{seller.id}")
+        return True
+    except Exception as exc:
+        logger.warning(
+            f"Failed to dispatch seller closure notification email to {recipient_email} for seller #{seller.id}: {exc}"
+        )
+        return False
