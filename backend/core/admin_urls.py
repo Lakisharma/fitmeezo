@@ -9,6 +9,11 @@ from .admin_views import (
     admin_category_edit_view,
     admin_category_list_view,
     admin_category_toggle_status_view,
+    admin_carousel_list_view,
+    admin_carousel_add_view,
+    admin_carousel_edit_view,
+    admin_carousel_toggle_status_view,
+    admin_carousel_delete_view,
     admin_dashboard_view,
     admin_login_view,
     admin_logout_view,
@@ -130,6 +135,13 @@ urlpatterns = [
     path("categories/<int:pk>/edit/", admin_category_edit_view, name="category_edit"),
     path("categories/<int:pk>/toggle-status/", admin_category_toggle_status_view, name="category_toggle_status"),
     path("categories/<int:pk>/delete/", admin_category_delete_view, name="category_delete"),
+
+    # Storefront Hero Carousel Management
+    path("carousel/", admin_carousel_list_view, name="carousel_list"),
+    path("carousel/add/", admin_carousel_add_view, name="carousel_add"),
+    path("carousel/<int:pk>/edit/", admin_carousel_edit_view, name="carousel_edit"),
+    path("carousel/<int:pk>/toggle-status/", admin_carousel_toggle_status_view, name="carousel_toggle_status"),
+    path("carousel/<int:pk>/delete/", admin_carousel_delete_view, name="carousel_delete"),
 
     # Inventory
     path("inventory/", admin_inventory_view, name="inventory"),

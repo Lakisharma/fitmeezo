@@ -1,0 +1,174 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}Hero Carousel Management{% endblock %}
+{% block page_title %}Hero Carousel Images{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+  <div>
+    <h4 class="fw-bold mb-1">Storefront Hero Carousel</h4>
+    <p class="text-muted small mb-0">
+      Manage high-impact promotional carousel slides featured in the storefront spotlight area.
+      <strong>Maximum 4 active slides</strong> can appear at the same time.
+    </p>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <a href="{% url 'admin:core_carouselimage_changelist' %}" target="_blank" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1" title="Open Django Admin Panel">
+      <i class="bi bi-box-arrow-up-right"></i> Django Admin
+    </a>
+    <a href="{% url 'custom_admin:carousel_add' %}" class="btn btn-fm-primary d-inline-flex align-items-center gap-2">
+      <i class="bi bi-plus-circle-fill"></i> Add New Slide
+    </a>
+  </div>
+</div>
+
+<!-- Active Status Alert / Metric Strip -->
+<div class="row g-3 mb-4">
+  <div class="col-12 col-md-4">
+    <div class="fm-card p-3 d-flex align-items-center gap-3">
+      <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; font-size: 1.4rem;">
+        <i class="bi bi-images"></i>
+      </div>
+      <div>
+        <div class="text-muted small">Total Uploaded Slides</div>
+        <div class="fs-4 fw-bold">{{ total_count }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="fm-card p-3 d-flex align-items-center gap-3">
+      <div class="rounded-circle {% if active_count == 4 %}bg-success{% else %}bg-warning{% endif %} bg-opacity-10 {% if active_count == 4 %}text-success{% else %}text-warning{% endif %} d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; font-size: 1.4rem;">
+        <i class="bi bi-check-circle-fill"></i>
+      </div>
+      <div>
+        <div class="text-muted small">Active on Storefront</div>
+        <div class="fs-4 fw-bold">{{ active_count }} / {{ max_active }} <span class="badge {% if active_count == 4 %}bg-success{% else %}bg-warning text-dark{% endif %}" style="font-size: 11px;">{% if active_count == 4 %}Full (4/4){% else %}Capacity Available{% endif %}</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="fm-card p-3 d-flex align-items-center gap-3">
+      <div class="rounded-circle bg-info bg-opacity-10 text-info d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; font-size: 1.4rem;">
+        <i class="bi bi-clock-history"></i>
+      </div>
+      <div>
+        <div class="text-muted small">Carousel Behavior</div>
+        <div class="fw-semibold small">Auto-play (4s), swipeable, 1 slide at a time</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if active_count == 0 %}
+  <div class="alert alert-info d-flex align-items-center gap-2 mb-4" role="alert">
+    <i class="bi bi-info-circle-fill fs-5"></i>
+    <div>
+      No active carousel slides are currently enabled. The storefront will automatically display the default Fitmeezo brand emblem fallback.
+    </div>
+  </div>
+{% endif %}
+
+<!-- Slides Table -->
+<div class="fm-card">
+  <div class="table-responsive">
+    <table class="table mb-0 align-middle">
+      <thead>
+        <tr>
+          <th style="width: 110px;">Thumbnail</th>
+          <th>Title &amp; Alt Text</th>
+          <th>Click URL</th>
+          <th>Display Order</th>
+          <th>Storefront Status</th>
+          <th>Uploaded</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for slide in slides %}
+          <tr>
+            <td>
+              {% if slide.image %}
+                <img src="{{ slide.image.url }}" alt="{{ slide.alt_text|default:slide.title|default:'Slide' }}" class="rounded border object-fit-cover shadow-sm" style="width: 90px; height: 50px;">
+              {% else %}
+                <div class="rounded border bg-light d-flex align-items-center justify-content-center text-muted" style="width: 90px; height: 50px;">
+                  <i class="bi bi-image fs-5"></i>
+                </div>
+              {% endif %}
+            </td>
+            <td>
+              <div class="fw-semibold">{{ slide.title|default:"Untitled Slide" }}</div>
+              <div class="text-muted small" style="max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                <span class="badge bg-light text-dark border me-1">Alt</span> {{ slide.alt_text|default:"(None provided)" }}
+              </div>
+            </td>
+            <td>
+              {% if slide.link_url %}
+                <a href="{{ slide.link_url }}" target="_blank" class="small text-truncate d-inline-block text-primary" style="max-width: 180px;">
+                  {{ slide.link_url }} <i class="bi bi-box-arrow-up-right" style="font-size: 10px;"></i>
+                </a>
+              {% else %}
+                <span class="text-muted small">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge bg-secondary px-2 py-1">{{ slide.display_order }}</span>
+            </td>
+            <td>
+              {% if slide.is_active %}
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                  <i class="bi bi-check-circle me-1"></i> Active
+                </span>
+              {% else %}
+                <span class="badge bg-secondary-subtle text-muted border border-secondary-subtle px-2 py-1">
+                  <i class="bi bi-pause-circle me-1"></i> Inactive
+                </span>
+              {% endif %}
+            </td>
+            <td class="text-muted small">
+              {{ slide.created_at|date:"d M Y" }}
+            </td>
+            <td class="text-end">
+              <div class="d-inline-flex align-items-center gap-1">
+                <form method="post" action="{% url 'custom_admin:carousel_toggle_status' slide.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  {% if slide.is_active %}
+                    <button type="submit" class="btn btn-sm btn-outline-warning" title="Deactivate Slide">
+                      <i class="bi bi-pause-fill"></i>
+                    </button>
+                  {% else %}
+                    <button type="submit" class="btn btn-sm btn-outline-success" title="Activate Slide" {% if active_count >= 4 %}disabled title="Maximum 4 active slides reached"{% endif %}>
+                      <i class="bi bi-play-fill"></i>
+                    </button>
+                  {% endif %}
+                </form>
+                <a href="{% url 'custom_admin:carousel_edit' slide.pk %}" class="btn btn-sm btn-outline-primary" title="Edit / Replace Image">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form method="post" action="{% url 'custom_admin:carousel_delete' slide.pk %}" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete this carousel slide?');">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Slide">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="text-center py-5">
+              <div class="text-muted">
+                <i class="bi bi-images display-6 d-block mb-3 text-secondary"></i>
+                <div class="fw-semibold fs-5 mb-1">No Carousel Images Uploaded</div>
+                <p class="small mb-3">Add promotional photography to highlight offers in the storefront hero section.</p>
+                <a href="{% url 'custom_admin:carousel_add' %}" class="btn btn-fm-primary">
+                  <i class="bi bi-plus-circle me-1"></i> Add First Slide
+                </a>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

@@ -3,7 +3,7 @@ import re
 import uuid
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator, FileExtensionValidator
 from django.db import models, transaction, IntegrityError
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -5246,6 +5246,77 @@ class ContactInquiry(models.Model):
 
     def __str__(self):
         return f"[{self.get_status_display()}] {self.full_name} ({self.get_subject_display()}) - {self.created_at.strftime('%d-%b-%Y')}"
+
+
+class CarouselImage(models.Model):
+    """
+    Homepage Hero Carousel Slide Image model for Fitmeezo.
+    Allows administrators to upload, reorder, and toggle up to 4 promotional slides
+    featured prominently in the storefront hero spotlight area.
+    """
+    title = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        help_text="Optional internal label or headline for administrative reference.",
+    )
+    image = models.ImageField(
+        upload_to="carousel/",
+        validators=[FileExtensionValidator(allowed_extensions=["jpg", "jpeg", "png", "webp", "avif", "svg"])],
+        help_text="Promotional carousel photograph (JPEG, PNG, WebP, AVIF, SVG).",
+    )
+    alt_text = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Descriptive alternate text for accessibility and SEO.",
+    )
+    link_url = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Optional click-through URL for this slide (e.g. '/categories/electronics/').",
+    )
+    display_order = models.PositiveIntegerField(
+        default=0,
+        db_index=True,
+        help_text="Display sequence in the carousel (lowest number appears first).",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        db_index=True,
+        help_text="Whether this slide is published and visible on the storefront hero.",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Timestamp when this carousel image was uploaded.",
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="Timestamp when this carousel slide was last modified.",
+    )
+
+    class Meta:
+        ordering = ["display_order", "id"]
+        verbose_name = "Carousel Image"
+        verbose_name_plural = "Carousel Images"
+
+    def __str__(self):
+        label = self.title or self.alt_text or f"Slide #{self.id or 'New'}"
+        status_suffix = " (Active)" if self.is_active else " (Inactive)"
+        return f"{label}{status_suffix}"
+
+    def clean(self):
+        super().clean()
+        # Enforce that no more than 4 images can be active simultaneously
+        if self.is_active:
+            active_qs = CarouselImage.objects.filter(is_active=True)
+            if self.pk:
+                active_qs = active_qs.exclude(pk=self.pk)
+            if active_qs.count() >= 4:
+                raise ValidationError({
+                    "is_active": "At most 4 carousel images can be active simultaneously. Please deactivate or remove another slide before activating this one."
+                })
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)

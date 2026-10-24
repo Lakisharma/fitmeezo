@@ -62,12 +62,72 @@
         <div class="fm-hero-spotlight" aria-label="Spotlight Deal of the Day">
           <span class="fm-spotlight-badge">{{ spotlight_product.badge }}</span>
 
-          <div class="fm-spotlight-img-wrap">
-            <img src="{{ spotlight_product.image_url }}"
-                 alt="{{ spotlight_product.title }}"
-                 class="fm-spotlight-img"
-                 loading="eager"
-                 onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+          <div class="fm-spotlight-img-wrap" id="fmHeroCarouselWrap" aria-label="Hero Spotlight Carousel">
+            {% if carousel_images %}
+              <div class="fm-carousel" id="fmHeroCarousel" aria-roledescription="carousel" aria-label="Featured Highlights">
+                <div class="fm-carousel-track" id="fmCarouselTrack">
+                  {% for slide in carousel_images %}
+                    <div class="fm-carousel-slide{% if forloop.first %} is-active{% endif %}"
+                         data-slide-index="{{ forloop.counter0 }}"
+                         role="group"
+                         aria-roledescription="slide"
+                         aria-label="Slide {{ forloop.counter }} of {{ carousel_images|length }}">
+                      {% if slide.link_url %}
+                        <a href="{{ slide.link_url }}" class="fm-carousel-link" tabindex="0" aria-label="{{ slide.alt_text|default:slide.title|default:'Fitmeezo Highlight' }}">
+                          <img src="{{ slide.image.url }}"
+                               alt="{{ slide.alt_text|default:slide.title|default:'Fitmeezo Promotion' }}"
+                               class="fm-spotlight-img fm-carousel-img"
+                               loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+                        </a>
+                      {% else %}
+                        <img src="{{ slide.image.url }}"
+                             alt="{{ slide.alt_text|default:slide.title|default:'Fitmeezo Promotion' }}"
+                             class="fm-spotlight-img fm-carousel-img"
+                             loading="{% if forloop.first %}eager{% else %}lazy{% endif %}">
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+
+                {% if carousel_images|length > 1 %}
+                  <!-- Navigation Arrows -->
+                  <button type="button"
+                          class="fm-carousel-arrow fm-carousel-prev"
+                          id="fmCarouselPrevBtn"
+                          aria-label="Previous slide"
+                          title="Previous slide">
+                    <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                  </button>
+                  <button type="button"
+                          class="fm-carousel-arrow fm-carousel-next"
+                          id="fmCarouselNextBtn"
+                          aria-label="Next slide"
+                          title="Next slide">
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                  </button>
+
+                  <!-- Pagination Dots -->
+                  <div class="fm-carousel-dots" id="fmCarouselDots" role="tablist" aria-label="Slide Selection">
+                    {% for slide in carousel_images %}
+                      <button type="button"
+                              class="fm-carousel-dot{% if forloop.first %} is-active{% endif %}"
+                              data-slide-to="{{ forloop.counter0 }}"
+                              role="tab"
+                              aria-selected="{% if forloop.first %}true{% else %}false{% endif %}"
+                              aria-label="Go to slide {{ forloop.counter }}">
+                      </button>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+            {% else %}
+              <!-- Fallback to existing Fitmeezo image/logo when no carousel images uploaded -->
+              <img src="{% if spotlight_product.image_url %}{{ spotlight_product.image_url }}{% else %}{% static 'images/brand/product-fallback.svg' %}{% endif %}"
+                   alt="{{ spotlight_product.title|default:'Fitmeezo - SHOP SMART • LIVE BETTER' }}"
+                   class="fm-spotlight-img fm-carousel-fallback"
+                   loading="eager"
+                   onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+            {% endif %}
           </div>
 
           <div class="text-uppercase text-warning fw-bold small mb-1" style="font-size: 11px; letter-spacing: 0.05em;">
@@ -297,4 +357,8 @@
     </div>
   </div>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+  <script src="{% static 'js/carousel.js' %}"></script>
 {% endblock %}

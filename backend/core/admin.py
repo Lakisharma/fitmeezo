@@ -38,6 +38,7 @@ from .models import (
     Invoice,
     InvoiceSequence,
     ContactInquiry,
+    CarouselImage,
 )
 from .ledger_services import (
     process_mock_payout_batch,
@@ -2369,6 +2370,123 @@ class ContactInquiryAdmin(admin.ModelAdmin):
             "fields": ("status", "admin_notes"),
         }),
     )
+
+
+@admin.register(CarouselImage)
+class CarouselImageAdmin(admin.ModelAdmin):
+    """
+    Django Admin interface for managing storefront Hero Carousel Images.
+    Allows administrators to upload, reorder, preview, and toggle up to 4 slides.
+    """
+    list_display = (
+        "image_thumbnail",
+        "title_or_id",
+        "alt_text",
+        "display_order",
+        "is_active",
+        "link_url",
+        "created_at",
+    )
+    list_editable = (
+        "display_order",
+        "is_active",
+    )
+    list_filter = (
+        "is_active",
+        "created_at",
+    )
+    search_fields = (
+        "title",
+        "alt_text",
+        "link_url",
+    )
+    ordering = (
+        "display_order",
+        "id",
+    )
+    readonly_fields = (
+        "image_preview",
+        "created_at",
+        "updated_at",
+    )
+    fieldsets = (
+        ("Slide Imagery & Media", {
+            "fields": (
+                "image",
+                "image_preview",
+                "alt_text",
+            ),
+            "description": "Upload a high quality promotion photograph (JPEG, PNG, WebP, SVG). The image will be served through the configured media/storage pipeline.",
+        }),
+        ("Slide Details & Link", {
+            "fields": (
+                "title",
+                "link_url",
+            ),
+        }),
+        ("Display & Order", {
+            "fields": (
+                "is_active",
+                "display_order",
+            ),
+            "description": "At most 4 slides can be active at the same time. Use display order to control the sequence (lowest number appears first).",
+        }),
+        ("Audit Timestamps", {
+            "fields": (
+                "created_at",
+                "updated_at",
+            ),
+            "classes": ("collapse",),
+        }),
+    )
+
+    actions = ["activate_slides", "deactivate_slides"]
+
+    @admin.display(description="Preview")
+    def image_thumbnail(self, obj):
+        if obj.image:
+            return format_html(
+                '<img src="{}" style="height: 48px; width: 80px; object-fit: cover; border-radius: 4px; border: 1px solid #ddd;" alt="{}" />',
+                obj.image.url,
+                obj.alt_text or "Thumbnail",
+            )
+        return "No image"
+
+    @admin.display(description="Image Preview")
+    def image_preview(self, obj):
+        if obj.image:
+            return format_html(
+                '<img src="{}" style="max-height: 200px; max-width: 320px; object-fit: contain; border-radius: 8px; border: 1px solid #ddd;" alt="{}" />',
+                obj.image.url,
+                obj.alt_text or "Preview",
+            )
+        return "No image uploaded yet."
+
+    @admin.display(description="Title / Identifier")
+    def title_or_id(self, obj):
+        return obj.title or f"Slide #{obj.id}"
+
+    @admin.action(description="Activate selected carousel slides")
+    def activate_slides(self, request, queryset):
+        for slide in queryset:
+            slide.is_active = True
+            try:
+                slide.full_clean()
+                slide.save()
+            except ValidationError as e:
+                self.message_user(
+                    request,
+                    f"Could not activate '{slide}': {e}",
+                    level=messages.ERROR,
+                )
+                return
+        self.message_user(request, "Selected slides activated successfully.", level=messages.SUCCESS)
+
+    @admin.action(description="Deactivate selected carousel slides")
+    def deactivate_slides(self, request, queryset):
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f"{updated} slides deactivated.", level=messages.SUCCESS)
+
 
 
 

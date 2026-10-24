@@ -25,6 +25,7 @@ from .models import (
     CODReceiptRecord,
     PayoutBatch,
     SellerLedgerEntry,
+    CarouselImage,
 )
 
 User = get_user_model()
@@ -612,6 +613,31 @@ class AdminProductImageForm(forms.ModelForm):
         if img and hasattr(img, "size"):
             validate_image_file(img)
         return img
+
+
+class AdminCarouselImageForm(forms.ModelForm):
+    """
+    Form for adding, uploading, replacing, and editing storefront hero carousel images.
+    """
+
+    class Meta:
+        model = CarouselImage
+        fields = ["title", "image", "alt_text", "link_url", "display_order", "is_active"]
+        widgets = {
+            "title": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. Festival Mega Sale"}),
+            "image": forms.FileInput(attrs={"class": "form-control", "accept": "image/*"}),
+            "alt_text": forms.TextInput(attrs={"class": "form-control", "placeholder": "Accessibility & SEO description"}),
+            "link_url": forms.TextInput(attrs={"class": "form-control", "placeholder": "e.g. /categories/electronics/ or https://..."}),
+            "display_order": forms.NumberInput(attrs={"class": "form-control", "min": "0"}),
+            "is_active": forms.CheckboxInput(attrs={"class": "form-check-input"}),
+        }
+
+    def clean_image(self):
+        img = self.cleaned_data.get("image")
+        if img and hasattr(img, "size"):
+            validate_image_file(img)
+        return img
+
 
 
 class AdminCategoryForm(forms.ModelForm):

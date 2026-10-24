@@ -1,0 +1,112 @@
+{% extends "custom_admin/base.html" %}
+
+{% block title %}{% if is_create %}Add Carousel Slide{% else %}Edit Carousel Slide{% endif %}{% endblock %}
+{% block page_title %}{% if is_create %}Add Carousel Slide{% else %}Edit Slide #{{ slide.pk }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h4 class="fw-bold mb-1">{% if is_create %}Add New Carousel Slide{% else %}Edit / Replace Slide{% endif %}</h4>
+    <p class="text-muted small mb-0">Upload high-resolution photography for the Fitmeezo storefront hero carousel.</p>
+  </div>
+  <div>
+    <a href="{% url 'custom_admin:carousel_list' %}" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1">
+      <i class="bi bi-arrow-left"></i> Back to Slides
+    </a>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-12 col-lg-8">
+    <div class="fm-card p-4">
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger mb-3">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="{{ form.title.id_for_label }}">Slide Title / Headline (Optional)</label>
+          {{ form.title }}
+          <div class="form-text text-muted">Internal label or promotional headline for easy identification.</div>
+          {% if form.title.errors %}<div class="text-danger small mt-1">{{ form.title.errors }}</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="{{ form.image.id_for_label }}">
+            Slide Image {% if is_create %}<span class="text-danger">*</span>{% else %}(Leave empty to keep existing image){% endif %}
+          </label>
+          {{ form.image }}
+          <div class="form-text text-muted">
+            Recommended aspect ratio 16:9 or 4:3 (e.g. 1200x600px). Supported: JPG, PNG, WebP, SVG. Max 5 MB.
+          </div>
+          {% if form.image.errors %}<div class="text-danger small mt-1">{{ form.image.errors }}</div>{% endif %}
+        </div>
+
+        {% if not is_create and slide.image %}
+          <div class="mb-4 p-3 bg-light rounded border">
+            <div class="fw-semibold small text-muted mb-2">Current Slide Preview:</div>
+            <img src="{{ slide.image.url }}" alt="{{ slide.alt_text|default:slide.title }}" class="rounded border shadow-sm object-fit-cover" style="max-height: 160px; max-width: 100%;">
+          </div>
+        {% endif %}
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="{{ form.alt_text.id_for_label }}">Alternate Text (Alt Text)</label>
+          {{ form.alt_text }}
+          <div class="form-text text-muted">Descriptive text read by screen readers and search engines for accessibility and SEO.</div>
+          {% if form.alt_text.errors %}<div class="text-danger small mt-1">{{ form.alt_text.errors }}</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-semibold" for="{{ form.link_url.id_for_label }}">Click-through Link URL (Optional)</label>
+          {{ form.link_url }}
+          <div class="form-text text-muted">Storefront destination when user clicks this slide (e.g. '/categories/electronics/').</div>
+          {% if form.link_url.errors %}<div class="text-danger small mt-1">{{ form.link_url.errors }}</div>{% endif %}
+        </div>
+
+        <div class="row g-3 mb-4">
+          <div class="col-12 col-md-6">
+            <label class="form-label fw-semibold" for="{{ form.display_order.id_for_label }}">Display Order</label>
+            {{ form.display_order }}
+            <div class="form-text text-muted">Lowest number displays first (0, 1, 2, 3...).</div>
+            {% if form.display_order.errors %}<div class="text-danger small mt-1">{{ form.display_order.errors }}</div>{% endif %}
+          </div>
+          <div class="col-12 col-md-6 d-flex align-items-center">
+            <div class="form-check form-switch pt-4">
+              {{ form.is_active }}
+              <label class="form-check-label fw-semibold" for="{{ form.is_active.id_for_label }}">Active &amp; Published</label>
+              <div class="form-text text-muted">Only active slides are shown in the carousel (max 4).</div>
+              {% if form.is_active.errors %}<div class="text-danger small mt-1">{{ form.is_active.errors }}</div>{% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-2">
+          <button type="submit" class="btn btn-fm-primary px-4">
+            <i class="bi bi-check2-circle me-1"></i> {% if is_create %}Save and Publish{% else %}Update Slide{% endif %}
+          </button>
+          <a href="{% url 'custom_admin:carousel_list' %}" class="btn btn-outline-secondary">
+            Cancel
+          </a>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="fm-card p-3 mb-3">
+      <div class="fw-bold mb-2"><i class="bi bi-lightbulb-fill text-warning me-1"></i> Best Practices</div>
+      <ul class="small text-muted ps-3 mb-0">
+        <li class="mb-2"><strong>At most 4 active slides</strong> are displayed on the live homepage hero.</li>
+        <li class="mb-2"><strong>Aspect ratio:</strong> Images with equal proportions display crisp and undistorted with zero stretch.</li>
+        <li class="mb-2"><strong>Auto-rotation:</strong> The slider advances slides every 4 seconds and pauses when hovered or touched.</li>
+        <li class="mb-2"><strong>Touch friendly:</strong> Mobile customers can swipe left and right to navigate effortlessly.</li>
+        <li><strong>Fallback:</strong> If no images are uploaded or active, the official Fitmeezo logo is shown automatically.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

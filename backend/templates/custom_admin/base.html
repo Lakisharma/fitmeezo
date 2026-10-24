@@ -387,6 +387,10 @@
             <span class="badge bg-warning text-dark ms-auto px-1.5 py-0.5" style="font-size: 11px;">{{ admin_low_stock_count }}</span>
           {% endif %}
         </a>
+        <a href="{% url 'custom_admin:carousel_list' %}" class="admin-nav-link {% if 'carousel' in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-images"></i>
+          <span>Hero Carousel</span>
+        </a>
       {% endif %}
 
       <!-- 8. Orders & Returns & 9. Customers -->

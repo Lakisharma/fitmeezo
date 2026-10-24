@@ -37,6 +37,7 @@ from .admin_forms import (
     AdminProductForm,
     AdminProductImageForm,
     AdminProductVariantForm,
+    AdminCarouselImageForm,
 )
 from .models import (
     Category,
@@ -56,6 +57,7 @@ from .models import (
     SellerLedgerEntry,
     SellerOrder,
     Invoice,
+    CarouselImage,
 )
 from .return_services import (
     transition_return_status,
@@ -2736,3 +2738,136 @@ def admin_seller_closure_finalize_view(request, seller_id):
         messages.error(request, f"Unexpected error during account closure finalization: {exc}")
 
     return redirect("custom_admin:seller_closure_detail", seller_id=seller.pk)
+
+
+# ==============================================================================
+# HERO CAROUSEL MANAGEMENT VIEWS
+# ==============================================================================
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
+def admin_carousel_list_view(request):
+    """
+    Storefront hero carousel management list.
+    Displays all uploaded carousel images with ordering, active status, and thumbnail previews.
+    Enforces that at most 4 active images are shown on the homepage hero.
+    """
+    slides = CarouselImage.objects.all().order_by("display_order", "id")
+    active_count = slides.filter(is_active=True).count()
+    total_count = slides.count()
+
+    context = {
+        "slides": slides,
+        "active_count": active_count,
+        "total_count": total_count,
+        "max_active": 4,
+    }
+    return render(request, "custom_admin/carousel/list.html", context)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
+def admin_carousel_add_view(request):
+    """
+    Add a new carousel slide for the storefront hero.
+    """
+    active_count = CarouselImage.objects.filter(is_active=True).count()
+
+    if request.method == "POST":
+        form = AdminCarouselImageForm(request.POST, request.FILES)
+        if form.is_valid():
+            slide = form.save(commit=False)
+            if slide.is_active and active_count >= 4:
+                messages.warning(
+                    request,
+                    "There are already 4 active slides. The new slide has been saved as Inactive. "
+                    "Deactivate an existing slide to activate this one."
+                )
+                slide.is_active = False
+            slide.save()
+            messages.success(request, f"Carousel slide '{slide}' uploaded successfully.")
+            return redirect("custom_admin:carousel_list")
+    else:
+        # Default display_order to next number
+        next_order = active_count
+        form = AdminCarouselImageForm(initial={"display_order": next_order, "is_active": active_count < 4})
+
+    context = {
+        "form": form,
+        "is_create": True,
+        "active_count": active_count,
+    }
+    return render(request, "custom_admin/carousel/form.html", context)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
+def admin_carousel_edit_view(request, pk):
+    """
+    Edit or replace an existing carousel slide.
+    """
+    slide = get_object_or_404(CarouselImage, pk=pk)
+
+    if request.method == "POST":
+        form = AdminCarouselImageForm(request.POST, request.FILES, instance=slide)
+        if form.is_valid():
+            updated_slide = form.save(commit=False)
+            if updated_slide.is_active:
+                active_qs = CarouselImage.objects.filter(is_active=True).exclude(pk=slide.pk)
+                if active_qs.count() >= 4:
+                    messages.error(
+                        request,
+                        "Cannot activate this slide: at most 4 carousel images can be active simultaneously. "
+                        "Please deactivate another slide first."
+                    )
+                    return render(request, "custom_admin/carousel/form.html", {"form": form, "slide": slide, "is_create": False})
+            updated_slide.save()
+            messages.success(request, f"Carousel slide '{updated_slide}' updated successfully.")
+            return redirect("custom_admin:carousel_list")
+    else:
+        form = AdminCarouselImageForm(instance=slide)
+
+    context = {
+        "form": form,
+        "slide": slide,
+        "is_create": False,
+    }
+    return render(request, "custom_admin/carousel/form.html", context)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
+@require_POST
+def admin_carousel_toggle_status_view(request, pk):
+    """
+    Toggles carousel slide active status.
+    Guarantees at most 4 active slides can be active at any time.
+    """
+    slide = get_object_or_404(CarouselImage, pk=pk)
+    if not slide.is_active:
+        active_count = CarouselImage.objects.filter(is_active=True).exclude(pk=slide.pk).count()
+        if active_count >= 4:
+            messages.error(
+                request,
+                "Maximum 4 carousel images can be active simultaneously. "
+                "Please deactivate an active slide before activating this one."
+            )
+            return redirect("custom_admin:carousel_list")
+        slide.is_active = True
+    else:
+        slide.is_active = False
+
+    slide.save(update_fields=["is_active", "updated_at"])
+    status_label = "activated" if slide.is_active else "deactivated"
+    messages.success(request, f"Carousel slide '{slide}' was {status_label}.")
+    return redirect("custom_admin:carousel_list")
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_PRODUCT_MANAGER])
+@require_POST
+def admin_carousel_delete_view(request, pk):
+    """
+    Deletes a carousel slide image.
+    """
+    slide = get_object_or_404(CarouselImage, pk=pk)
+    slide_title = str(slide)
+    slide.delete()
+    messages.success(request, f"Carousel slide '{slide_title}' was successfully deleted.")
+    return redirect("custom_admin:carousel_list")
+

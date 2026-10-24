@@ -87,6 +87,7 @@ from .models import (
     PayoutBatch,
     SellerLedgerEntry,
     CODReceiptRecord,
+    CarouselImage,
 )
 from .otp_services import (
     generate_and_send_seller_otp,
@@ -381,7 +382,7 @@ def home(request):
     except Exception:
         db_featured = []
 
-    featured_products = db_featured
+    featured_products = db_featured if db_featured else SAMPLE_FEATURED_PRODUCTS
 
     # Active trending products from database
     # Ordering rule: Newest active products until popularity metric exists
@@ -394,7 +395,15 @@ def home(request):
     except Exception:
         db_trending = []
 
-    trending_products = db_trending
+    trending_products = db_trending if db_trending else SAMPLE_TRENDING_PRODUCTS
+
+    # Storefront Hero Carousel: Up to 4 active slides ordered by display_order
+    try:
+        carousel_images = list(
+            CarouselImage.objects.filter(is_active=True).order_by("display_order", "id")[:4]
+        )
+    except Exception:
+        carousel_images = []
 
     context = {
         "categories": categories,
@@ -402,6 +411,8 @@ def home(request):
         "trending_products": trending_products,
         "benefits": BENEFITS,
         "campaign_banner": CAMPAIGN_BANNER,
+        "spotlight_product": SAMPLE_SPOTLIGHT_PRODUCT,
+        "carousel_images": carousel_images,
     }
     return render(request, "home.html", context)
 
