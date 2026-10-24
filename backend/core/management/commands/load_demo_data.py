@@ -22,7 +22,25 @@ class Command(BaseCommand):
         "Skips loading if records already exist. Safe to run on every deploy."
     )
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Force loading demo data fixtures even in production environment.",
+        )
+
     def handle(self, *args, **options):
+        # Safeguard: Do not load demo fixtures unless explicitly authorized
+        allow_load = options.get("force") or os.environ.get("LOAD_DEMO_DATA", "").lower() == "true"
+        if not allow_load:
+            self.stdout.write(
+                self.style.NOTICE(
+                    "[load_demo_data] Demo fixture loading is disabled by default to protect production catalogue. "
+                    "Pass --force or set LOAD_DEMO_DATA=true to load."
+                )
+            )
+            return
+
         try:
             from core.models import Category, Product
 

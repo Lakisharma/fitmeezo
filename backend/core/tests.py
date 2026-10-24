@@ -228,13 +228,13 @@ class HomepageStorefrontTest(TestCase):
         self.assertIn("Shop Now", self.content)
         self.assertIn("Browse Categories", self.content)
         self.assertIn("fm-hero-spotlight", self.content)
-        self.assertIn("FitPulse Pro Max Smartwatch", self.content)
+        self.assertIn("Kuch Naya Dekho!", self.content)
 
-    def test_section_2_campaign_banner(self):
-        """Verify promotional sales campaign banner with sample coupon code."""
-        self.assertIn("fm-promo-campaign", self.content)
-        self.assertIn("Great Indian Smart Savings Festival", self.content)
-        self.assertIn("SMARTFIT200", self.content)
+    def test_section_2_campaign_banner_removed(self):
+        """Verify promotional sales campaign banner has been removed from storefront."""
+        self.assertNotIn("fm-promo-campaign", self.content)
+        self.assertNotIn("Great Indian Smart Savings Festival", self.content)
+        self.assertNotIn("SMARTFIT200", self.content)
 
     def test_section_3_category_grid(self):
         """Verify shopping category grid with 6 core categories."""

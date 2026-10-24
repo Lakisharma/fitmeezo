@@ -214,7 +214,7 @@ SAMPLE_SPOTLIGHT_PRODUCT = {
     "rating": 4.8,
     "rating_count": 312,
     "badge": "Deal of the Day",
-    "image_url": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80",
+    "image_url": "",
 }
 
 SAMPLE_FEATURED_PRODUCTS = [
@@ -382,7 +382,7 @@ def home(request):
     except Exception:
         db_featured = []
 
-    featured_products = db_featured if db_featured else SAMPLE_FEATURED_PRODUCTS
+    featured_products = db_featured
 
     # Active trending products from database
     # Ordering rule: Newest active products until popularity metric exists
@@ -395,7 +395,7 @@ def home(request):
     except Exception:
         db_trending = []
 
-    trending_products = db_trending if db_trending else SAMPLE_TRENDING_PRODUCTS
+    trending_products = db_trending
 
     # Storefront Hero Carousel: Up to 4 active slides ordered by display_order
     try:
