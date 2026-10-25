@@ -28,43 +28,149 @@
   <!-- Product Detail Showcase Card -->
   <article class="fm-product-detail-card" aria-labelledby="product-name-heading">
     <div class="row g-4 align-items-start">
-      <!-- Left Column: Product Gallery -->
+      <!-- Left Column: Product Gallery Carousel & Thumbnails -->
       <div class="col-12 col-md-6 col-lg-5">
-        <div class="fm-detail-img-box">
-          {% if product.image %}
-            <img src="{{ product.image.url }}"
-                 alt="{{ product.name }}"
-                 id="fmMainProductImg"
-                 class="fm-detail-main-img"
-                 loading="eager"
-                 onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
-          {% else %}
-            <img src="{% static 'images/brand/product-fallback.svg' %}"
-                 alt="{{ product.name }}"
-                 id="fmMainProductImg"
-                 class="fm-detail-main-img"
-                 loading="eager">
-          {% endif %}
+        {% with extra_imgs=product.images.all %}
+        <div class="fm-product-gallery-wrapper"
+             id="fmProductGallery"
+             data-total="{% if product.image and extra_imgs %}{{ extra_imgs|length|add:1 }}{% elif product.image or extra_imgs %}{% if product.image %}1{% else %}{{ extra_imgs|length }}{% endif %}{% else %}1{% endif %}">
 
-          {% if not product.is_in_stock %}
-            <span class="fm-badge-stock-out">Out of Stock</span>
-          {% elif product.is_featured %}
-            <span class="fm-product-badge">Featured</span>
-          {% endif %}
+          <!-- Floating Stock / Featured Badges -->
+          <div class="fm-gallery-badge-container">
+            {% if not product.is_in_stock %}
+              <span class="fm-badge-stock-out">Out of Stock</span>
+            {% elif product.is_featured %}
+              <span class="fm-product-badge">Featured</span>
+            {% endif %}
+          </div>
+
+          <!-- Gallery Status / Counter Bar -->
+          <div class="fm-gallery-status-bar">
+            <span class="fm-gallery-info-hint">
+              <i class="bi bi-arrows-fullscreen me-1" aria-hidden="true"></i> Click image for full preview
+            </span>
+            <span class="fm-gallery-counter-pill" id="fmGalleryCounterPill">
+              1 / {% if product.image and extra_imgs %}{{ extra_imgs|length|add:1 }}{% elif product.image or extra_imgs %}{% if product.image %}1{% else %}{{ extra_imgs|length }}{% endif %}{% else %}1{% endif %}
+            </span>
+          </div>
+
+          <!-- Carousel Viewport & Slides -->
+          <div class="fm-gallery-carousel-viewport">
+            <!-- Manual Navigation Arrow Buttons -->
+            <button type="button"
+                    class="fm-gallery-nav-btn fm-gallery-prev-btn"
+                    id="fmGalleryPrevBtn"
+                    aria-label="Previous product image"
+                    title="Previous image">
+              <i class="bi bi-chevron-left" aria-hidden="true"></i>
+            </button>
+            <button type="button"
+                    class="fm-gallery-nav-btn fm-gallery-next-btn"
+                    id="fmGalleryNextBtn"
+                    aria-label="Next product image"
+                    title="Next image">
+              <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            </button>
+
+            <!-- Carousel Sliding Track -->
+            <div class="fm-gallery-carousel-track" id="fmGalleryTrack">
+              {% if product.image %}
+                <div class="fm-gallery-slide is-selected is-active"
+                     data-index="0"
+                     data-full-src="{{ product.image.url }}"
+                     data-alt="{{ product.name }}"
+                     role="group"
+                     aria-label="Image 1 of {% if extra_imgs %}{{ extra_imgs|length|add:1 }}{% else %}1{% endif %}">
+                  <div class="fm-gallery-card" tabindex="0" role="button" aria-label="Select and view full preview of {{ product.name }}">
+                    <img src="{{ product.image.url }}"
+                         alt="{{ product.name }}"
+                         id="fmMainProductImg"
+                         class="fm-gallery-img"
+                         loading="eager"
+                         onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+                    <button type="button" class="fm-gallery-zoom-btn" title="View large preview" aria-label="View large preview of {{ product.name }}">
+                      <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+                    </button>
+                    <span class="fm-gallery-active-pill">Active</span>
+                  </div>
+                </div>
+              {% endif %}
+
+              {% for gallery_img in extra_imgs %}
+                <div class="fm-gallery-slide{% if not product.image and forloop.first %} is-selected is-active{% endif %}"
+                     data-index="{% if product.image %}{{ forloop.counter }}{% else %}{{ forloop.counter0 }}{% endif %}"
+                     data-full-src="{{ gallery_img.image.url }}"
+                     data-alt="{{ gallery_img.alt_text|default:product.name }}"
+                     role="group"
+                     aria-label="Image {% if product.image %}{{ forloop.counter|add:1 }}{% else %}{{ forloop.counter }}{% endif %}">
+                  <div class="fm-gallery-card" tabindex="0" role="button" aria-label="Select and view full preview of image {% if product.image %}{{ forloop.counter|add:1 }}{% else %}{{ forloop.counter }}{% endif %}">
+                    <img src="{{ gallery_img.image.url }}"
+                         alt="{{ gallery_img.alt_text|default:product.name }}"
+                         {% if not product.image and forloop.first %}id="fmMainProductImg"{% endif %}
+                         class="fm-gallery-img"
+                         loading="lazy"
+                         onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+                    <button type="button" class="fm-gallery-zoom-btn" title="View large preview" aria-label="View large preview">
+                      <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+                    </button>
+                    <span class="fm-gallery-active-pill">Active</span>
+                  </div>
+                </div>
+              {% endfor %}
+
+              {% if not product.image and not extra_imgs %}
+                <div class="fm-gallery-slide is-selected is-active"
+                     data-index="0"
+                     data-full-src="{% static 'images/brand/product-fallback.svg' %}"
+                     data-alt="{{ product.name }}"
+                     role="group"
+                     aria-label="Default product image">
+                  <div class="fm-gallery-card" tabindex="0" role="button" aria-label="Select and view full preview of {{ product.name }}">
+                    <img src="{% static 'images/brand/product-fallback.svg' %}"
+                         alt="{{ product.name }}"
+                         id="fmMainProductImg"
+                         class="fm-gallery-img"
+                         loading="eager">
+                    <button type="button" class="fm-gallery-zoom-btn" title="View large preview" aria-label="View large preview of {{ product.name }}">
+                      <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+                    </button>
+                    <span class="fm-gallery-active-pill">Active</span>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          </div>
         </div>
 
         <!-- Additional Gallery Thumbnails -->
-        {% if product.images.all %}
-          <div class="fm-detail-gallery-strip mt-3" aria-label="Additional product images">
-            {% for gallery_img in product.images.all %}
-              <div class="fm-gallery-thumb">
+        {% if product.image and extra_imgs or extra_imgs.count > 1 %}
+          <div class="fm-detail-gallery-strip mt-3" id="fmGalleryThumbStrip" aria-label="Additional product images">
+            {% if product.image %}
+              <button type="button"
+                      class="fm-gallery-thumb is-selected is-active"
+                      data-thumb-index="0"
+                      aria-label="Thumbnail 1: {{ product.name }}">
+                <img src="{{ product.image.url }}"
+                     alt="{{ product.name }}"
+                     loading="lazy"
+                     onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+              </button>
+            {% endif %}
+
+            {% for gallery_img in extra_imgs %}
+              <button type="button"
+                      class="fm-gallery-thumb{% if not product.image and forloop.first %} is-selected is-active{% endif %}"
+                      data-thumb-index="{% if product.image %}{{ forloop.counter }}{% else %}{{ forloop.counter0 }}{% endif %}"
+                      aria-label="Thumbnail {% if product.image %}{{ forloop.counter|add:1 }}{% else %}{{ forloop.counter }}{% endif %}: {{ gallery_img.alt_text|default:product.name }}">
                 <img src="{{ gallery_img.image.url }}"
                      alt="{{ gallery_img.alt_text|default:product.name }}"
-                     loading="lazy">
-              </div>
+                     loading="lazy"
+                     onerror="this.onerror=null; this.src='{% static 'images/brand/product-fallback.svg' %}';">
+              </button>
             {% endfor %}
           </div>
         {% endif %}
+        {% endwith %}
       </div>
 
       <!-- Right Column: Product Information & Purchase Area -->
@@ -1144,6 +1250,397 @@
           }
         });
       }
+    }
+  })();
+</script>
+
+<!-- High-Resolution Main/Large Preview Lightbox Modal -->
+<div class="fm-gallery-lightbox" id="fmGalleryLightbox" role="dialog" aria-modal="true" aria-label="Product Image Preview" style="display: none;">
+  <div class="fm-lightbox-backdrop" id="fmLightboxBackdrop"></div>
+  <div class="fm-lightbox-dialog">
+    <div class="fm-lightbox-header">
+      <div class="fm-lightbox-counter" id="fmLightboxCounter">Image 1</div>
+      <div class="fm-lightbox-actions">
+        <button type="button" class="fm-lightbox-action-btn" id="fmLightboxZoomToggle" title="Toggle zoom (1.6x)" aria-label="Toggle zoom">
+          <i class="bi bi-zoom-in" id="fmLightboxZoomIcon"></i>
+        </button>
+        <button type="button" class="fm-lightbox-action-btn fm-lightbox-close" id="fmLightboxCloseBtn" title="Close preview (Esc)" aria-label="Close preview">
+          <i class="bi bi-x-lg"></i>
+        </button>
+      </div>
+    </div>
+    <div class="fm-lightbox-body" id="fmLightboxBody">
+      <button type="button" class="fm-lightbox-nav fm-lightbox-prev" id="fmLightboxPrevBtn" aria-label="Previous image" title="Previous image">
+        <i class="bi bi-chevron-left"></i>
+      </button>
+      <div class="fm-lightbox-img-wrapper" id="fmLightboxImgWrapper" title="Click to toggle zoom">
+        <img src="" alt="" id="fmLightboxImg" class="fm-lightbox-img">
+      </div>
+      <button type="button" class="fm-lightbox-nav fm-lightbox-next" id="fmLightboxNextBtn" aria-label="Next image" title="Next image">
+        <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+    <div class="fm-lightbox-caption" id="fmLightboxCaption">{{ product.name }}</div>
+  </div>
+</div>
+
+<!-- Product Detail Manual 3-Image Gallery Carousel Script -->
+<script>
+  (function() {
+    'use strict';
+
+    function initProductGallery() {
+      const gallery = document.getElementById('fmProductGallery');
+      if (!gallery) return;
+
+      const track = document.getElementById('fmGalleryTrack');
+      const prevBtn = document.getElementById('fmGalleryPrevBtn');
+      const nextBtn = document.getElementById('fmGalleryNextBtn');
+      const counterPill = document.getElementById('fmGalleryCounterPill');
+      const slides = track ? Array.from(track.querySelectorAll('.fm-gallery-slide')) : [];
+      const thumbStrip = document.getElementById('fmGalleryThumbStrip');
+      const thumbs = thumbStrip ? Array.from(thumbStrip.querySelectorAll('.fm-gallery-thumb')) : [];
+
+      // Lightbox elements
+      const lightbox = document.getElementById('fmGalleryLightbox');
+      const lightboxBackdrop = document.getElementById('fmLightboxBackdrop');
+      const lightboxCloseBtn = document.getElementById('fmLightboxCloseBtn');
+      const lightboxImg = document.getElementById('fmLightboxImg');
+      const lightboxImgWrapper = document.getElementById('fmLightboxImgWrapper');
+      const lightboxCounter = document.getElementById('fmLightboxCounter');
+      const lightboxCaption = document.getElementById('fmLightboxCaption');
+      const lightboxPrevBtn = document.getElementById('fmLightboxPrevBtn');
+      const lightboxNextBtn = document.getElementById('fmLightboxNextBtn');
+      const lightboxZoomToggle = document.getElementById('fmLightboxZoomToggle');
+      const lightboxZoomIcon = document.getElementById('fmLightboxZoomIcon');
+
+      const totalSlides = slides.length;
+      if (totalSlides === 0) return;
+
+      let currentIndex = 0;       // First visible slide in carousel track
+      let selectedIndex = 0;      // Currently active / selected slide
+      let lightboxIndex = 0;      // Image index currently shown in lightbox
+      let isZoomed = false;
+
+      // Determine how many slides are visible simultaneously based on viewport width
+      function getVisibleCount() {
+        const width = window.innerWidth;
+        if (width < 576) {
+          return 1;
+        } else if (width < 992) {
+          return Math.min(2, totalSlides);
+        } else {
+          return Math.min(3, totalSlides);
+        }
+      }
+
+      function getMaxIndex() {
+        return Math.max(0, totalSlides - getVisibleCount());
+      }
+
+      function updateNavButtons() {
+        const maxIdx = getMaxIndex();
+        if (maxIdx <= 0) {
+          if (prevBtn) { prevBtn.style.display = 'none'; prevBtn.disabled = true; }
+          if (nextBtn) { nextBtn.style.display = 'none'; nextBtn.disabled = true; }
+          return;
+        }
+
+        if (prevBtn) {
+          prevBtn.style.display = 'flex';
+          prevBtn.disabled = (currentIndex <= 0);
+        }
+        if (nextBtn) {
+          nextBtn.style.display = 'flex';
+          nextBtn.disabled = (currentIndex >= maxIdx);
+        }
+      }
+
+      function goTo(index) {
+        const maxIdx = getMaxIndex();
+        currentIndex = Math.max(0, Math.min(index, maxIdx));
+
+        if (track && slides.length > 0) {
+          const firstSlide = slides[0];
+          const slideWidth = firstSlide.getBoundingClientRect().width;
+          const gap = 12; // Matches CSS gap
+          const shiftPx = currentIndex * (slideWidth + gap);
+          track.style.transform = 'translateX(-' + shiftPx + 'px)';
+        }
+
+        updateNavButtons();
+      }
+
+      function selectSlide(index, openModal) {
+        if (index < 0 || index >= totalSlides) return;
+        selectedIndex = index;
+
+        // Update active class on slides
+        slides.forEach((slide, idx) => {
+          if (idx === selectedIndex) {
+            slide.classList.add('is-selected', 'is-active');
+            slide.setAttribute('aria-selected', 'true');
+          } else {
+            slide.classList.remove('is-selected', 'is-active');
+            slide.setAttribute('aria-selected', 'false');
+          }
+        });
+
+        // Update active class on thumbnails
+        thumbs.forEach((thumb, idx) => {
+          if (idx === selectedIndex) {
+            thumb.classList.add('is-selected', 'is-active');
+            thumb.setAttribute('aria-current', 'true');
+          } else {
+            thumb.classList.remove('is-selected', 'is-active');
+            thumb.removeAttribute('aria-current');
+          }
+        });
+
+        // Update Counter Pill
+        if (counterPill) {
+          counterPill.textContent = (selectedIndex + 1) + ' / ' + totalSlides;
+        }
+
+        // Keep #fmMainProductImg src updated to match active selection
+        const mainImg = document.getElementById('fmMainProductImg');
+        const activeSrc = slides[selectedIndex].getAttribute('data-full-src');
+        const activeAlt = slides[selectedIndex].getAttribute('data-alt');
+        if (mainImg && activeSrc) {
+          mainImg.src = activeSrc;
+          if (activeAlt) mainImg.alt = activeAlt;
+        }
+
+        // Ensure selected slide is visible within current carousel viewport
+        const visibleCount = getVisibleCount();
+        if (selectedIndex < currentIndex) {
+          goTo(selectedIndex);
+        } else if (selectedIndex >= currentIndex + visibleCount) {
+          goTo(selectedIndex - visibleCount + 1);
+        }
+
+        if (openModal) {
+          openLightbox(selectedIndex);
+        }
+      }
+
+      // Lightbox Functions
+      function openLightbox(index) {
+        if (!lightbox || index < 0 || index >= totalSlides) return;
+        lightboxIndex = index;
+        const slide = slides[lightboxIndex];
+        const src = slide.getAttribute('data-full-src');
+        const alt = slide.getAttribute('data-alt') || 'Product image';
+
+        if (lightboxImg) {
+          lightboxImg.src = src;
+          lightboxImg.alt = alt;
+        }
+        if (lightboxCounter) {
+          lightboxCounter.textContent = 'Image ' + (lightboxIndex + 1) + ' of ' + totalSlides;
+        }
+        if (lightboxCaption) {
+          lightboxCaption.textContent = alt;
+        }
+
+        // Update modal navigation arrows
+        if (lightboxPrevBtn) {
+          lightboxPrevBtn.disabled = (lightboxIndex <= 0);
+          lightboxPrevBtn.style.display = totalSlides > 1 ? 'flex' : 'none';
+        }
+        if (lightboxNextBtn) {
+          lightboxNextBtn.disabled = (lightboxIndex >= totalSlides - 1);
+          lightboxNextBtn.style.display = totalSlides > 1 ? 'flex' : 'none';
+        }
+
+        resetZoom();
+
+        lightbox.style.display = 'flex';
+        requestAnimationFrame(() => {
+          lightbox.classList.add('is-open');
+        });
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeLightbox() {
+        if (!lightbox) return;
+        lightbox.classList.remove('is-open');
+        setTimeout(() => {
+          lightbox.style.display = 'none';
+          document.body.style.overflow = '';
+          resetZoom();
+        }, 220);
+      }
+
+      function resetZoom() {
+        isZoomed = false;
+        if (lightboxImgWrapper) {
+          lightboxImgWrapper.classList.remove('is-zoomed');
+        }
+        if (lightboxZoomIcon) {
+          lightboxZoomIcon.className = 'bi bi-zoom-in';
+        }
+      }
+
+      function toggleZoom() {
+        isZoomed = !isZoomed;
+        if (lightboxImgWrapper) {
+          lightboxImgWrapper.classList.toggle('is-zoomed', isZoomed);
+        }
+        if (lightboxZoomIcon) {
+          lightboxZoomIcon.className = isZoomed ? 'bi bi-zoom-out' : 'bi bi-zoom-in';
+        }
+      }
+
+      // Previous and Next on Carousel
+      if (prevBtn) {
+        prevBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          goTo(currentIndex - 1);
+        });
+      }
+
+      if (nextBtn) {
+        nextBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          goTo(currentIndex + 1);
+        });
+      }
+
+      // Slide click & Zoom button click
+      slides.forEach((slide, idx) => {
+        const card = slide.querySelector('.fm-gallery-card');
+        const zoomBtn = slide.querySelector('.fm-gallery-zoom-btn');
+
+        if (card) {
+          card.addEventListener('click', (e) => {
+            selectSlide(idx, true);
+          });
+
+          // Keyboard Enter / Space support
+          card.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              selectSlide(idx, true);
+            }
+          });
+        }
+
+        if (zoomBtn) {
+          zoomBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectSlide(idx, true);
+          });
+        }
+      });
+
+      // Thumbnail click
+      thumbs.forEach((thumb, idx) => {
+        thumb.addEventListener('click', (e) => {
+          e.preventDefault();
+          selectSlide(idx, false);
+        });
+      });
+
+      // Lightbox listeners
+      if (lightboxCloseBtn) {
+        lightboxCloseBtn.addEventListener('click', closeLightbox);
+      }
+      if (lightboxBackdrop) {
+        lightboxBackdrop.addEventListener('click', closeLightbox);
+      }
+      if (lightboxZoomToggle) {
+        lightboxZoomToggle.addEventListener('click', toggleZoom);
+      }
+      if (lightboxImgWrapper) {
+        lightboxImgWrapper.addEventListener('click', (e) => {
+          if (e.target === lightboxImg || e.target === lightboxImgWrapper) {
+            toggleZoom();
+          }
+        });
+      }
+      if (lightboxPrevBtn) {
+        lightboxPrevBtn.addEventListener('click', () => {
+          if (lightboxIndex > 0) {
+            openLightbox(lightboxIndex - 1);
+            selectSlide(lightboxIndex, false);
+          }
+        });
+      }
+      if (lightboxNextBtn) {
+        lightboxNextBtn.addEventListener('click', () => {
+          if (lightboxIndex < totalSlides - 1) {
+            openLightbox(lightboxIndex + 1);
+            selectSlide(lightboxIndex, false);
+          }
+        });
+      }
+
+      // Keyboard navigation
+      document.addEventListener('keydown', (e) => {
+        if (lightbox && lightbox.classList.contains('is-open')) {
+          if (e.key === 'Escape') {
+            e.preventDefault();
+            closeLightbox();
+          } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            if (lightboxIndex > 0) {
+              openLightbox(lightboxIndex - 1);
+              selectSlide(lightboxIndex, false);
+            }
+          } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            if (lightboxIndex < totalSlides - 1) {
+              openLightbox(lightboxIndex + 1);
+              selectSlide(lightboxIndex, false);
+            }
+          }
+        }
+      });
+
+      // Touch Swipe Gestures on Mobile for Carousel Track
+      let touchStartX = 0;
+      let touchStartY = 0;
+
+      track.addEventListener('touchstart', (e) => {
+        if (e.changedTouches && e.changedTouches.length > 0) {
+          touchStartX = e.changedTouches[0].clientX;
+          touchStartY = e.changedTouches[0].clientY;
+        }
+      }, { passive: true });
+
+      track.addEventListener('touchend', (e) => {
+        if (e.changedTouches && e.changedTouches.length > 0) {
+          const diffX = e.changedTouches[0].clientX - touchStartX;
+          const diffY = e.changedTouches[0].clientY - touchStartY;
+          if (Math.abs(diffX) > 40 && Math.abs(diffX) > Math.abs(diffY)) {
+            if (diffX < 0) {
+              goTo(currentIndex + 1); // Swiped left -> next
+            } else {
+              goTo(currentIndex - 1); // Swiped right -> prev
+            }
+          }
+        }
+      }, { passive: true });
+
+      // Window resize listener with debounce
+      let resizeTimer = null;
+      window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          goTo(currentIndex);
+        }, 100);
+      });
+
+      // Initialize initial state
+      selectSlide(0, false);
+      goTo(0);
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initProductGallery);
+    } else {
+      initProductGallery();
     }
   })();
 </script>
