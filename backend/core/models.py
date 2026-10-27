@@ -11,6 +11,8 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.text import slugify
 
+from core.encryption import EncryptedBankAccountField
+
 
 class Category(models.Model):
     """
@@ -295,11 +297,11 @@ class Seller(models.Model):
         default="",
         help_text="Beneficiary account holder name as registered in bank records.",
     )
-    bank_account_number = models.CharField(
-        max_length=34,
+    bank_account_number = EncryptedBankAccountField(
+        max_length=255,
         blank=True,
         default="",
-        help_text="Bank account number (stored securely, displayed masked).",
+        help_text="Bank account number (stored encrypted at rest, displayed masked).",
     )
     bank_ifsc_code = models.CharField(
         max_length=11,
@@ -4367,6 +4369,14 @@ class PayoutBatch(models.Model):
         null=True,
         blank=True,
         help_text="Latest ledger entry timestamp covered.",
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="created_payout_batches",
+        help_text="Staff administrator who prepared and initiated this payout batch (Maker).",
     )
     processed_at = models.DateTimeField(
         null=True,

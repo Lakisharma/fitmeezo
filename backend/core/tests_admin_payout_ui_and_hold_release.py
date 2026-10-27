@@ -39,7 +39,7 @@ from unittest.mock import patch
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
@@ -74,6 +74,7 @@ from core.ledger_services import (
 User = get_user_model()
 
 
+@override_settings(SECURE_SSL_REDIRECT=False)
 class AdminPayoutUIAndHoldReleaseTestCase(TestCase):
     def setUp(self):
         ensure_admin_groups()

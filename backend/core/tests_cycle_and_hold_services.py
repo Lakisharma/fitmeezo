@@ -21,7 +21,7 @@ from decimal import Decimal
 import uuid
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core.models import (
@@ -59,6 +59,7 @@ from core.ledger_services import (
 User = get_user_model()
 
 
+@override_settings(SECURE_SSL_REDIRECT=False)
 class CycleBoundsTestCase(TestCase):
     """
     Validates 15-day cycle calculation, boundary handling, leap years, and legacy compatibility.
@@ -191,6 +192,7 @@ class CycleBoundsTestCase(TestCase):
         self.assertEqual(payout_date.day, 1)
 
 
+@override_settings(SECURE_SSL_REDIRECT=False)
 class DeliveryHoldAndEligibilityTestCase(TestCase):
     """
     Validates the 5-full-day (120-hour) cooling hold and manual hold release override.

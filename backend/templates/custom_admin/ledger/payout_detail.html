@@ -93,6 +93,12 @@
             <span class="text-muted d-block">Covered Entries</span>
             <span class="fw-bold text-dark">{{ batch.eligible_entries_count }} ledger rows</span>
           </div>
+          {% if batch.created_by %}
+          <div class="col-6 col-md-3">
+            <span class="text-muted d-block">Batch Prepared By</span>
+            <span class="fw-semibold text-primary"><i class="bi bi-person-badge me-1"></i>{{ batch.created_by.username }}</span>
+          </div>
+          {% endif %}
         </div>
 
         {% if batch.notes %}
@@ -239,13 +245,23 @@
 
         <!-- Approval Action -->
         {% if batch.status in 'draft,processing' and not batch.approved_at and batch.status != 'on_hold' %}
-          <form method="post" action="{% url 'custom_admin:payout_approve' batch.batch_reference %}" class="mb-2">
-            {% csrf_token %}
-            <input type="hidden" name="next" value="{{ request.get_full_path }}">
-            <button type="submit" class="btn btn-primary w-100 fw-semibold" onclick="return confirm('Approve batch {{ batch.batch_reference }} for settlement?');">
-              <i class="bi bi-check-circle me-1"></i>Approve for Settlement
+          {% if batch.created_by_id and batch.created_by_id == request.user.id %}
+            <div class="alert alert-warning py-2 px-3 small mb-2 border-0 bg-warning bg-opacity-10 text-warning-emphasis">
+              <i class="bi bi-shield-lock me-1"></i>
+              <strong>Maker-Checker Restriction:</strong> You created this batch. Another Finance Manager or Super Admin must approve it.
+            </div>
+            <button type="button" class="btn btn-secondary w-100 fw-semibold mb-2" disabled title="Creator cannot approve own batch">
+              <i class="bi bi-shield-lock me-1"></i>Approval Restricted (Maker)
             </button>
-          </form>
+          {% else %}
+            <form method="post" action="{% url 'custom_admin:payout_approve' batch.batch_reference %}" class="mb-2">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="btn btn-primary w-100 fw-semibold" onclick="return confirm('Approve batch {{ batch.batch_reference }} for settlement?');">
+                <i class="bi bi-check-circle me-1"></i>Approve for Settlement
+              </button>
+            </form>
+          {% endif %}
         {% endif %}
 
         <!-- Reject Action -->
@@ -323,9 +339,19 @@
                 </label>
               </div>
 
-              <button type="submit" class="btn btn-primary w-100 fw-semibold" onclick="return confirm('Confirm recording external bank transfer for batch {{ batch.batch_reference }} (₹{{ batch.amount }})?');">
-                <i class="bi bi-check2-all me-1"></i>Record Completed Bank Transfer
-              </button>
+              {% if batch.created_by_id and batch.created_by_id == request.user.id %}
+                <div class="alert alert-warning py-2 px-3 small mb-3 border-0 bg-warning bg-opacity-10 text-warning-emphasis">
+                  <i class="bi bi-shield-lock me-1"></i>
+                  <strong>Maker-Checker Restriction:</strong> You created this batch. A different Finance Manager or Super Admin must record the manual transfer.
+                </div>
+                <button type="button" class="btn btn-secondary w-100 fw-semibold" disabled>
+                  <i class="bi bi-shield-lock me-1"></i>Manual Recording Restricted (Maker)
+                </button>
+              {% else %}
+                <button type="submit" class="btn btn-primary w-100 fw-semibold" onclick="return confirm('Confirm recording external bank transfer for batch {{ batch.batch_reference }} (₹{{ batch.amount }})?');">
+                  <i class="bi bi-check2-all me-1"></i>Record Completed Bank Transfer
+                </button>
+              {% endif %}
             </form>
           {% endif %}
         </div>
@@ -366,9 +392,19 @@
               {{ process_form.failure_reason }}
             </div>
 
-            <button type="submit" class="btn btn-success w-100 fw-semibold" onclick="return confirm('Confirm execution of mock payout batch {{ batch.batch_reference }} for ₹{{ batch.amount }}?');">
-              <i class="bi bi-check2-circle me-1"></i>Execute Mock Settlement
-            </button>
+            {% if batch.created_by_id and batch.created_by_id == request.user.id %}
+              <div class="alert alert-warning py-2 px-3 small mb-3 border-0 bg-warning bg-opacity-10 text-warning-emphasis">
+                <i class="bi bi-shield-lock me-1"></i>
+                <strong>Maker-Checker Restriction:</strong> You created this batch. A different Finance Manager or Super Admin must execute disbursement.
+              </div>
+              <button type="button" class="btn btn-secondary w-100 fw-semibold" disabled>
+                <i class="bi bi-shield-lock me-1"></i>Disbursement Restricted (Maker)
+              </button>
+            {% else %}
+              <button type="submit" class="btn btn-success w-100 fw-semibold" onclick="return confirm('Confirm execution of mock payout batch {{ batch.batch_reference }} for ₹{{ batch.amount }}?');">
+                <i class="bi bi-check2-circle me-1"></i>Execute Mock Settlement
+              </button>
+            {% endif %}
           </form>
         </div>
       </div>

@@ -77,6 +77,13 @@ class SellerLedgerAndPayoutTestCase(TestCase):
             is_staff=True,
             is_superuser=True,
         )
+        self.checker_user = User.objects.create_user(
+            username="checker_ledger",
+            email="checker_ledger@fitmeezo.com",
+            password="SecurePassword123!",
+            is_staff=True,
+            is_superuser=True,
+        )
 
         # Sellers
         self.seller_user1 = User.objects.create_user(
@@ -491,7 +498,7 @@ class SellerLedgerAndPayoutTestCase(TestCase):
         # 1. Simulate failure
         success, msg, failed_batch = process_mock_payout_batch(
             payout_batch=batch,
-            actor=self.staff_user,
+            actor=self.checker_user,
             simulate_failure=True,
             failure_reason="Invalid merchant bank IFSC code",
         )
@@ -506,7 +513,7 @@ class SellerLedgerAndPayoutTestCase(TestCase):
         batch2 = create_payout_batch(seller=self.seller1, actor=self.staff_user)
         success2, msg2, completed_batch = process_mock_payout_batch(
             payout_batch=batch2,
-            actor=self.staff_user,
+            actor=self.checker_user,
             simulate_failure=False,
         )
         self.assertTrue(success2)
@@ -537,12 +544,12 @@ class SellerLedgerAndPayoutTestCase(TestCase):
         so1.save()
 
         batch = create_payout_batch(seller=self.seller1, actor=self.staff_user)
-        process_mock_payout_batch(payout_batch=batch, actor=self.staff_user)
+        process_mock_payout_batch(payout_batch=batch, actor=self.checker_user)
 
         # Reversal
         success, msg, rev_batch = reverse_payout_batch(
             payout_batch=batch,
-            actor=self.staff_user,
+            actor=self.checker_user,
             reason="Bank transfer bounced due to dormant merchant account",
         )
         self.assertTrue(success)

@@ -7,6 +7,7 @@ Phase 1: Project Foundation.
 """
 
 import os
+import sys
 import urllib.parse
 from pathlib import Path
 from decimal import Decimal
@@ -571,6 +572,17 @@ FITMEEZO_DISCOUNT_BEARER = os.getenv("FITMEEZO_DISCOUNT_BEARER", "platform")  # 
 # Tax withholding rates (Section 194-O TDS & GST TCS); set to 0.00 until accountant confirmation
 FITMEEZO_TDS_RATE_PERCENT = Decimal(os.getenv("FITMEEZO_TDS_RATE_PERCENT", "0.00"))
 FITMEEZO_TCS_GST_RATE_PERCENT = Decimal(os.getenv("FITMEEZO_TCS_GST_RATE_PERCENT", "0.00"))
+
+# Seller Bank Account Authenticated Encryption at Rest (Fernet AES-128-CBC + HMAC-SHA256)
+FITMEEZO_BANK_ENCRYPTION_KEY = os.getenv("FITMEEZO_BANK_ENCRYPTION_KEY", "").strip()
+FITMEEZO_BANK_ENCRYPTION_KEY_ROTATION = [
+    k.strip() for k in os.getenv("FITMEEZO_BANK_ENCRYPTION_KEY_ROTATION", "").split(",") if k.strip()
+]
+
+# Ephemeral deterministic test runner key exclusively used during local automated unit test runner execution
+_is_running_tests = "test" in sys.argv or any("test" in arg for arg in sys.argv)
+if not FITMEEZO_BANK_ENCRYPTION_KEY and _is_running_tests:
+    FITMEEZO_BANK_ENCRYPTION_KEY = "Rml0bWVlem9UZXN0RW5jcnlwdGlvbktleTMyQnl0ZXM="
 
 # ==============================================================================
 # INVOICE PDF, PACKING SLIP & TAX RECORDS CONFIGURATION (PHASE 8)

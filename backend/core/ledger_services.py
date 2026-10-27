@@ -55,6 +55,11 @@ class PayoutEligibilityError(LedgerServiceError):
     pass
 
 
+class PayoutAuthorizationError(LedgerServiceError):
+    """Exception raised when dual-authorization (Maker-Checker) or RBAC permissions fail."""
+    pass
+
+
 class ReconciliationError(LedgerServiceError):
     """Exception raised on invalid COD reconciliation attempt."""
     pass
@@ -1130,6 +1135,7 @@ def create_payout_batch(
             payout_method="mock_bank_transfer",
             external_reference="",
             payout_cycle=payout_cycle or "",
+            created_by=actor if hasattr(actor, "id") else None,
             bank_account_masked=seller.get_masked_account_number() if seller else "PLATFORM-CENTRAL",
             bank_ifsc_code=seller.bank_ifsc_code if seller else "N/A",
             bank_beneficiary_name=(seller.bank_account_holder_name or seller.store_name) if seller else "Fitmeezo Central",
@@ -1200,6 +1206,13 @@ def approve_payout_batch(
         if locked_batch.status == PayoutBatch.STATUS_FAILED:
             raise LedgerServiceError(
                 f"Cannot approve rejected/failed payout batch #{locked_batch.batch_reference}."
+            )
+
+        # Maker-Checker restriction: Creator cannot approve own batch
+        if locked_batch.created_by_id and actor and hasattr(actor, "id") and locked_batch.created_by_id == actor.id:
+            raise PayoutAuthorizationError(
+                f"Dual authorization (Maker-Checker) restriction: Payout batch #{locked_batch.batch_reference} "
+                f"was prepared by you ({actor.username}). A different authorized administrator must audit and approve it."
             )
 
         # Revalidate seller bank eligibility
@@ -1436,14 +1449,16 @@ def release_hold_balance_entries(
             entry.hold_released_by = actor
             entry.hold_release_reason = clean_reason
 
-            meta = entry.audit_metadata if isinstance(entry.audit_metadata, dict) else {}
+            meta = dict(entry.audit_metadata) if isinstance(entry.audit_metadata, dict) else {}
             release_event = {
                 "released_by_username": getattr(actor, "username", "admin"),
                 "released_at": now_ts.isoformat(),
                 "reason": clean_reason,
             }
-            history = meta.get("hold_release_history")
-            if not isinstance(history, list):
+            raw_history = meta.get("hold_release_history")
+            if isinstance(raw_history, list):
+                history = list(raw_history)
+            else:
                 history = []
                 if "hold_release" in meta and isinstance(meta["hold_release"], dict):
                     history.append(meta["hold_release"])
@@ -1550,6 +1565,13 @@ def process_mock_payout_batch(
         )
         if not locked_batch:
             raise LedgerServiceError("Payout batch does not exist.")
+
+        # Maker-Checker restriction: Creator cannot disburse own batch
+        if locked_batch.created_by_id and actor and hasattr(actor, "id") and locked_batch.created_by_id == actor.id:
+            raise PayoutAuthorizationError(
+                f"Dual authorization (Maker-Checker) restriction: Batch #{locked_batch.batch_reference} "
+                f"creator ({actor.username}) cannot execute disbursement. A different authorized administrator must disburse it."
+            )
 
         # Held payment must not be sent
         if locked_batch.status == PayoutBatch.STATUS_ON_HOLD:
@@ -1783,6 +1805,13 @@ def record_manual_bank_transfer(
         if not locked_batch:
             raise LedgerServiceError("Payout batch does not exist.")
 
+        # Maker-Checker restriction: Creator cannot record manual transfer for own batch
+        if locked_batch.created_by_id and actor and hasattr(actor, "id") and locked_batch.created_by_id == actor.id:
+            raise PayoutAuthorizationError(
+                f"Dual authorization (Maker-Checker) restriction: Batch #{locked_batch.batch_reference} "
+                f"creator ({actor.username}) cannot record manual transfer. A different authorized administrator must record the offline settlement."
+            )
+
         # Batch Status Safeguards
         if locked_batch.status == PayoutBatch.STATUS_ON_HOLD:
             raise LedgerServiceError(
@@ -1977,6 +2006,16 @@ def reverse_payout_batch(
     clean_reason = (reason or "").strip()
     if not clean_reason:
         raise LedgerServiceError("Mandatory reason is required to reverse a payout batch.")
+
+    if actor is not None and hasattr(actor, "is_authenticated"):
+        if not actor.is_authenticated or not actor.is_active:
+            raise PayoutAuthorizationError("Authentication required to reverse payout batches.")
+        if not (getattr(actor, "is_superuser", False) or getattr(actor, "is_staff", False)):
+            raise PayoutAuthorizationError("Staff privileges required to reverse payout batches.")
+        from core.admin_permissions import ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, get_user_role
+        user_role = get_user_role(actor)
+        if not (actor.is_superuser or user_role in (ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER)):
+            raise PayoutAuthorizationError("Permission denied: Super Admin or Finance Manager role required to reverse payout batches.")
 
     with transaction.atomic():
         locked_batch = (

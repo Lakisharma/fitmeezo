@@ -70,11 +70,20 @@ class SellerPayoutManagementTestCase(TestCase):
     def setUp(self):
         self.client = Client()
 
-        # Staff Admin
+        # Staff Admin (Maker)
         self.admin_user = User.objects.create_user(
             username="payout_admin",
             email="admin@fitmeezo.com",
             password="AdminPassword123!",
+            is_staff=True,
+            is_superuser=True,
+        )
+
+        # Staff Admin (Checker / Auditor)
+        self.checker_user = User.objects.create_user(
+            username="payout_checker",
+            email="checker@fitmeezo.com",
+            password="CheckerPassword123!",
             is_staff=True,
             is_superuser=True,
         )
@@ -186,9 +195,18 @@ class SellerPayoutManagementTestCase(TestCase):
         subtotal=Decimal("1000.00"),
         payment_method=Order.PAYMENT_METHOD_RAZORPAY,
         created_at_override=None,
+        delivered_at_override=None,
     ):
         """Helper to create a delivered order and post its entries to ledger."""
         now = timezone.now()
+        if delivered_at_override:
+            delivered_time = delivered_at_override
+        elif created_at_override:
+            # Anchor delivery 2 days after order placement if created_at is overridden
+            delivered_time = created_at_override + timedelta(days=2)
+        else:
+            delivered_time = now - timedelta(days=delivered_days_ago)
+
         order = Order.objects.create(
             order_number=f"FM-TEST-{uuid.uuid4().hex[:6].upper()}",
             user=self.customer_user,
@@ -211,7 +229,6 @@ class SellerPayoutManagementTestCase(TestCase):
 
         comm_amount = (subtotal * (seller.commission_rate / Decimal("100.00"))).quantize(Decimal("0.01"))
         net_payable = subtotal - comm_amount
-        delivered_time = now - timedelta(days=delivered_days_ago)
         seller_order = SellerOrder.objects.create(
             order=order,
             seller=seller,
@@ -226,8 +243,11 @@ class SellerPayoutManagementTestCase(TestCase):
             shipping_allocated_to_seller=Decimal("0.00"),
             delivered_at=delivered_time,
         )
-        if created_at_override:
-            SellerOrder.objects.filter(id=seller_order.id).update(created_at=created_at_override)
+        if created_at_override or delivered_at_override:
+            update_dict = {"delivered_at": delivered_time}
+            if created_at_override:
+                update_dict["created_at"] = created_at_override
+            SellerOrder.objects.filter(id=seller_order.id).update(**update_dict)
             seller_order.refresh_from_db()
 
         OrderItem.objects.create(
@@ -246,7 +266,10 @@ class SellerPayoutManagementTestCase(TestCase):
 
         entries = post_order_sale_to_ledger(seller_order=seller_order)
         if created_at_override:
-            SellerLedgerEntry.objects.filter(seller_order=seller_order).update(created_at=created_at_override)
+            SellerLedgerEntry.objects.filter(seller_order=seller_order).update(
+                created_at=created_at_override,
+                posted_at=created_at_override,
+            )
 
         return order, seller_order, entries
 
@@ -439,12 +462,12 @@ class SellerPayoutManagementTestCase(TestCase):
             process_mock_payout_batch(payout_batch=held_batch1, actor=self.admin_user)
 
         # Batch 2 is unaffected and can be approved and disbursed
-        _, _, approved_batch2 = approve_payout_batch(payout_batch=batch2, actor=self.admin_user)
+        _, _, approved_batch2 = approve_payout_batch(payout_batch=batch2, actor=self.checker_user)
         self.assertIsNotNone(approved_batch2.approved_at)
 
         success, msg, completed_batch2 = process_mock_payout_batch(
             payout_batch=approved_batch2,
-            actor=self.admin_user,
+            actor=self.checker_user,
         )
         self.assertTrue(success)
         self.assertEqual(completed_batch2.status, PayoutBatch.STATUS_COMPLETED)
@@ -548,21 +571,21 @@ class SellerPayoutManagementTestCase(TestCase):
         batch = create_payout_batch(seller=self.seller1, actor=self.admin_user)
 
         # First approval
-        _, _, approved = approve_payout_batch(payout_batch=batch, actor=self.admin_user)
+        _, _, approved = approve_payout_batch(payout_batch=batch, actor=self.checker_user)
         self.assertIsNotNone(approved.approved_at)
 
         # Second approval is idempotent and safe
-        ok2, msg2, approved2 = approve_payout_batch(payout_batch=approved, actor=self.admin_user)
+        ok2, msg2, approved2 = approve_payout_batch(payout_batch=approved, actor=self.checker_user)
         self.assertTrue(ok2)
         self.assertIn("already approved", msg2.lower())
 
         # Settle batch
-        success, msg, completed = process_mock_payout_batch(payout_batch=approved, actor=self.admin_user)
+        success, msg, completed = process_mock_payout_batch(payout_batch=approved, actor=self.checker_user)
         self.assertTrue(success)
         self.assertEqual(completed.status, PayoutBatch.STATUS_COMPLETED)
 
         # Duplicate settlement execution attempt on already completed batch
-        success_dup, msg_dup, _ = process_mock_payout_batch(payout_batch=completed, actor=self.admin_user)
+        success_dup, msg_dup, _ = process_mock_payout_batch(payout_batch=completed, actor=self.checker_user)
         self.assertTrue(success_dup)
         self.assertIn("already completed", msg_dup.lower())
 
@@ -593,8 +616,8 @@ class SellerPayoutManagementTestCase(TestCase):
 
         # Create, approve, and disburse
         batch = create_payout_batch(seller=self.seller1, actor=self.admin_user)
-        _, _, approved = approve_payout_batch(payout_batch=batch, actor=self.admin_user)
-        success, _, completed = process_mock_payout_batch(payout_batch=approved, actor=self.admin_user)
+        _, _, approved = approve_payout_batch(payout_batch=batch, actor=self.checker_user)
+        success, _, completed = process_mock_payout_batch(payout_batch=approved, actor=self.checker_user)
         self.assertTrue(success)
 
         # Ledger after payout has a PAYOUT debit entry
@@ -644,7 +667,7 @@ class SellerPayoutManagementTestCase(TestCase):
         # Mock adapter labels all transactions as simulated
         self._create_delivered_order(self.seller1, delivered_days_ago=10)
         batch = create_payout_batch(seller=self.seller1, actor=self.admin_user)
-        approve_payout_batch(payout_batch=batch, actor=self.admin_user)
+        approve_payout_batch(payout_batch=batch, actor=self.checker_user)
 
         mock_adapter = MockPayoutProviderAdapter()
         success, message, data = mock_adapter.initiate_payout(batch=batch, actor=self.admin_user)

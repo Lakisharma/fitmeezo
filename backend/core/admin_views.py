@@ -88,6 +88,7 @@ from .ledger_services import (
     finalize_seller_account_closure,
     LedgerServiceError,
     PayoutEligibilityError,
+    PayoutAuthorizationError,
 )
 from .payout_adapters import get_payout_system_status
 from .forms import AdminBankVerificationForm
@@ -1196,6 +1197,14 @@ def admin_payout_batch_record_manual_transfer_view(request, batch_reference):
     batch = get_object_or_404(PayoutBatch, batch_reference=batch_reference)
     next_url = request.POST.get("next") or reverse("custom_admin:payout_detail", kwargs={"batch_reference": batch.batch_reference})
 
+    if batch.created_by_id and batch.created_by_id == request.user.id:
+        messages.error(
+            request,
+            f"Maker-Checker Authorization Violation: You created batch #{batch.batch_reference}. "
+            "Batch creators cannot record manual bank transfers for their own batches."
+        )
+        return redirect(next_url)
+
     form = AdminPayoutRecordManualTransferForm(request.POST)
     if form.is_valid():
         utr = form.cleaned_data["manual_utr_reference"]
@@ -1236,6 +1245,14 @@ def admin_payout_batch_process_view(request, batch_reference):
     Executes mock disbursement settlement on a DRAFT or PROCESSING payout batch.
     """
     batch = get_object_or_404(PayoutBatch, batch_reference=batch_reference)
+    if batch.created_by_id and batch.created_by_id == request.user.id:
+        messages.error(
+            request,
+            f"Maker-Checker Authorization Violation: You created batch #{batch.batch_reference}. "
+            "Batch creators cannot disburse or settle their own batches. Disbursal requires a different authorized Finance Manager or Super Admin."
+        )
+        return redirect("custom_admin:payout_detail", batch_reference=batch.batch_reference)
+
     if batch.batch_type == PayoutBatch.BATCH_TYPE_FINAL_SETTLEMENT:
         messages.error(
             request,
@@ -1807,6 +1824,14 @@ def admin_payout_batch_approve_view(request, batch_reference):
     """
     batch = get_object_or_404(PayoutBatch, batch_reference=batch_reference)
     next_url = request.POST.get("next") or reverse("custom_admin:seller_payout_management")
+
+    if batch.created_by_id and batch.created_by_id == request.user.id:
+        messages.error(
+            request,
+            f"Maker-Checker Authorization Violation: You created batch #{batch.batch_reference}. "
+            "Batch creators cannot approve their own batches. Approval requires a different authorized Finance Manager or Super Admin."
+        )
+        return redirect(next_url)
 
     try:
         success, msg, updated_batch = approve_payout_batch(payout_batch=batch, actor=request.user)

@@ -9,7 +9,7 @@ import uuid
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from core.models import (
@@ -25,6 +25,7 @@ from core.models import (
 User = get_user_model()
 
 
+@override_settings(SECURE_SSL_REDIRECT=False)
 class PayoutModelSchemaTestCase(TestCase):
     """
     Validates:
