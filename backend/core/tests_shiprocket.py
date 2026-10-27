@@ -319,6 +319,7 @@ class ShiprocketSecurityAndClientTests(TestCase):
         self.assertFalse(client.validate_pin_code("56000A"))
 
 
+@override_settings(SHIPROCKET_MOCK_MODE=True, SECURE_SSL_REDIRECT=False)
 class ShiprocketRateEstimationServiceTests(TestCase):
     """Tests for package rate estimation, pickup location verification, dimensions, and financial immutability."""
 
@@ -607,7 +608,7 @@ class ShiprocketRateEstimationServiceTests(TestCase):
             self.assertEqual(res.origin_postal_code, "560068")
 
 
-@override_settings(SHIPROCKET_MOCK_MODE=True)
+@override_settings(SHIPROCKET_MOCK_MODE=True, SECURE_SSL_REDIRECT=False)
 class ShiprocketMockBookingTests(TestCase):
     """
     Test suite for Phase 5 — Prompt 5B: Idempotent Shiprocket Booking Engine & Mock Test Suite.
@@ -1240,7 +1241,7 @@ class ShiprocketMockBookingTests(TestCase):
         self.assertNotIn("net_seller_payable", content)
 
 
-@override_settings(SHIPROCKET_MOCK_MODE=True)
+@override_settings(SHIPROCKET_MOCK_MODE=True, SECURE_SSL_REDIRECT=False)
 class ShiprocketMultiSellerAutomationIntegrationTests(TestCase):
     """
     Comprehensive test suite covering production multi-seller Shiprocket shipping automation:
