@@ -81,6 +81,7 @@ coverage.xml
 Thumbs.db
 ehthumbs.db
 desktop.ini
+scratch/
 
 # Flutter & Mobile (placeholder & future builds)
 mobile_app/.dart_tool/

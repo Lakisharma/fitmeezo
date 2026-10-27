@@ -329,8 +329,22 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
 
-MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = os.getenv("MEDIA_URL", "/media/")
+
+# Production media root configuration:
+# Nginx serves /media/ directly from /var/www/fitmeezo/media/ via alias.
+# 1. Respect explicit MEDIA_ROOT environment variable if set in .env.
+# 2. In production (or whenever /var/www/fitmeezo/media exists on disk), use /var/www/fitmeezo/media.
+# 3. Fallback to BASE_DIR / "media" for local development.
+_env_media_root = os.getenv("MEDIA_ROOT", "").strip()
+if _env_media_root:
+    MEDIA_ROOT = Path(_env_media_root)
+elif Path("/var/www/fitmeezo/media").is_dir():
+    MEDIA_ROOT = Path("/var/www/fitmeezo/media")
+elif not DEBUG and Path("/var/www/fitmeezo/media").parent.is_dir():
+    MEDIA_ROOT = Path("/var/www/fitmeezo/media")
+else:
+    MEDIA_ROOT = BASE_DIR / "media"
 
 # ==============================================================================
 # STORAGE ENGINES (CLOUDINARY PERSISTENT MEDIA & WHITENOISE COMPRESSED STATIC)
@@ -376,7 +390,7 @@ else:
 STATICFILES_STORAGE = _staticfiles_backend
 
 # WhiteNoise also serves local media directory at /media/ in local development / fallback
-WHITENOISE_ROOT = BASE_DIR / "media"
+WHITENOISE_ROOT = MEDIA_ROOT if (MEDIA_ROOT and MEDIA_ROOT.is_dir()) else (BASE_DIR / "media")
 WHITENOISE_AUTOREFRESH = DEBUG  # Autorefresh in dev, cached manifest in production
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

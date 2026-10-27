@@ -1449,6 +1449,31 @@ class Product(models.Model):
         return False
 
     @property
+    def primary_image(self):
+        """Returns the primary image field, falling back to the first gallery image if main image is empty."""
+        if self.image:
+            return self.image
+        first_gallery = self.images.filter(image__isnull=False).exclude(image="").first()
+        if first_gallery and first_gallery.image:
+            return first_gallery.image
+        return None
+
+    @property
+    def primary_image_url(self) -> str | None:
+        """
+        Returns the valid URL of the primary product image,
+        falling back to the first gallery image if primary image is empty.
+        Returns None only when no valid image exists.
+        """
+        img = self.primary_image
+        if img:
+            try:
+                return img.url
+            except Exception:
+                return None
+        return getattr(self, "image_url", None) or None
+
+    @property
     def discount_percentage(self):
         """
         Calculates savings percentage based on compare_at_price and selling price.
