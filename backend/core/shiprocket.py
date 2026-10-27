@@ -1117,8 +1117,19 @@ class ShiprocketClient:
         pickup_date = None
         if pickup_sched_str:
             try:
-                from django.utils.dateparse import parse_datetime
-                pickup_date = parse_datetime(pickup_sched_str)
+                from datetime import datetime, time
+                from django.utils.dateparse import parse_date, parse_datetime
+                if isinstance(pickup_sched_str, str):
+                    pickup_date = parse_datetime(pickup_sched_str)
+                    if not pickup_date:
+                        d = parse_date(pickup_sched_str)
+                        if d:
+                            pickup_date = datetime.combine(d, time.min)
+                elif isinstance(pickup_sched_str, datetime):
+                    pickup_date = pickup_sched_str
+
+                if pickup_date and timezone.is_naive(pickup_date):
+                    pickup_date = timezone.make_aware(pickup_date, timezone.get_current_timezone())
             except Exception:
                 pass
 

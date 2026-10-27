@@ -185,8 +185,19 @@
                             <div>
                               <span class="text-muted">Airway Bill (AWB):</span>
                               <strong class="text-dark ms-1">{{ pkg.shiprocket_awb_code }}</strong>
-                              {% if pkg.shiprocket_courier_name %}
-                                <span class="badge bg-info ms-1">{{ pkg.shiprocket_courier_name }}</span>
+                              {% if pkg.courier_name or pkg.shiprocket_courier_name %}
+                                <span class="badge bg-info ms-1">{{ pkg.courier_name|default:pkg.shiprocket_courier_name }}</span>
+                              {% endif %}
+                            </div>
+                            <div>
+                              {% if pkg.shipment_booking.tracking_url or pkg.tracking_url %}
+                                <a href="{{ pkg.shipment_booking.tracking_url|default:pkg.tracking_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary py-0 px-2">
+                                  Track Live <i class="bi bi-box-arrow-up-right ms-1"></i>
+                                </a>
+                              {% elif pkg.shiprocket_awb_code %}
+                                <a href="https://shiprocket.co/tracking/{{ pkg.shiprocket_awb_code }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary py-0 px-2">
+                                  Track Live <i class="bi bi-box-arrow-up-right ms-1"></i>
+                                </a>
                               {% endif %}
                             </div>
                           </div>

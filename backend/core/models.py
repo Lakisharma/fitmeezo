@@ -307,6 +307,11 @@ class Seller(models.Model):
         (PICKUP_REG_STATUS_REGISTERED, "Registered with Shiprocket"),
         (PICKUP_REG_STATUS_FAILED, "Registration Failed"),
     ]
+    # Backwards-compatible status aliases
+    SHIPROCKET_STATUS_UNREGISTERED = PICKUP_REG_STATUS_UNREGISTERED
+    SHIPROCKET_STATUS_PENDING = PICKUP_REG_STATUS_PENDING
+    SHIPROCKET_STATUS_REGISTERED = PICKUP_REG_STATUS_REGISTERED
+    SHIPROCKET_STATUS_FAILED = PICKUP_REG_STATUS_FAILED
     shiprocket_pickup_registration_status = models.CharField(
         max_length=25,
         choices=PICKUP_REG_STATUS_CHOICES,

@@ -137,9 +137,9 @@
               {% else %}
                 <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Unverified</span>
               {% endif %}
-              {% if seller.shiprocket_pickup_registration_status == 'REGISTERED' %}
+              {% if seller.shiprocket_pickup_registration_status == 'registered' or seller.shiprocket_pickup_registration_status == 'REGISTERED' %}
                 <span class="badge bg-primary"><i class="bi bi-cloud-check me-1"></i>Shiprocket Registered</span>
-              {% elif seller.shiprocket_pickup_registration_status == 'FAILED' %}
+              {% elif seller.shiprocket_pickup_registration_status == 'failed' or seller.shiprocket_pickup_registration_status == 'FAILED' %}
                 <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Shiprocket Sync Error</span>
               {% else %}
                 <span class="badge bg-secondary">Shiprocket Pending</span>

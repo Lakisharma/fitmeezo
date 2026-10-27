@@ -5120,7 +5120,7 @@ def seller_pickup_address_view(request):
         form = SellerPickupAddressForm(request.POST, instance=seller)
         if form.is_valid():
             seller = form.save(commit=False)
-            seller.shiprocket_pickup_registration_status = Seller.SHIPROCKET_STATUS_PENDING
+            seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_PENDING
             seller.shiprocket_pickup_registration_error = ""
             seller.save()
             messages.success(
