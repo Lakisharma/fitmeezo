@@ -273,6 +273,57 @@ class Seller(models.Model):
         default="",
         help_text="Internal notes on pickup facility verification or courier accessibility.",
     )
+    pickup_contact_name = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        help_text="Warehouse contact person name for courier pickup handoff.",
+    )
+    pickup_contact_phone = models.CharField(
+        max_length=20,
+        blank=True,
+        default="",
+        help_text="Warehouse contact phone number for courier pickup coordination.",
+    )
+    pickup_landmark = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Landmark or gate instructions for courier driver.",
+    )
+    shiprocket_pickup_location_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Unique pickup location ID/name registered in Shiprocket.",
+    )
+    PICKUP_REG_STATUS_UNREGISTERED = "unregistered"
+    PICKUP_REG_STATUS_PENDING = "pending"
+    PICKUP_REG_STATUS_REGISTERED = "registered"
+    PICKUP_REG_STATUS_FAILED = "failed"
+    PICKUP_REG_STATUS_CHOICES = [
+        (PICKUP_REG_STATUS_UNREGISTERED, "Unregistered"),
+        (PICKUP_REG_STATUS_PENDING, "Pending Verification"),
+        (PICKUP_REG_STATUS_REGISTERED, "Registered with Shiprocket"),
+        (PICKUP_REG_STATUS_FAILED, "Registration Failed"),
+    ]
+    shiprocket_pickup_registration_status = models.CharField(
+        max_length=25,
+        choices=PICKUP_REG_STATUS_CHOICES,
+        default=PICKUP_REG_STATUS_UNREGISTERED,
+        db_index=True,
+        help_text="Status of pickup warehouse registration with Shiprocket.",
+    )
+    shiprocket_pickup_registration_error = models.TextField(
+        blank=True,
+        default="",
+        help_text="Error message from Shiprocket if location registration failed.",
+    )
+    shiprocket_pickup_registered_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when pickup location was confirmed in Shiprocket.",
+    )
 
     # Indian Tax Identifiers
     gstin = models.CharField(
@@ -734,10 +785,14 @@ class Seller(models.Model):
         else:
             status = "unverified"
 
+        contact_name = (self.pickup_contact_name or self.legal_business_name or self.store_name).strip()
+        contact_phone = (self.pickup_contact_phone or self.support_phone).strip()
+        shiprocket_loc = self.get_shiprocket_pickup_location_name()
+
         return {
             "source": "seller",
             "name": self.store_name,
-            "pickup_location_name": self.legal_business_name or self.store_name,
+            "pickup_location_name": shiprocket_loc,
             "is_complete": is_complete,
             "is_verified": is_verified,
             "status": status,
@@ -746,23 +801,45 @@ class Seller(models.Model):
             "city": self.pickup_city,
             "state": self.pickup_state,
             "postal_code": self.pickup_postal_code,
-            "phone": self.support_phone,
+            "phone": contact_phone,
+            "contact_name": contact_name,
+            "landmark": self.pickup_landmark,
+            "shiprocket_location_id": self.shiprocket_pickup_location_id or shiprocket_loc,
+            "shiprocket_registration_status": self.shiprocket_pickup_registration_status,
             "errors": errors,
             "validation_errors": errors,
             "details": {
                 "source": "seller",
                 "store_name": self.store_name,
-                "contact_name": self.legal_business_name or self.store_name,
-                "phone": self.support_phone,
+                "contact_name": contact_name,
+                "phone": contact_phone,
                 "email": self.support_email,
                 "address": self.pickup_address,
                 "city": self.pickup_city,
                 "state": self.pickup_state,
                 "postal_code": self.pickup_postal_code,
+                "landmark": self.pickup_landmark,
                 "nickname": self.pickup_location_nickname or "Primary Warehouse",
+                "shiprocket_location_id": self.shiprocket_pickup_location_id or shiprocket_loc,
+                "shiprocket_registration_status": self.shiprocket_pickup_registration_status,
                 "notes": self.pickup_verification_notes,
             },
         }
+
+    def get_shiprocket_pickup_location_name(self) -> str:
+        """
+        Returns sanitized pickup location nickname suitable for Shiprocket.
+        Shiprocket requires alphanumeric and underscores, max 36 chars.
+        Format: fitmeezo_seller_<id>_<store_slug>
+        """
+        seller_id = str(self.pk or "new")
+        raw_slug = slugify(self.store_name or "").replace("-", "_")
+        slug = re.sub(r"[^a-zA-Z0-9_]", "_", raw_slug)
+        if slug:
+            candidate = f"fitmeezo_seller_{seller_id}_{slug}"[:35]
+        else:
+            candidate = f"fitmeezo_seller_{seller_id}"
+        return candidate
 
 class SellerLoginOTP(models.Model):
     """
@@ -3661,9 +3738,15 @@ class ShipmentBooking(models.Model):
         db_index=True,
         help_text="True if this is a simulated/mock booking (no live carrier contacted).",
     )
+    STATUS_BOOKED = "booked"
+    STATUS_SHIPPED = "shipped"
+    STATUS_DELIVERED = "delivered"
+    STATUS_CANCELLED = "cancelled"
+    STATUS_FAILED = "failed"
+
     status = models.CharField(
         max_length=30,
-        default="booked",
+        default=STATUS_BOOKED,
         help_text="Simulated or provider booking status.",
     )
     shipment_id = models.CharField(
@@ -3703,6 +3786,79 @@ class ShipmentBooking(models.Model):
         default="",
         help_text="Origin warehouse / pickup facility nickname.",
     )
+    shiprocket_order_id = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Shiprocket internal order identifier.",
+    )
+    pickup_scheduled_date = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Scheduled pickup date and time from courier/Shiprocket.",
+    )
+    pickup_token_number = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Pickup token / reference number returned by courier or Shiprocket.",
+    )
+    PICKUP_NOT_REQUESTED = "not_requested"
+    PICKUP_REQUESTED = "requested"
+    PICKUP_SCHEDULED = "scheduled"
+    PICKUP_PICKED_UP = "picked_up"
+    PICKUP_FAILED = "failed"
+    PICKUP_CANCELLED = "cancelled"
+    PICKUP_STATUS_CHOICES = [
+        (PICKUP_NOT_REQUESTED, "Not Requested"),
+        (PICKUP_REQUESTED, "Requested"),
+        (PICKUP_SCHEDULED, "Scheduled"),
+        (PICKUP_PICKED_UP, "Picked Up"),
+        (PICKUP_FAILED, "Pickup Failed"),
+        (PICKUP_CANCELLED, "Cancelled"),
+    ]
+    pickup_status = models.CharField(
+        max_length=30,
+        choices=PICKUP_STATUS_CHOICES,
+        default=PICKUP_NOT_REQUESTED,
+        db_index=True,
+        help_text="Courier pickup dispatch status.",
+    )
+    tracking_status = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Current tracking status (e.g. In Transit, Out for Delivery, Delivered, RTO).",
+    )
+    tracking_url = models.URLField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Direct public courier/Shiprocket tracking link.",
+    )
+    label_url = models.URLField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Shipping label PDF URL.",
+    )
+    manifest_url = models.URLField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Pickup manifest document URL.",
+    )
+    last_tracking_sync = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when tracking was last refreshed from Shiprocket.",
+    )
+    status_history = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Chronological event log of status updates and scans.",
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         db_index=True,
@@ -3718,6 +3874,47 @@ class ShipmentBooking(models.Model):
         verbose_name = "Shipment Booking"
         verbose_name_plural = "Shipment Bookings"
         ordering = ["-created_at"]
+
+    def __str__(self):
+        mode = "Mock" if self.is_mock else "Live"
+        return f"{self.shipment_id} ({mode} - {self.courier_name} AWB:{self.awb_code})"
+
+    def record_tracking_event(
+        self,
+        status="UPDATE",
+        activity="",
+        location="",
+        event_time=None,
+        raw_data=None,
+        event_type=None,
+        description=None,
+        actor=None,
+        commit=True,
+        **kwargs,
+    ):
+        """Records an auditable tracking milestone or courier scan."""
+        from core.shiprocket import sanitize_log_data
+        if self.status_history is None or not isinstance(self.status_history, list):
+            self.status_history = []
+        ev_time = event_time or timezone.now()
+        ev_time_str = ev_time.isoformat() if hasattr(ev_time, "isoformat") else str(ev_time)
+        resolved_status = status if status != "UPDATE" else (event_type or "UPDATE")
+        resolved_activity = activity or description or resolved_status
+        event = {
+            "status": str(resolved_status),
+            "event_type": str(event_type or resolved_status),
+            "activity": str(resolved_activity),
+            "description": str(description or resolved_activity),
+            "location": str(location),
+            "actor": str(actor.username if actor and hasattr(actor, "username") else actor or "system"),
+            "timestamp": ev_time_str,
+            "raw": sanitize_log_data(raw_data) if raw_data else {},
+        }
+        self.status_history.append(event)
+        self.tracking_status = str(resolved_status)
+        self.last_tracking_sync = timezone.now()
+        if commit and self.pk:
+            self.save(update_fields=["status_history", "tracking_status", "last_tracking_sync"])
 
 
 # ==============================================================================

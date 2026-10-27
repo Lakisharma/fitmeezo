@@ -1378,10 +1378,14 @@ class SellerProfileUpdateForm(forms.ModelForm):
             "city",
             "state",
             "postal_code",
+            "pickup_contact_name",
+            "pickup_contact_phone",
             "pickup_address",
+            "pickup_landmark",
             "pickup_city",
             "pickup_state",
             "pickup_postal_code",
+            "pickup_location_nickname",
         ]
         widgets = {
             "store_name": forms.TextInput(attrs={"class": "form-control fm-input"}),
@@ -1392,10 +1396,14 @@ class SellerProfileUpdateForm(forms.ModelForm):
             "city": forms.TextInput(attrs={"class": "form-control fm-input"}),
             "state": forms.TextInput(attrs={"class": "form-control fm-input"}),
             "postal_code": forms.TextInput(attrs={"class": "form-control fm-input", "maxlength": "10"}),
-            "pickup_address": forms.Textarea(attrs={"class": "form-control fm-input", "rows": 2}),
+            "pickup_contact_name": forms.TextInput(attrs={"class": "form-control fm-input", "placeholder": "Warehouse Contact Person"}),
+            "pickup_contact_phone": forms.TextInput(attrs={"class": "form-control fm-input", "placeholder": "10-digit Phone Number"}),
+            "pickup_address": forms.Textarea(attrs={"class": "form-control fm-input", "rows": 2, "placeholder": "Warehouse Street Address"}),
+            "pickup_landmark": forms.TextInput(attrs={"class": "form-control fm-input", "placeholder": "Nearby Landmark"}),
             "pickup_city": forms.TextInput(attrs={"class": "form-control fm-input"}),
             "pickup_state": forms.TextInput(attrs={"class": "form-control fm-input"}),
             "pickup_postal_code": forms.TextInput(attrs={"class": "form-control fm-input", "maxlength": "10"}),
+            "pickup_location_nickname": forms.TextInput(attrs={"class": "form-control fm-input", "placeholder": "Warehouse Nickname (e.g. WH-Primary)"}),
         }
 
     def clean_store_name(self):
@@ -1408,6 +1416,76 @@ class SellerProfileUpdateForm(forms.ModelForm):
         if qs.exists():
             raise ValidationError("A seller with this store name is already registered.")
         return store_name
+
+
+class SellerPickupAddressForm(forms.ModelForm):
+    """
+    Dedicated form for sellers to manage and update their warehouse pickup facility.
+    Updating the pickup address safely resets the administrative verification
+    and Shiprocket registration status until re-verified.
+    """
+    class Meta:
+        model = Seller
+        fields = [
+            "pickup_contact_name",
+            "pickup_contact_phone",
+            "pickup_address",
+            "pickup_landmark",
+            "pickup_city",
+            "pickup_state",
+            "pickup_postal_code",
+            "pickup_location_nickname",
+        ]
+        widgets = {
+            "pickup_contact_name": forms.TextInput(
+                attrs={"class": "form-control fm-input", "placeholder": "Contact person name at warehouse", "required": True}
+            ),
+            "pickup_contact_phone": forms.TextInput(
+                attrs={"class": "form-control fm-input", "placeholder": "10-digit mobile number", "required": True}
+            ),
+            "pickup_address": forms.Textarea(
+                attrs={"class": "form-control fm-input", "rows": 2, "placeholder": "Full warehouse address", "required": True}
+            ),
+            "pickup_landmark": forms.TextInput(
+                attrs={"class": "form-control fm-input", "placeholder": "Nearby landmark, gate number, etc."}
+            ),
+            "pickup_city": forms.TextInput(
+                attrs={"class": "form-control fm-input", "placeholder": "City", "required": True}
+            ),
+            "pickup_state": forms.TextInput(
+                attrs={"class": "form-control fm-input", "placeholder": "State", "required": True}
+            ),
+            "pickup_postal_code": forms.TextInput(
+                attrs={"class": "form-control fm-input", "placeholder": "6-digit PIN code", "maxlength": "6", "required": True}
+            ),
+            "pickup_location_nickname": forms.TextInput(
+                attrs={"class": "form-control fm-input", "placeholder": "Warehouse Nickname (e.g. WH-Primary)"}
+            ),
+        }
+
+    def clean_pickup_postal_code(self):
+        from core.shipping_dimensions import PIN_CODE_PATTERN
+        pin = (self.cleaned_data.get("pickup_postal_code") or "").strip()
+        if not PIN_CODE_PATTERN.match(pin):
+            raise ValidationError("Please enter a valid 6-digit Indian PIN code (e.g. 560001).")
+        return pin
+
+    def clean_pickup_contact_phone(self):
+        phone = re.sub(r"\D", "", self.cleaned_data.get("pickup_contact_phone") or "")
+        if len(phone) < 10:
+            raise ValidationError("Please enter a valid 10-digit mobile phone number.")
+        return phone[-10:]
+
+    def save(self, commit=True):
+        seller = super().save(commit=False)
+        # When seller changes address, reset verification flags so admin approves the new address
+        if self.has_changed():
+            seller.pickup_location_verified = False
+            seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_PENDING
+            seller.shiprocket_pickup_registration_error = ""
+        if commit:
+            seller.save()
+        return seller
 
 
 class SellerClosureRequestForm(forms.Form):
@@ -1879,9 +1957,17 @@ class SellerFulfillmentUpdateForm(forms.Form):
         ),
     )
 
+    cancellation_reason = forms.CharField(
+        max_length=255,
+        required=False,
+        widget=forms.TextInput(
+            attrs={"class": "form-control fm-input", "placeholder": "Reason for rejecting / cancelling order"}
+        ),
+    )
+
     ALLOWED_TRANSITIONS = {
-        SellerOrder.STATUS_PENDING: [SellerOrder.STATUS_PROCESSING],
-        SellerOrder.STATUS_PROCESSING: [SellerOrder.STATUS_READY_TO_SHIP],
+        SellerOrder.STATUS_PENDING: [SellerOrder.STATUS_PROCESSING, SellerOrder.STATUS_CANCELLED],
+        SellerOrder.STATUS_PROCESSING: [SellerOrder.STATUS_READY_TO_SHIP, SellerOrder.STATUS_CANCELLED],
         SellerOrder.STATUS_READY_TO_SHIP: [SellerOrder.STATUS_SHIPPED],
     }
 

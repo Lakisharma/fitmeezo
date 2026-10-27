@@ -51,13 +51,16 @@ from .views import (
     seller_export_products_csv_view,
     seller_order_create_mock_shipment_view,
     seller_order_detail_view,
+    seller_order_dispatch_shipment_view,
     seller_order_estimate_rates_view,
     seller_order_list_view,
     seller_order_invoice_pdf_view,
     seller_order_packing_summary_view,
     seller_order_shipping_label_view,
+    seller_order_sync_tracking_view,
     seller_order_record_measurements_view,
     seller_order_update_status_view,
+    seller_pickup_address_view,
     seller_product_add_view,
     seller_product_edit_view,
     seller_product_image_add_view,
@@ -85,6 +88,7 @@ from .views import (
     seller_payout_detail_view,
     seller_bank_details_view,
     seller_status_view,
+    shiprocket_webhook_view,
     sitemap_xml,
     terms_view,
     contact_us_view,
@@ -237,6 +241,7 @@ urlpatterns = [
     path("seller/logout/", seller_logout_view, name="seller_logout"),
     path("seller/status/", seller_status_view, name="seller_status"),
     path("seller/profile/", seller_profile_view, name="seller_profile"),
+    path("seller/pickup-address/", seller_pickup_address_view, name="seller_pickup_address"),
     path("seller/closure/", seller_closure_request_view, name="seller_close_account"),
     path("seller/dashboard/", seller_dashboard_view, name="seller_dashboard"),
 
@@ -293,6 +298,8 @@ urlpatterns = [
     path("seller/orders/<int:pk>/measurements/", seller_order_record_measurements_view, name="seller_order_record_measurements"),
     path("seller/orders/<int:pk>/estimate-rates/", seller_order_estimate_rates_view, name="seller_order_estimate_rates"),
     path("seller/orders/<int:pk>/book-mock-shipment/", seller_order_create_mock_shipment_view, name="seller_order_create_mock_shipment"),
+    path("seller/orders/<int:pk>/dispatch/", seller_order_dispatch_shipment_view, name="seller_order_dispatch_shipment"),
+    path("seller/orders/<int:pk>/sync-tracking/", seller_order_sync_tracking_view, name="seller_order_sync_tracking"),
     path("seller/orders/<int:pk>/packing-summary/", seller_order_packing_summary_view, name="seller_order_packing_summary"),
     path("seller/orders/<int:pk>/packing-slip/", seller_order_shipping_label_view, name="seller_order_packing_slip"),
     path("seller/orders/<int:pk>/shipping-label/", seller_order_shipping_label_view, name="seller_order_shipping_label"),
@@ -315,6 +322,10 @@ urlpatterns = [
     path("seller/payouts/", seller_payout_list_view, name="seller_payout_list"),
     path("seller/payouts/<str:batch_reference>/", seller_payout_detail_view, name="seller_payout_detail"),
     path("seller/bank-details/", seller_bank_details_view, name="seller_bank_details"),
+
+    # Logistics & Courier Webhooks
+    path("api/shipping/shiprocket/webhook/", shiprocket_webhook_view, name="shiprocket_webhook"),
+    path("api/shiprocket/webhook/", shiprocket_webhook_view, name="shiprocket_webhook_alt"),
 
     # DRF API endpoints
     path("api/products/<slug:slug>/variants/", product_variants_api, name="product_variants_api"),

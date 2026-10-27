@@ -503,8 +503,12 @@ CACHES = {
 SHIPROCKET_API_BASE_URL = os.getenv("SHIPROCKET_API_BASE_URL", "https://apiv2.shiprocket.in/v2/console").rstrip("/")
 
 # Provider credentials (empty by default; loaded strictly from environment)
-SHIPROCKET_API_EMAIL = os.getenv("SHIPROCKET_API_EMAIL", "").strip()
-SHIPROCKET_API_PASSWORD = os.getenv("SHIPROCKET_API_PASSWORD", "").strip()
+SHIPROCKET_API_EMAIL = os.getenv("SHIPROCKET_EMAIL", os.getenv("SHIPROCKET_API_EMAIL", "")).strip()
+SHIPROCKET_API_PASSWORD = os.getenv("SHIPROCKET_PASSWORD", os.getenv("SHIPROCKET_API_PASSWORD", "")).strip()
+SHIPROCKET_EMAIL = SHIPROCKET_API_EMAIL
+SHIPROCKET_PASSWORD = SHIPROCKET_API_PASSWORD
+SHIPROCKET_PICKUP_LOCATION = os.getenv("SHIPROCKET_PICKUP_LOCATION", "").strip()
+SHIPROCKET_WEBHOOK_TOKEN = os.getenv("SHIPROCKET_WEBHOOK_TOKEN", "").strip()
 
 # HTTP Client Timeouts & Transient Retries
 SHIPROCKET_CONNECT_TIMEOUT = float(os.getenv("SHIPROCKET_CONNECT_TIMEOUT", "5.0"))
@@ -535,7 +539,7 @@ SHIPROCKET_VOLUMETRIC_DIVISOR = Decimal(os.getenv("SHIPROCKET_VOLUMETRIC_DIVISOR
 FITMEEZO_PLATFORM_WAREHOUSE = {
     "facility_name": os.getenv("PLATFORM_WAREHOUSE_NAME", "Fitmeezo Central Fulfillment Center"),
     "contact_name": os.getenv("PLATFORM_WAREHOUSE_CONTACT", "Fitmeezo Operations"),
-    "contact_phone": os.getenv("PLATFORM_WAREHOUSE_PHONE", "940885323"),
+    "contact_phone": os.getenv("PLATFORM_WAREHOUSE_PHONE", "9408853230"),
     "contact_email": os.getenv("PLATFORM_WAREHOUSE_EMAIL", "support@fitmeezo.com"),
     "address_line1": os.getenv("PLATFORM_WAREHOUSE_ADDRESS1", "Plot 42, Industrial Area Phase II"),
     "address_line2": os.getenv("PLATFORM_WAREHOUSE_ADDRESS2", ""),

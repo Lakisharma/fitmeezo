@@ -63,6 +63,7 @@ from .forms import (
     ProcessRefundForm,
     SellerBankDetailsForm,
     SellerClosureRequestForm,
+    SellerPickupAddressForm,
 )
 from .models import (
     Address,
@@ -119,6 +120,10 @@ from .shiprocket import (
     RateEstimateResult,
     create_mock_shipment_booking,
     check_booking_eligibility,
+    create_or_dispatch_shipment,
+    sync_shipment_tracking,
+    handle_shiprocket_webhook,
+    register_seller_pickup_location,
 )
 from .seller_services import (
     DEFAULT_LOW_STOCK_THRESHOLD,
@@ -3927,6 +3932,13 @@ def seller_order_update_status_view(request, pk):
                     request,
                     f"Package #{locked.sub_order_number} marked as Shipped via {courier} (Tracking: {tracking}).",
                 )
+            elif new_status == SellerOrder.STATUS_CANCELLED:
+                reason = form.cleaned_data.get("cancellation_reason") or "Rejected by merchant"
+                locked.cancel_package(commit=True)
+                messages.warning(
+                    request,
+                    f"Package #{locked.sub_order_number} has been rejected/cancelled ({reason}).",
+                )
             else:
                 locked.status = new_status
                 locked.save(update_fields=["status", "updated_at"])
@@ -5093,5 +5105,153 @@ def seller_bank_details_view(request):
     return render(request, "seller/bank_details.html", context)
 
 
+@seller_required
+def seller_pickup_address_view(request):
+    """
+    Seller portal view to manage and review warehouse pickup address coordinates
+    for courier pickup scheduling and Shiprocket location registration.
+    """
+    seller = getattr(request.user, "seller_profile", None)
+    if not seller:
+        messages.warning(request, "You do not have an active seller profile.")
+        return redirect("core:seller_register")
+
+    if request.method == "POST":
+        form = SellerPickupAddressForm(request.POST, instance=seller)
+        if form.is_valid():
+            seller = form.save(commit=False)
+            seller.shiprocket_pickup_registration_status = Seller.SHIPROCKET_STATUS_PENDING
+            seller.shiprocket_pickup_registration_error = ""
+            seller.save()
+            messages.success(
+                request,
+                "Warehouse pickup address updated successfully. "
+                "Fitmeezo operations team will verify your facility coordinates for courier dispatch."
+            )
+            return redirect("core:seller_pickup_address")
+        else:
+            messages.error(request, "Please correct the errors in the pickup address form below.")
+    else:
+        form = SellerPickupAddressForm(instance=seller)
+
+    validation_result = seller.validate_pickup_location()
+    context = {
+        "seller": seller,
+        "form": form,
+        "validation_result": validation_result,
+        "pickup_location_name": seller.get_shiprocket_pickup_location_name(),
+        "brand_name": getattr(settings, "BRAND_NAME", "Fitmeezo"),
+    }
+    return render(request, "seller/pickup_address.html", context)
 
 
+@seller_required
+@require_POST
+def seller_order_dispatch_shipment_view(request, pk):
+    """
+    Authorized seller endpoint to dispatch a package via Shiprocket courier automation.
+    Creates order, assigns optimal courier, allocates AWB, and schedules warehouse pickup.
+    Strictly isolated per merchant; does not alter financial snapshots.
+    """
+    seller = getattr(request.user, "seller_profile", None)
+    if not seller:
+        messages.warning(request, "You do not have an active seller profile.")
+        return redirect("core:seller_register")
+
+    package = get_object_or_404(SellerOrder, pk=pk, seller=seller)
+
+    if package.is_platform_fulfilled:
+        messages.error(request, "Platform-fulfilled packages cannot be dispatched from the seller portal.")
+        return redirect("core:seller_order_detail", pk=package.pk)
+
+    idempotency_key = (request.POST.get("idempotency_key") or "").strip() or None
+
+    try:
+        booking = create_or_dispatch_shipment(
+            package_id=package.pk,
+            idempotency_key=idempotency_key,
+            user=request.user,
+            auto_request_pickup=True,
+        )
+        msg = (
+            f"Shipment booked successfully! Courier: {booking.courier_name}, AWB: {booking.awb_code}. "
+            f"Pickup scheduled with token #{booking.pickup_token_number or 'Confirmed'}."
+        )
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse({
+                "success": True,
+                "shipment_id": booking.shipment_id,
+                "awb_code": booking.awb_code,
+                "courier_name": booking.courier_name,
+                "tracking_url": booking.tracking_url,
+                "message": msg,
+            })
+        messages.success(request, msg)
+    except ShiprocketError as err:
+        logger.warning(
+            "Shipment dispatch failed for package #%s (seller %s): %s",
+            package.sub_order_number,
+            seller.pk,
+            err.user_message,
+        )
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse({"error": err.user_message}, status=400)
+        messages.error(request, f"Shipment dispatch failed: {err.user_message}")
+    except Exception as exc:
+        logger.exception("Unexpected error dispatching shipment for package #%s", package.sub_order_number)
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse({"error": "An unexpected error occurred while dispatching shipment."}, status=500)
+        messages.error(request, "An unexpected error occurred while dispatching shipment. Please try again.")
+
+    return redirect("core:seller_order_detail", pk=package.pk)
+
+
+@seller_required
+@require_POST
+def seller_order_sync_tracking_view(request, pk):
+    """
+    Synchronizes real-time courier tracking milestones from Shiprocket for a seller's package.
+    Advances status to Shipped/Delivered strictly when physical scans are confirmed.
+    """
+    seller = getattr(request.user, "seller_profile", None)
+    if not seller:
+        messages.warning(request, "You do not have an active seller profile.")
+        return redirect("core:seller_register")
+
+    package = get_object_or_404(SellerOrder, pk=pk, seller=seller)
+
+    try:
+        result = sync_shipment_tracking(package)
+        if result.get("status") == "unbooked":
+            messages.warning(request, result.get("message", "No active shipment booking exists for this package."))
+        else:
+            curr = result.get("current_status") or "Updated"
+            messages.success(request, f"Tracking synchronized successfully. Current status: {curr}.")
+    except Exception as exc:
+        logger.exception("Tracking sync failed for package #%s", package.sub_order_number)
+        messages.error(request, "Failed to synchronize tracking with courier API.")
+
+    return redirect("core:seller_order_detail", pk=package.pk)
+
+
+@csrf_exempt
+@require_POST
+def shiprocket_webhook_view(request):
+    """
+    Public webhook receiver for Shiprocket tracking lifecycle updates.
+    Enforces secret token verification, deduplication, and row-level locked transitions.
+    """
+    try:
+        payload = json.loads(request.body.decode("utf-8") or "{}")
+    except Exception:
+        return JsonResponse({"error": "Invalid JSON payload"}, status=400)
+
+    headers = {k.lower(): v for k, v in request.headers.items()}
+    success, msg, data = handle_shiprocket_webhook(payload, headers=headers)
+
+    if not success:
+        if "Unauthorized" in msg:
+            return JsonResponse({"error": msg}, status=401)
+        return JsonResponse({"error": msg}, status=400)
+
+    return JsonResponse({"status": "success", "message": msg, "data": data}, status=200)

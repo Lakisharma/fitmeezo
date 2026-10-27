@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 import hashlib
+import json
 import logging
 import os
 import re
@@ -237,8 +238,8 @@ class ShiprocketClient:
         session: requests.Session | None = None,
     ):
         self.base_url = (base_url or getattr(settings, "SHIPROCKET_API_BASE_URL", "https://apiv2.shiprocket.in/v2/console")).rstrip("/")
-        self.email = email if email is not None else getattr(settings, "SHIPROCKET_API_EMAIL", "")
-        self.password = password if password is not None else getattr(settings, "SHIPROCKET_API_PASSWORD", "")
+        self.email = email if email is not None else (getattr(settings, "SHIPROCKET_EMAIL", "") or getattr(settings, "SHIPROCKET_API_EMAIL", ""))
+        self.password = password if password is not None else (getattr(settings, "SHIPROCKET_PASSWORD", "") or getattr(settings, "SHIPROCKET_API_PASSWORD", ""))
         self.connect_timeout = connect_timeout or getattr(settings, "SHIPROCKET_CONNECT_TIMEOUT", 5.0)
         self.read_timeout = read_timeout or getattr(settings, "SHIPROCKET_READ_TIMEOUT", 15.0)
         self.max_retries = max_retries if max_retries is not None else getattr(settings, "SHIPROCKET_MAX_RETRIES", 3)
@@ -529,7 +530,7 @@ class ShiprocketClient:
         resp = self._request("GET", "courier/serviceability/", params=params, authenticated=True)
 
         try:
-            payload = resp.json()
+            payload = resp if isinstance(resp, dict) else resp.json()
         except ValueError as exc:
             raise ShiprocketError("Provider returned malformed non-JSON serviceability response.") from exc
 
@@ -725,6 +726,499 @@ class ShiprocketClient:
             is_mock=True,
             message="[MOCK] Deterministic rate simulation generated for testing.",
         )
+
+    # --------------------------------------------------------------------------
+    # Pickup Location Registration & Management (Documented Endpoint)
+    # --------------------------------------------------------------------------
+
+    def register_pickup_location(self, seller_or_data: Any) -> dict:
+        """
+        Registers a seller's physical warehouse or facility with Shiprocket via:
+        POST /settings/company/addpickup
+        Docs: https://apidocs.shiprocket.in/#09756157-1985-48ff-a0ff-4e4708799787
+
+        Supports both Seller model instance and raw dictionary input.
+        Guarantees:
+        - Prevents duplicate registration if location already registered.
+        - Persists returned location nickname / ID.
+        - Sanitizes logging.
+        - Deterministic mock simulation when mock_mode is active.
+        """
+        from core.models import Seller
+
+        if isinstance(seller_or_data, Seller):
+            seller = seller_or_data
+            clean_pin = (seller.pickup_postal_code or "").strip()
+            clean_addr = (seller.pickup_address or "").strip()
+            clean_city = (seller.pickup_city or "").strip()
+            clean_state = (seller.pickup_state or "").strip()
+            clean_name = (seller.pickup_contact_name or seller.legal_business_name or seller.store_name).strip()[:50]
+            raw_phone = seller.pickup_contact_phone or seller.support_phone or ""
+            clean_phone = re.sub(r"\D", "", raw_phone)[-10:]
+            clean_email = (seller.support_email or "").strip()
+            loc_nickname = seller.get_shiprocket_pickup_location_name()
+            landmark = (seller.pickup_landmark or "").strip()
+        elif isinstance(seller_or_data, dict):
+            seller = None
+            clean_pin = str(seller_or_data.get("pin_code", "")).strip()
+            clean_addr = str(seller_or_data.get("address", "")).strip()
+            clean_city = str(seller_or_data.get("city", "")).strip()
+            clean_state = str(seller_or_data.get("state", "")).strip()
+            clean_name = str(seller_or_data.get("name", "")).strip()[:50]
+            clean_phone = re.sub(r"\D", "", str(seller_or_data.get("phone", "")))[-10:]
+            clean_email = str(seller_or_data.get("email", "")).strip()
+            loc_nickname = str(seller_or_data.get("pickup_location", "")).strip()
+            landmark = str(seller_or_data.get("address_2", "")).strip()
+        else:
+            raise ShiprocketValidationError("Input must be a Seller instance or dictionary.")
+
+        if not PIN_CODE_PATTERN.match(clean_pin):
+            raise ShiprocketValidationError(f"Invalid PIN code '{clean_pin}' for pickup location registration.")
+        if len(clean_phone) != 10:
+            raise ShiprocketValidationError(f"Invalid 10-digit phone '{clean_phone}' for pickup contact.")
+        if not clean_addr or len(clean_addr) < 5:
+            raise ShiprocketValidationError("Pickup warehouse address is required (minimum 5 characters).")
+        if not clean_city or not clean_state:
+            raise ShiprocketValidationError("Pickup city and state are required.")
+
+        payload = {
+            "pickup_location": loc_nickname,
+            "name": clean_name or "Fitmeezo Warehouse",
+            "email": clean_email or "operations@fitmeezo.com",
+            "phone": clean_phone,
+            "address": clean_addr[:100],
+            "address_2": landmark[:100],
+            "city": clean_city,
+            "state": clean_state,
+            "country": "India",
+            "pin_code": clean_pin,
+        }
+
+        # Offline / Mock Mode Simulation
+        if self.mock_mode:
+            simulated_loc_id = f"MOCK-LOC-{loc_nickname}"
+            if seller:
+                seller.shiprocket_pickup_location_id = loc_nickname
+                seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_REGISTERED
+                seller.shiprocket_pickup_registered_at = timezone.now()
+                seller.shiprocket_pickup_registration_error = ""
+                seller.save(update_fields=[
+                    "shiprocket_pickup_location_id",
+                    "shiprocket_pickup_registration_status",
+                    "shiprocket_pickup_registered_at",
+                    "shiprocket_pickup_registration_error",
+                    "updated_at",
+                ])
+            return {
+                "success": True,
+                "pickup_location": loc_nickname,
+                "pickup_id": simulated_loc_id,
+                "is_mock": True,
+                "message": "[MOCK] Pickup facility registered successfully.",
+            }
+
+        logger.info("Registering pickup location '%s' with Shiprocket.", loc_nickname)
+        try:
+            resp = self._request("POST", "settings/company/addpickup", json=payload, authenticated=True)
+            if isinstance(resp, dict):
+                resp_data = resp
+            elif hasattr(resp, "json"):
+                resp_data = resp.json() if getattr(resp, "text", None) else {}
+            else:
+                resp_data = {}
+        except ShiprocketValidationError as exc:
+            # Check if provider indicates location already exists
+            err_text = str(exc).lower()
+            if "already exists" in err_text or "already registered" in err_text:
+                logger.info("Pickup location '%s' already registered with Shiprocket.", loc_nickname)
+                if seller:
+                    seller.shiprocket_pickup_location_id = loc_nickname
+                    seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_REGISTERED
+                    seller.shiprocket_pickup_registered_at = timezone.now()
+                    seller.shiprocket_pickup_registration_error = ""
+                    seller.save(update_fields=[
+                        "shiprocket_pickup_location_id",
+                        "shiprocket_pickup_registration_status",
+                        "shiprocket_pickup_registered_at",
+                        "shiprocket_pickup_registration_error",
+                        "updated_at",
+                    ])
+                return {"success": True, "pickup_location": loc_nickname, "already_exists": True}
+
+            if seller:
+                seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_FAILED
+                seller.shiprocket_pickup_registration_error = exc.message[:500]
+                seller.save(update_fields=["shiprocket_pickup_registration_status", "shiprocket_pickup_registration_error", "updated_at"])
+            raise
+        except Exception as exc:
+            if seller:
+                seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_FAILED
+                seller.shiprocket_pickup_registration_error = str(exc)[:500]
+                seller.save(update_fields=["shiprocket_pickup_registration_status", "shiprocket_pickup_registration_error", "updated_at"])
+            raise
+
+        confirmed_loc = str(
+            resp_data.get("pickup_id")
+            or resp_data.get("address", {}).get("id")
+            or resp_data.get("address", {}).get("pickup_location")
+            or resp_data.get("pickup_location")
+            or loc_nickname
+        )
+        if seller:
+            seller.shiprocket_pickup_location_id = confirmed_loc
+            seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_REGISTERED
+            seller.shiprocket_pickup_registered_at = timezone.now()
+            seller.shiprocket_pickup_registration_error = ""
+            seller.save(update_fields=[
+                "shiprocket_pickup_location_id",
+                "shiprocket_pickup_registration_status",
+                "shiprocket_pickup_registered_at",
+                "shiprocket_pickup_registration_error",
+                "updated_at",
+            ])
+
+        return {
+            "success": True,
+            "pickup_location": confirmed_loc,
+            "response": sanitize_log_data(resp_data),
+        }
+
+    def get_pickup_locations(self) -> list[dict]:
+        """
+        Fetches all registered pickup facilities from Shiprocket:
+        GET /settings/company/pickup
+        """
+        if self.mock_mode:
+            return [{"pickup_location": "MOCK_PRIMARY_WH", "status": 1}]
+
+        resp = self._request("GET", "settings/company/pickup", authenticated=True)
+        try:
+            data = resp.json()
+            shipping_addrs = data.get("data", {}).get("shipping_address", [])
+            return shipping_addrs if isinstance(shipping_addrs, list) else []
+        except Exception as exc:
+            raise ShiprocketError(f"Failed to parse pickup locations: {exc}") from exc
+
+    # --------------------------------------------------------------------------
+    # Order & Custom Shipment Creation (Documented Endpoint)
+    # --------------------------------------------------------------------------
+
+    def create_order(self, package: Any, pickup_location_name: str | None = None) -> dict:
+        """
+        Creates an ad-hoc custom shipment/order in Shiprocket via:
+        POST /orders/create/adhoc
+        Docs: https://apidocs.shiprocket.in/#c1eb4ef5-6670-49b8-a6e5-4f40f0c0ae16
+        """
+        from core.models import Order, SellerOrder
+
+        if not isinstance(package, SellerOrder):
+            raise ShiprocketValidationError("Target package must be an instance of SellerOrder.")
+
+        order = package.order
+        destination_pin = (order.shipping_postal_code or "").strip()
+        if not PIN_CODE_PATTERN.match(destination_pin):
+            raise ShiprocketValidationError(f"Invalid destination PIN code: '{destination_pin}'.")
+
+        chargeable_wt = package.get_chargeable_weight_kg() or Decimal("0.500")
+        eff_dims = package.get_effective_measurements()
+        length_cm = eff_dims.get("length_cm") or Decimal("10.00")
+        breadth_cm = eff_dims.get("breadth_cm") or Decimal("10.00")
+        height_cm = eff_dims.get("height_cm") or Decimal("10.00")
+
+        # Resolve registered pickup location
+        loc_name = pickup_location_name
+        if not loc_name:
+            if not package.is_platform_fulfilled and package.seller:
+                loc_name = package.seller.shiprocket_pickup_location_id or package.seller.get_shiprocket_pickup_location_name()
+            else:
+                loc_name = getattr(settings, "SHIPROCKET_PICKUP_LOCATION", "") or "Fitmeezo_Central_Warehouse"
+
+        if not loc_name:
+            raise ShiprocketValidationError("Pickup location name could not be resolved.")
+
+        # Split customer name
+        full_name = (order.shipping_full_name or "Customer").strip()
+        name_parts = full_name.split(" ", 1)
+        first_name = name_parts[0][:30]
+        last_name = name_parts[1][:30] if len(name_parts) > 1 else "Customer"
+
+        is_cod = (order.payment_method == Order.PAYMENT_METHOD_COD)
+        phone_digits = re.sub(r"\D", "", order.shipping_phone_number or "")[-10:]
+        if len(phone_digits) != 10:
+            phone_digits = "9876543210"
+
+        # Format line items
+        order_items_payload = []
+        for item in package.items.all():
+            order_items_payload.append({
+                "name": (item.product_name or "Fitmeezo Item")[:100],
+                "sku": (item.sku or f"SKU-{item.product_id}")[:50],
+                "units": item.quantity,
+                "selling_price": str(item.unit_price.quantize(Decimal("0.01"))),
+                "discount": "0.00",
+                "tax": "0.00",
+            })
+
+        if not order_items_payload:
+            order_items_payload.append({
+                "name": f"Package #{package.sub_order_number}",
+                "sku": f"PKG-{package.pk}",
+                "units": 1,
+                "selling_price": str(package.subtotal.quantize(Decimal("0.01"))),
+                "discount": "0.00",
+                "tax": "0.00",
+            })
+
+        order_date_str = order.created_at.strftime("%Y-%m-%d %H:%M") if order.created_at else timezone.now().strftime("%Y-%m-%d %H:%M")
+
+        payload = {
+            "order_id": package.sub_order_number,
+            "order_date": order_date_str,
+            "pickup_location": loc_name,
+            "channel_id": "",
+            "comment": f"Fitmeezo Order #{order.order_number} Package #{package.sub_order_number}",
+            "billing_customer_name": first_name,
+            "billing_last_name": last_name,
+            "billing_address": (order.shipping_address_line1 or "Street Address")[:100],
+            "billing_address_2": ((order.shipping_address_line2 or "") + " " + (order.shipping_landmark or "")).strip()[:100],
+            "billing_city": order.shipping_city[:50],
+            "billing_pincode": destination_pin,
+            "billing_state": order.shipping_state[:50],
+            "billing_country": "India",
+            "billing_email": (order.user.email if order.user else "support@fitmeezo.com")[:100],
+            "billing_phone": phone_digits,
+            "shipping_is_billing": True,
+            "order_items": order_items_payload,
+            "payment_method": "COD" if is_cod else "Prepaid",
+            "sub_total": float(package.subtotal),
+            "length": float(length_cm),
+            "breadth": float(breadth_cm),
+            "height": float(height_cm),
+            "weight": float(chargeable_wt),
+        }
+
+        # Offline / Mock Mode Simulation
+        if self.mock_mode:
+            mock_order_id = f"MOCK-ORD-{package.sub_order_number}"
+            mock_shipment_id = f"MOCK-SHP-{package.sub_order_number}"
+            return {
+                "order_id": mock_order_id,
+                "shipment_id": mock_shipment_id,
+                "status": "NEW",
+                "status_code": 1,
+                "is_mock": True,
+            }
+
+        logger.info("Creating Shiprocket order for package #%s (pickup: %s).", package.sub_order_number, loc_name)
+        resp = self._request("POST", "orders/create/adhoc", json=payload, authenticated=True)
+        try:
+            data = resp if isinstance(resp, dict) else resp.json()
+        except ValueError as exc:
+            raise ShiprocketError("Non-JSON response from Shiprocket order creation.") from exc
+
+        shipment_id = data.get("shipment_id")
+        order_id = data.get("order_id")
+
+        if not shipment_id:
+            raise ShiprocketValidationError(
+                f"Shiprocket order creation did not return a valid shipment_id: {data.get('message', 'Unknown error')}",
+                response_data=data,
+            )
+
+        return {
+            "order_id": order_id or package.sub_order_number,
+            "shipment_id": shipment_id,
+            "status": data.get("status", "NEW"),
+            "raw_data": sanitize_log_data(data),
+        }
+
+    # --------------------------------------------------------------------------
+    # Courier Assignment & AWB Generation (Documented Endpoint)
+    # --------------------------------------------------------------------------
+
+    def assign_awb(self, shipment_id: int | str, courier_id: int | None = None) -> dict:
+        """
+        Assigns an optimal courier partner and generates an Air Waybill (AWB) tracking number:
+        POST /couriers/assign/awb
+        Docs: https://apidocs.shiprocket.in/#05952c41-dc04-45b6-b097-426adadfb9b8
+        """
+        payload: dict[str, Any] = {"shipment_id": str(shipment_id)}
+        if courier_id is not None:
+            payload["courier_id"] = str(courier_id)
+
+        # Offline / Mock Mode Simulation
+        if self.mock_mode:
+            token_hash = hashlib.sha256(f"{shipment_id}:mock_awb".encode()).hexdigest()[:10].upper()
+            return {
+                "awb_code": f"MOCK-AWB-{token_hash}",
+                "courier_name": "Delhivery Surface (Simulated)",
+                "courier_company_id": courier_id or 1,
+                "is_mock": True,
+            }
+
+        logger.info("Requesting AWB assignment for shipment %s (courier: %s).", shipment_id, courier_id)
+        resp = self._request("POST", "couriers/assign/awb", json=payload, authenticated=True)
+        try:
+            data = resp if isinstance(resp, dict) else resp.json()
+        except ValueError as exc:
+            raise ShiprocketError("Non-JSON response from Shiprocket AWB assignment.") from exc
+
+        resp_data = data.get("response", {}).get("data", {}) if isinstance(data.get("response"), dict) else data
+        awb_code = resp_data.get("awb_code") or data.get("awb_code")
+        courier_name = resp_data.get("courier_name") or data.get("courier_name") or "Standard Logistics"
+        assigned_courier_id = resp_data.get("courier_company_id") or courier_id
+
+        if not awb_code:
+            err_msg = data.get("message") or resp_data.get("awb_assign_error") or "Failed to assign AWB"
+            raise ShiprocketValidationError(f"Shiprocket could not assign AWB: {err_msg}", response_data=data)
+
+        return {
+            "awb_code": awb_code,
+            "courier_name": courier_name,
+            "courier_company_id": assigned_courier_id,
+            "raw_data": sanitize_log_data(data),
+        }
+
+    # --------------------------------------------------------------------------
+    # Schedule Courier Warehouse Pickup (Documented Endpoint)
+    # --------------------------------------------------------------------------
+
+    def request_pickup(self, shipment_id: int | str) -> dict:
+        """
+        Requests physical carrier pickup from origin facility:
+        POST /orders/pickup/request
+        Docs: https://apidocs.shiprocket.in/#09756157-1985-48ff-a0ff-4e4708799787
+        """
+        payload = {"shipment_id": [str(shipment_id)]}
+
+        # Offline / Mock Mode Simulation
+        if self.mock_mode:
+            sched_date = timezone.now() + timezone.timedelta(days=1)
+            return {
+                "pickup_status": "scheduled",
+                "pickup_scheduled_date": sched_date,
+                "pickup_token_number": f"MOCK-CRN-{uuid.uuid4().hex[:8].upper()}",
+                "is_mock": True,
+                "message": "[MOCK] Courier pickup scheduled.",
+            }
+
+        logger.info("Requesting courier pickup for shipment %s.", shipment_id)
+        resp = self._request("POST", "orders/pickup/request", json=payload, authenticated=True)
+        try:
+            data = resp if isinstance(resp, dict) else resp.json()
+        except ValueError as exc:
+            raise ShiprocketError("Non-JSON response from Shiprocket pickup request.") from exc
+
+        resp_data = data.get("response", {}) if isinstance(data.get("response"), dict) else data
+        pickup_token = resp_data.get("pickup_token_number") or data.get("pickup_token_number") or ""
+        pickup_status = resp_data.get("pickup_status") or "requested"
+        pickup_sched_str = resp_data.get("pickup_scheduled_date")
+
+        pickup_date = None
+        if pickup_sched_str:
+            try:
+                from django.utils.dateparse import parse_datetime
+                pickup_date = parse_datetime(pickup_sched_str)
+            except Exception:
+                pass
+
+        return {
+            "pickup_status": pickup_status,
+            "pickup_scheduled_date": pickup_date,
+            "pickup_token_number": pickup_token,
+            "raw_data": sanitize_log_data(data),
+        }
+
+    # --------------------------------------------------------------------------
+    # Live Courier Tracking (Documented Endpoint)
+    # --------------------------------------------------------------------------
+
+    def track_awb(self, awb_code: str) -> dict:
+        """
+        Retrieves real-time carrier tracking milestones and scan history:
+        GET /courier/track/awb/{awb_code}
+        Docs: https://apidocs.shiprocket.in/#7f21f153-6bb3-4ca2-a8c6-a6e5b4b10b0e
+        """
+        clean_awb = str(awb_code or "").strip()
+        if not clean_awb:
+            raise ShiprocketValidationError("AWB tracking code is required.")
+
+        # Offline / Mock Mode Simulation
+        if self.mock_mode:
+            return {
+                "awb_code": clean_awb,
+                "current_status": "IN TRANSIT",
+                "status_code": 18,
+                "courier_name": "Delhivery Surface",
+                "scans": [
+                    {"activity": "Pickup Scheduled", "location": "Origin Warehouse", "date": timezone.now().strftime("%Y-%m-%d %H:%M")},
+                    {"activity": "In Transit to Destination Hub", "location": "Central Hub", "date": timezone.now().strftime("%Y-%m-%d %H:%M")},
+                ],
+                "etd": "3-5 Days",
+                "is_mock": True,
+            }
+
+        logger.info("Querying live tracking for AWB %s.", clean_awb)
+        resp = self._request("GET", f"courier/track/awb/{clean_awb}", authenticated=True)
+        try:
+            data = resp if isinstance(resp, dict) else resp.json()
+        except ValueError as exc:
+            raise ShiprocketError("Non-JSON tracking response from Shiprocket.") from exc
+
+        track_data = data.get("tracking_data", {})
+        shipment_track = track_data.get("shipment_track", [])
+        track_info = shipment_track[0] if shipment_track and isinstance(shipment_track, list) else {}
+
+        current_status = track_info.get("current_status") or track_data.get("track_status") or "UNKNOWN"
+        scans = track_info.get("scans") or []
+
+        return {
+            "awb_code": clean_awb,
+            "current_status": str(current_status).upper(),
+            "status_code": track_info.get("status_code"),
+            "courier_name": track_info.get("courier_name") or "Courier Partner",
+            "scans": scans,
+            "etd": track_info.get("expected_date") or track_info.get("etd"),
+            "raw_data": sanitize_log_data(data),
+        }
+
+    # --------------------------------------------------------------------------
+    # Label & Manifest Documents (Documented Endpoints)
+    # --------------------------------------------------------------------------
+
+    def generate_label(self, shipment_id: int | str) -> dict:
+        """
+        Generates official carrier shipping label PDF:
+        POST /couriers/generate/label
+        """
+        payload = {"shipment_id": [str(shipment_id)]}
+
+        if self.mock_mode:
+            return {"label_url": f"https://mock.shiprocket.in/labels/{shipment_id}.pdf", "is_mock": True}
+
+        resp = self._request("POST", "couriers/generate/label", json=payload, authenticated=True)
+        try:
+            data = resp.json()
+            return {"label_url": data.get("label_url", ""), "raw_data": sanitize_log_data(data)}
+        except Exception as exc:
+            raise ShiprocketError(f"Failed to generate shipping label: {exc}") from exc
+
+    def generate_manifest(self, shipment_id: int | str) -> dict:
+        """
+        Generates official courier pickup manifest document:
+        POST /manifests/generate
+        """
+        payload = {"shipment_id": [str(shipment_id)]}
+
+        if self.mock_mode:
+            return {"manifest_url": f"https://mock.shiprocket.in/manifests/{shipment_id}.pdf", "is_mock": True}
+
+        resp = self._request("POST", "manifests/generate", json=payload, authenticated=True)
+        try:
+            data = resp.json()
+            return {"manifest_url": data.get("manifest_url", ""), "raw_data": sanitize_log_data(data)}
+        except Exception as exc:
+            raise ShiprocketError(f"Failed to generate manifest: {exc}") from exc
 
 
 # ==============================================================================
@@ -1096,3 +1590,441 @@ def create_mock_shipment_booking(
 
         return booking
 
+
+# ==============================================================================
+# SELLER PICKUP LOCATION REGISTRATION SERVICE
+# ==============================================================================
+
+def register_seller_pickup_location(
+    seller: Any,
+    client: ShiprocketClient | None = None,
+) -> dict:
+    """
+    Validates seller warehouse coordinates and registers pickup facility
+    with Shiprocket API (/settings/company/addpickup).
+    """
+    from core.models import Seller
+
+    if not isinstance(seller, Seller):
+        raise ShiprocketValidationError("Input must be a Seller instance.")
+
+    loc_check = seller.validate_pickup_location()
+    if not loc_check.get("is_complete"):
+        errors_str = "; ".join(loc_check.get("errors", []))
+        raise ShiprocketValidationError(f"Incomplete seller pickup address: {errors_str}")
+
+    active_client = client or ShiprocketClient()
+    return active_client.register_pickup_location(seller)
+
+
+# ==============================================================================
+# PRODUCTION MULTI-SELLER AUTOMATION: CREATE & DISPATCH SHIPMENT
+# ==============================================================================
+
+def create_or_dispatch_shipment(
+    package_id: int,
+    idempotency_key: str | None = None,
+    user: Any = None,
+    courier_company_id: int | None = None,
+    auto_request_pickup: bool = True,
+    client: ShiprocketClient | None = None,
+) -> Any:
+    """
+    End-to-End Multi-Seller Shipment Dispatch Engine.
+    Executes:
+    1. Row-level concurrency locking on SellerOrder.
+    2. Eligibility & safety verification (Payment confirmed/COD, measurements, verified warehouse).
+    3. Strict Idempotency: Returns existing booking if already booked.
+    4. Origin warehouse verification & Shiprocket pickup location registration.
+    5. Real or simulated Shiprocket order creation.
+    6. Courier rate evaluation & optimal carrier assignment.
+    7. AWB tracking number allocation.
+    8. Courier pickup scheduling.
+    9. Durable ShipmentBooking creation with audit tracking events.
+    10. Safe synchronization of sub-order tracking info without altering financial snapshots.
+    """
+    from core.models import Order, Seller, SellerOrder, ShipmentBooking
+
+    active_client = client or ShiprocketClient()
+    is_mock = active_client.mock_mode
+
+    clean_key = (idempotency_key or "").strip()
+    if clean_key:
+        existing_by_key = ShipmentBooking.objects.filter(idempotency_key=clean_key).first()
+        if existing_by_key:
+            if existing_by_key.package_id != package_id:
+                raise ShiprocketValidationError(
+                    "Idempotency key collision: This key was already used for a different package.",
+                    user_message="Idempotency key collision detected.",
+                )
+            logger.info("Returning existing booking for idempotency key %s.", clean_key)
+            return existing_by_key
+
+    with transaction.atomic():
+        package = (
+            SellerOrder.objects.select_for_update()
+            .select_related("order", "seller")
+            .filter(pk=package_id)
+            .first()
+        )
+        if not package:
+            raise ShiprocketValidationError(f"Package #{package_id} was not found.")
+
+        # Re-check idempotency under lock
+        if package.is_booked:
+            logger.info("Package #%s is already booked. Returning existing booking.", package.sub_order_number)
+            return package.shipment_booking
+
+        if clean_key:
+            existing_by_key = ShipmentBooking.objects.filter(idempotency_key=clean_key).first()
+            if existing_by_key:
+                return existing_by_key
+
+        # Eligibility validation gate
+        validate_booking_eligibility(package)
+
+        # Multi-Seller Isolation: Verify & resolve origin pickup facility
+        pickup_details = package.get_pickup_location_details()
+        if not pickup_details.get("is_verified"):
+            raise ShiprocketValidationError(
+                f"Pickup warehouse for package #{package.sub_order_number} is unverified by admin. "
+                "Approval is required before booking courier."
+            )
+
+        # Register pickup facility with Shiprocket if not yet confirmed
+        pickup_loc_name = ""
+        if not package.is_platform_fulfilled and package.seller:
+            seller = package.seller
+            if not seller.shiprocket_pickup_location_id or seller.shiprocket_pickup_registration_status != Seller.PICKUP_REG_STATUS_REGISTERED:
+                reg_res = active_client.register_pickup_location(seller)
+                pickup_loc_name = reg_res.get("pickup_location")
+            else:
+                pickup_loc_name = seller.shiprocket_pickup_location_id
+        else:
+            pickup_loc_name = getattr(settings, "SHIPROCKET_PICKUP_LOCATION", "") or "Fitmeezo_Central_Warehouse"
+
+        final_key = clean_key or f"ship-key-{package.pk}-{uuid.uuid4().hex[:16]}"
+        chargeable_wt = package.get_chargeable_weight_kg() or Decimal("0.500")
+
+        # Select Courier
+        assigned_courier_id = courier_company_id
+        assigned_courier_name = ""
+        estimated_rate = Decimal("0.00")
+
+        if not assigned_courier_id:
+            try:
+                rate_result = estimate_package_shipping_rate(package, client=active_client)
+                if rate_result.is_serviceable and rate_result.recommended_courier:
+                    assigned_courier_id = rate_result.recommended_courier.courier_company_id
+                    assigned_courier_name = rate_result.recommended_courier.courier_name
+                    estimated_rate = rate_result.recommended_courier.rate
+            except Exception as exc:
+                logger.warning("Could not auto-select courier via rate estimate: %s. Using default carrier.", exc)
+
+        # Step 1: Create Order in Shiprocket
+        order_res = active_client.create_order(package, pickup_location_name=pickup_loc_name)
+        shipment_id = order_res.get("shipment_id")
+        shiprocket_order_id = order_res.get("order_id", package.sub_order_number)
+
+        # Step 2: Assign Courier & AWB
+        awb_res = active_client.assign_awb(shipment_id=shipment_id, courier_id=assigned_courier_id)
+        awb_code = awb_res.get("awb_code")
+        assigned_courier_name = awb_res.get("courier_name") or assigned_courier_name or "Standard Logistics"
+        assigned_courier_id = awb_res.get("courier_company_id") or assigned_courier_id
+
+        # Step 3: Request Courier Pickup if configured
+        pickup_status = ShipmentBooking.PICKUP_NOT_REQUESTED
+        pickup_sched_date = None
+        pickup_token = ""
+        if auto_request_pickup:
+            try:
+                pk_res = active_client.request_pickup(shipment_id=shipment_id)
+                pickup_status = pk_res.get("pickup_status") or ShipmentBooking.PICKUP_REQUESTED
+                pickup_sched_date = pk_res.get("pickup_scheduled_date")
+                pickup_token = pk_res.get("pickup_token_number", "")
+            except Exception as exc:
+                logger.warning("Auto pickup request deferred for shipment %s: %s", shipment_id, exc)
+                pickup_status = ShipmentBooking.PICKUP_FAILED
+
+        # Step 4: Documents (Labels / Tracking URL)
+        tracking_url = f"https://shiprocket.co/tracking/{awb_code}" if awb_code else ""
+        label_url = ""
+        try:
+            lbl_res = active_client.generate_label(shipment_id)
+            label_url = lbl_res.get("label_url", "")
+        except Exception:
+            pass
+
+        # Step 5: Save Durable ShipmentBooking Record
+        try:
+            booking = ShipmentBooking.objects.create(
+                package=package,
+                idempotency_key=final_key,
+                is_mock=is_mock,
+                status="booked",
+                shipment_id=str(shipment_id),
+                shiprocket_order_id=str(shiprocket_order_id),
+                awb_code=str(awb_code),
+                courier_name=str(assigned_courier_name),
+                courier_company_id=int(assigned_courier_id) if assigned_courier_id else None,
+                chargeable_weight_kg=chargeable_wt,
+                estimated_rate=estimated_rate,
+                pickup_nickname=pickup_loc_name,
+                pickup_status=pickup_status,
+                pickup_scheduled_date=pickup_sched_date,
+                pickup_token_number=pickup_token,
+                tracking_status="MANIFEST_GENERATED",
+                tracking_url=tracking_url,
+                label_url=label_url,
+                metadata={
+                    "is_mock": is_mock,
+                    "booked_by": user.username if user and user.is_authenticated else "system",
+                    "booked_at": timezone.now().isoformat(),
+                    "pickup_location_name": pickup_loc_name,
+                },
+            )
+            booking.record_tracking_event(
+                status="MANIFEST_GENERATED",
+                activity=f"Shipment booked via {assigned_courier_name}. AWB: {awb_code}",
+                location=pickup_loc_name,
+            )
+            booking.save(update_fields=["status_history", "tracking_status", "last_tracking_sync"])
+        except IntegrityError:
+            existing = ShipmentBooking.objects.filter(package_id=package.pk).first()
+            if existing:
+                return existing
+            raise
+
+        # Step 6: Update SellerOrder Tracking references
+        package.shiprocket_order_id = str(shiprocket_order_id)
+        package.shiprocket_shipment_id = str(shipment_id)
+        package.shiprocket_awb_code = str(awb_code)
+        package.tracking_number = str(awb_code)
+        package.courier_name = str(assigned_courier_name)
+        package.tracking_url = tracking_url
+        package.save(update_fields=[
+            "shiprocket_order_id",
+            "shiprocket_shipment_id",
+            "shiprocket_awb_code",
+            "tracking_number",
+            "courier_name",
+            "tracking_url",
+            "updated_at",
+        ])
+
+        logger.info(
+            "Shipment successfully booked for package #%s (Shipment: %s, AWB: %s, Courier: %s).",
+            package.sub_order_number,
+            shipment_id,
+            awb_code,
+            assigned_courier_name,
+        )
+        return booking
+
+
+# ==============================================================================
+# LIVE TRACKING SYNCHRONIZATION & STATUS TRANSITIONS
+# ==============================================================================
+
+def sync_shipment_tracking(
+    booking_or_package: Any,
+    client: ShiprocketClient | None = None,
+    tracking_data: dict | None = None,
+) -> dict:
+    """
+    Synchronizes real-time courier tracking milestones from Shiprocket API.
+    Transitions:
+    - Moves package to Shipped strictly when courier confirms physical collection/in-transit.
+    - Moves package to Delivered strictly when courier confirms doorstep delivery.
+    - Reconciles parent Order to Delivered when all child shipments are delivered.
+    - Records detailed scan audit trail in ShipmentBooking.status_history.
+    """
+    from core.models import Order, SellerOrder, ShipmentBooking
+
+    if isinstance(booking_or_package, SellerOrder):
+        package = booking_or_package
+        booking = getattr(package, "shipment_booking", None)
+    elif isinstance(booking_or_package, ShipmentBooking):
+        booking = booking_or_package
+        package = booking.package
+    else:
+        raise ShiprocketValidationError("Input must be a SellerOrder or ShipmentBooking.")
+
+    if not booking or not booking.awb_code:
+        return {"status": "unbooked", "message": "No active shipment booking with AWB exists for this package."}
+
+    if tracking_data is None:
+        active_client = client or ShiprocketClient()
+        tracking_data = active_client.track_awb(booking.awb_code)
+
+    current_status = (tracking_data.get("current_status") or "").upper().strip()
+    scans = tracking_data.get("scans") or []
+
+    # Map status milestones
+    SHIPPED_MILESTONES = {
+        "PICKED UP",
+        "IN TRANSIT",
+        "OUT FOR DELIVERY",
+        "REACHED AT DESTINATION",
+        "REACHED DESTINATION HUB",
+        "OUT FOR PICKUP",
+        "HANDOVER TO COURIER",
+    }
+    DELIVERED_MILESTONES = {"DELIVERED"}
+    RTO_MILESTONES = {"RTO INITIATED", "RTO DELIVERED", "RTO OFD", "RTO"}
+    CANCELLED_MILESTONES = {"CANCELED", "CANCELLED"}
+
+    with transaction.atomic():
+        locked_pkg = SellerOrder.objects.select_for_update().select_related("order").get(pk=package.pk)
+        locked_booking = ShipmentBooking.objects.select_for_update().get(pk=booking.pk)
+
+        # 1. Physical Pickup Confirmation -> Mark Shipped
+        if current_status in SHIPPED_MILESTONES or any(str(s.get("activity", "")).upper() in SHIPPED_MILESTONES for s in scans):
+            locked_booking.pickup_status = ShipmentBooking.PICKUP_PICKED_UP
+            if locked_pkg.status in (SellerOrder.STATUS_PENDING, SellerOrder.STATUS_PROCESSING, SellerOrder.STATUS_READY_TO_SHIP):
+                locked_pkg.status = SellerOrder.STATUS_SHIPPED
+                locked_pkg.shipped_at = timezone.now()
+                locked_pkg.save(update_fields=["status", "shipped_at", "updated_at"])
+                logger.info("Package #%s transitioned to SHIPPED based on courier pickup confirmation.", locked_pkg.sub_order_number)
+
+        # 2. Doorstep Delivery Confirmation -> Mark Delivered
+        if current_status in DELIVERED_MILESTONES:
+            locked_booking.tracking_status = "DELIVERED"
+            if locked_pkg.status != SellerOrder.STATUS_DELIVERED:
+                locked_pkg.status = SellerOrder.STATUS_DELIVERED
+                locked_pkg.delivered_at = timezone.now()
+                locked_pkg.save(update_fields=["status", "delivered_at", "updated_at"])
+                logger.info("Package #%s confirmed DELIVERED by courier.", locked_pkg.sub_order_number)
+
+                # Reconcile parent Order: mark delivered if all seller packages are delivered
+                parent_order = locked_pkg.order
+                all_delivered = not parent_order.seller_orders.exclude(pk=locked_pkg.pk).exclude(status=SellerOrder.STATUS_DELIVERED).exists()
+                if all_delivered:
+                    parent_order.status = Order.STATUS_DELIVERED
+                    parent_order.delivered_at = timezone.now()
+                    parent_order.save(update_fields=["status", "delivered_at", "updated_at"])
+                    logger.info("Parent Order #%s fully delivered across all fulfillment packages.", parent_order.order_number)
+
+        # 3. RTO / Return
+        if current_status in RTO_MILESTONES:
+            locked_booking.tracking_status = "RTO"
+
+        # 4. Cancelled
+        if current_status in CANCELLED_MILESTONES:
+            locked_booking.tracking_status = "CANCELLED"
+
+        # Record audit scan
+        latest_scan = scans[-1] if scans else {}
+        activity_text = latest_scan.get("activity") or f"Tracking status: {current_status}"
+        location_text = latest_scan.get("location") or ""
+        locked_booking.record_tracking_event(
+            status=current_status or locked_booking.tracking_status,
+            activity=activity_text,
+            location=location_text,
+            raw_data=tracking_data,
+        )
+        locked_booking.save(update_fields=[
+            "pickup_status",
+            "tracking_status",
+            "last_tracking_sync",
+            "status_history",
+        ])
+
+    return {
+        "success": True,
+        "awb_code": booking.awb_code,
+        "current_status": current_status,
+        "package_status": locked_pkg.status,
+        "courier_name": locked_booking.courier_name,
+        "etd": tracking_data.get("etd", ""),
+        "scans_count": len(scans),
+    }
+
+
+# ==============================================================================
+# SECURE WEBHOOK PROCESSING ENGINE
+# ==============================================================================
+
+def handle_shiprocket_webhook(
+    payload: dict,
+    headers: dict | None = None,
+) -> tuple[bool, str, dict]:
+    """
+    Parses and verifies incoming Shiprocket webhook tracking events.
+    Guarantees:
+    - Authenticates webhook secret token if configured.
+    - Idempotency & deduplication: safely ignores repeated identical event payloads.
+    - Accurately matches event to ShipmentBooking and SellerOrder.
+    - Safe transitions without corrupting financial ledgers or premature delivery claims.
+    """
+    from core.models import ShipmentBooking
+
+    if not isinstance(payload, dict):
+        return False, "Malformed non-dict payload.", {}
+
+    headers = headers or {}
+
+    # 1. Webhook Authentication
+    configured_token = getattr(settings, "SHIPROCKET_WEBHOOK_TOKEN", "")
+    if configured_token:
+        auth_header = (
+            headers.get("x-api-key")
+            or headers.get("HTTP_X_API_KEY")
+            or headers.get("authorization")
+            or headers.get("HTTP_AUTHORIZATION")
+            or ""
+        ).replace("Bearer ", "").strip()
+
+        if auth_header != configured_token:
+            logger.warning("Rejected Shiprocket webhook: invalid authentication token.")
+            return False, "Unauthorized webhook token.", {}
+
+    # 2. Idempotency & Event Deduplication
+    event_str = json.dumps(payload, sort_keys=True)
+    event_hash = hashlib.sha256(event_str.encode()).hexdigest()
+    cache_key = f"shiprocket_webhook_processed_{event_hash}"
+    if cache.get(cache_key):
+        logger.info("Ignoring duplicate webhook event (hash: %s).", event_hash[:12])
+        return True, "Duplicate webhook event safely ignored.", {"event_hash": event_hash, "duplicate": True}
+
+    cache.set(cache_key, True, 86400)  # Deduplicate for 24 hours
+
+    # 3. Match Target ShipmentBooking
+    awb_code = str(payload.get("awb") or payload.get("awb_code") or "").strip()
+    shipment_id = str(payload.get("shipment_id") or "").strip()
+    order_id = str(payload.get("order_id") or "").strip()
+
+    booking = None
+    if awb_code:
+        booking = ShipmentBooking.objects.filter(awb_code=awb_code).select_related("package", "package__order").first()
+    if not booking and shipment_id:
+        booking = ShipmentBooking.objects.filter(shipment_id=shipment_id).select_related("package", "package__order").first()
+    if not booking and order_id:
+        booking = ShipmentBooking.objects.filter(package__sub_order_number=order_id).select_related("package", "package__order").first()
+
+    if not booking:
+        logger.warning(
+            "Shiprocket webhook received for unmapped shipment (AWB: %s, Shipment: %s, Order: %s).",
+            awb_code,
+            shipment_id,
+            order_id,
+        )
+        return False, "No matching ShipmentBooking found for webhook payload.", {"awb": awb_code, "shipment_id": shipment_id}
+
+    # 4. Process Status Update
+    status_text = (payload.get("current_status") or payload.get("status") or "").upper().strip()
+    activity = payload.get("activity") or payload.get("current_status") or f"Webhook status: {status_text}"
+    location = payload.get("location") or ""
+
+    # Synthesize tracking scan format for sync_shipment_tracking
+    tracking_simulation = {
+        "awb_code": booking.awb_code,
+        "current_status": status_text,
+        "scans": [{"activity": activity, "location": location, "date": timezone.now().strftime("%Y-%m-%d %H:%M")}],
+        "courier_name": payload.get("courier_name") or booking.courier_name,
+    }
+
+    sync_result = sync_shipment_tracking(booking, client=None, tracking_data=tracking_simulation)
+
+    logger.info("Processed Shiprocket webhook for package #%s (Status: %s).", booking.package.sub_order_number, status_text)
+    return True, "Webhook processed successfully.", sync_result

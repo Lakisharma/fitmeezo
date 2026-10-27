@@ -56,6 +56,7 @@ from .models import (
     Seller,
     SellerLedgerEntry,
     SellerOrder,
+    ShipmentBooking,
     Invoice,
     CarouselImage,
 )
@@ -2896,3 +2897,66 @@ def admin_carousel_delete_view(request, pk):
     messages.success(request, f"Carousel slide '{slide_title}' was successfully deleted.")
     return redirect("custom_admin:carousel_list")
 
+
+@require_POST
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_shipment_sync_tracking_view(request, shipment_id):
+    """
+    Admin control to query and sync real-time courier tracking milestones from Shiprocket.
+    """
+    from core.shiprocket import sync_shipment_tracking
+    booking = get_object_or_404(ShipmentBooking.objects.select_related("package__order"), pk=shipment_id)
+    order_pk = booking.package.order_id
+
+    try:
+        result = sync_shipment_tracking(booking)
+        curr = result.get("current_status") or "Updated"
+        messages.success(request, f"Courier tracking for AWB {booking.awb_code} synced successfully. Status: {curr}.")
+    except Exception as exc:
+        messages.error(request, f"Tracking sync failed: {str(exc)}")
+
+    return redirect("custom_admin:order_detail", pk=order_pk)
+
+
+@require_POST
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
+def admin_shipment_manual_deliver_view(request, shipment_id):
+    """
+    Emergency manual delivery override with strict audit trail.
+    Used when courier confirms delivery out-of-band or delivery scan was missed.
+    """
+    booking = get_object_or_404(
+        ShipmentBooking.objects.select_related("package__order", "package__seller"),
+        pk=shipment_id,
+    )
+    reason = (request.POST.get("reason") or "").strip()
+    if not reason:
+        messages.error(request, "A valid reason is required for manual delivery override.")
+        return redirect("custom_admin:order_detail", pk=booking.package.order_id)
+
+    with transaction.atomic():
+        locked_booking = ShipmentBooking.objects.select_for_update().get(pk=booking.pk)
+        locked_package = SellerOrder.objects.select_for_update().get(pk=locked_booking.package_id)
+
+        locked_booking.status = ShipmentBooking.STATUS_DELIVERED
+        locked_booking.save(update_fields=["status"])
+
+        locked_package.mark_delivered(commit=True)
+
+        locked_booking.record_tracking_event(
+            event_type="MANUAL_DELIVERY_OVERRIDE",
+            description=f"Manual delivery marked by admin {request.user.username}. Reason: {reason}",
+            actor=request.user,
+        )
+
+    parent_order = locked_package.order
+    all_packages = list(parent_order.seller_orders.all())
+    if all_packages and all(p.status == SellerOrder.STATUS_DELIVERED for p in all_packages):
+        parent_order.status = Order.STATUS_DELIVERED
+        parent_order.save(update_fields=["status", "updated_at"])
+
+    messages.success(
+        request,
+        f"Package #{locked_package.sub_order_number} (AWB: {locked_booking.awb_code}) manually marked as Delivered. Audit record logged.",
+    )
+    return redirect("custom_admin:order_detail", pk=parent_order.pk)

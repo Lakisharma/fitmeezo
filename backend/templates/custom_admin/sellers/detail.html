@@ -128,13 +128,68 @@
           <div class="small text-muted">{{ seller.city }}, {{ seller.state }} - {{ seller.postal_code }}</div>
         </div>
 
-        {% if seller.pickup_address %}
         <div class="border-top pt-3 mt-3">
-          <span class="text-muted small fw-semibold d-block mb-1">Warehouse Pickup Address</span>
-          <div class="small text-dark">{{ seller.pickup_address }}</div>
-          <div class="small text-muted">{{ seller.pickup_city }}, {{ seller.pickup_state }} - {{ seller.pickup_postal_code }}</div>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="text-muted small fw-semibold">Warehouse Pickup Address &amp; Courier Logistics</span>
+            <div>
+              {% if seller.pickup_location_verified %}
+                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Verified</span>
+              {% else %}
+                <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Unverified</span>
+              {% endif %}
+              {% if seller.shiprocket_pickup_registration_status == 'REGISTERED' %}
+                <span class="badge bg-primary"><i class="bi bi-cloud-check me-1"></i>Shiprocket Registered</span>
+              {% elif seller.shiprocket_pickup_registration_status == 'FAILED' %}
+                <span class="badge bg-danger"><i class="bi bi-exclamation-triangle me-1"></i>Shiprocket Sync Error</span>
+              {% else %}
+                <span class="badge bg-secondary">Shiprocket Pending</span>
+              {% endif %}
+            </div>
+          </div>
+
+          {% if seller.pickup_address %}
+            <div class="small text-dark fw-semibold">{{ seller.pickup_address }}</div>
+            {% if seller.pickup_landmark %}
+              <div class="small text-muted">Landmark: {{ seller.pickup_landmark }}</div>
+            {% endif %}
+            <div class="small text-muted">{{ seller.pickup_city }}, {{ seller.pickup_state }} - {{ seller.pickup_postal_code }}</div>
+            <div class="small text-secondary mt-1">
+              Contact: <strong>{{ seller.pickup_contact_name|default:"Not specified" }}</strong> ({{ seller.pickup_contact_phone|default:"-" }})
+            </div>
+            <div class="small text-muted font-monospace mt-1">Shiprocket Nickname: {{ seller.get_shiprocket_pickup_location_name }}</div>
+
+            {% if seller.shiprocket_pickup_registration_error %}
+              <div class="alert alert-danger py-1 px-2 small mt-2 mb-2">{{ seller.shiprocket_pickup_registration_error }}</div>
+            {% endif %}
+
+            <!-- Admin Action Buttons -->
+            <div class="d-flex gap-2 mt-3 pt-2 border-top flex-wrap">
+              <form method="post" action="{% url 'custom_admin:seller_pickup_verify' seller_id=seller.pk %}" class="d-inline">
+                {% csrf_token %}
+                {% if seller.pickup_location_verified %}
+                  <input type="hidden" name="action" value="unverify">
+                  <button type="submit" class="btn btn-sm btn-outline-warning" onclick="return confirm('Revoke verification for this warehouse location?');">
+                    <i class="bi bi-x-circle me-1"></i>Revoke Verification
+                  </button>
+                {% else %}
+                  <input type="hidden" name="action" value="verify">
+                  <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Verify this warehouse pickup address coordinates?');">
+                    <i class="bi bi-check-circle me-1"></i>Verify Location
+                  </button>
+                {% endif %}
+              </form>
+
+              <form method="post" action="{% url 'custom_admin:seller_pickup_register' seller_id=seller.pk %}" class="d-inline">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-primary" onclick="return confirm('Register/Sync this warehouse with Shiprocket API?');">
+                  <i class="bi bi-cloud-arrow-up me-1"></i>Sync with Shiprocket
+                </button>
+              </form>
+            </div>
+          {% else %}
+            <div class="small text-muted fst-italic">No warehouse pickup address recorded yet.</div>
+          {% endif %}
         </div>
-        {% endif %}
       </div>
     </div>
   </div>

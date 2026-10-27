@@ -33,6 +33,7 @@ from .views import (
     product_variants_api,
     wishlist_api,
     wishlist_api_detail,
+    shiprocket_webhook_view,
 )
 
 app_name = "api"
@@ -74,4 +75,8 @@ urlpatterns = [
     path("orders/", api_order_list, name="order_list"),
     path("orders/<str:order_number>/cancel/", api_order_cancel, name="order_cancel"),
     path("orders/<str:order_number>/", api_order_detail, name="order_detail"),
+
+    # Logistics Webhook
+    path("shipping/shiprocket/webhook/", shiprocket_webhook_view, name="shiprocket_webhook"),
+    path("shiprocket/webhook/", shiprocket_webhook_view, name="shiprocket_webhook_alt"),
 ]

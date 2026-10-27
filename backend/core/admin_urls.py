@@ -65,6 +65,8 @@ from .admin_views import (
     admin_seller_closure_action_view,
     admin_seller_closure_create_final_batch_view,
     admin_seller_closure_finalize_view,
+    admin_shipment_sync_tracking_view,
+    admin_shipment_manual_deliver_view,
 )
 from .admin_extended_views import (
     admin_seller_list_view,
@@ -72,6 +74,8 @@ from .admin_extended_views import (
     admin_seller_detail_view,
     admin_seller_action_view,
     admin_seller_commission_update_view,
+    admin_seller_pickup_verify_view,
+    admin_seller_pickup_register_view,
     admin_product_approval_view,
     admin_product_delete_view,
     admin_inventory_view,
@@ -108,6 +112,8 @@ urlpatterns = [
     path("sellers/<int:seller_id>/action/", admin_seller_action_view, name="seller_action"),
     path("sellers/<int:seller_id>/commission/", admin_seller_commission_update_view, name="seller_commission_update"),
     path("sellers/<int:seller_id>/bank-verify/", admin_seller_bank_verification_view, name="seller_bank_verify"),
+    path("sellers/<int:seller_id>/pickup-verify/", admin_seller_pickup_verify_view, name="seller_pickup_verify"),
+    path("sellers/<int:seller_id>/pickup-register/", admin_seller_pickup_register_view, name="seller_pickup_register"),
     path("seller-closures/", admin_seller_closure_list_view, name="seller_closure_list"),
     path("seller-closures/<int:seller_id>/", admin_seller_closure_detail_view, name="seller_closure_detail"),
     path("seller-closures/<int:seller_id>/action/", admin_seller_closure_action_view, name="seller_closure_action"),
@@ -153,6 +159,8 @@ urlpatterns = [
     path("orders/<int:pk>/update-status/", admin_order_update_status_view, name="order_update_status"),
     path("orders/<int:pk>/update-payment/", admin_order_update_payment_view, name="order_update_payment"),
     path("orders/<int:pk>/reconcile-refund/", admin_order_reconcile_refund_view, name="order_reconcile_refund"),
+    path("shipments/<int:shipment_id>/sync-tracking/", admin_shipment_sync_tracking_view, name="shipment_sync_tracking"),
+    path("shipments/<int:shipment_id>/manual-deliver/", admin_shipment_manual_deliver_view, name="shipment_manual_deliver"),
 
     # Customers
     path("customers/", admin_customer_list_view, name="customer_list"),

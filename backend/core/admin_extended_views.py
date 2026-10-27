@@ -1089,3 +1089,67 @@ def admin_global_search_view(request):
         ),
     }
     return render(request, "custom_admin/search_results.html", context)
+
+
+@require_POST
+@admin_role_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER])
+def admin_seller_pickup_verify_view(request, seller_id):
+    """
+    Admin action to verify or reject a seller's physical warehouse pickup coordinates.
+    """
+    seller = get_object_or_404(Seller, pk=seller_id)
+    action = request.POST.get("action", "verify").strip()
+    notes = request.POST.get("notes", "").strip()
+
+    if action == "verify":
+        loc_check = seller.validate_pickup_location()
+        if not loc_check.get("is_complete"):
+            err_str = "; ".join(loc_check.get("errors", []))
+            messages.error(request, f"Cannot verify incomplete pickup address: {err_str}")
+            return redirect("custom_admin:seller_detail", seller_id=seller.pk)
+
+        seller.pickup_location_verified = True
+        seller.pickup_verification_notes = notes or f"Verified by {request.user.username}"
+        seller.save(update_fields=["pickup_location_verified", "pickup_verification_notes", "updated_at"])
+        log_admin_action(request.user, seller, CHANGE, f"Verified pickup warehouse location. Notes: {notes}")
+        messages.success(request, f"Pickup address for '{seller.store_name}' verified successfully.")
+    else:
+        seller.pickup_location_verified = False
+        seller.pickup_verification_notes = notes or f"Rejected by {request.user.username}"
+        seller.save(update_fields=["pickup_location_verified", "pickup_verification_notes", "updated_at"])
+        log_admin_action(request.user, seller, CHANGE, f"Unverified/Rejected pickup warehouse location. Notes: {notes}")
+        messages.warning(request, f"Pickup address for '{seller.store_name}' set to unverified.")
+
+    return redirect("custom_admin:seller_detail", seller_id=seller.pk)
+
+
+@require_POST
+@admin_role_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER])
+def admin_seller_pickup_register_view(request, seller_id):
+    """
+    Admin action to register or sync the seller's pickup facility with the Shiprocket API.
+    """
+    from core.shiprocket import register_seller_pickup_location, ShiprocketError
+
+    seller = get_object_or_404(Seller, pk=seller_id)
+
+    try:
+        res = register_seller_pickup_location(seller)
+        nickname = seller.get_shiprocket_pickup_location_name()
+        log_admin_action(
+            request.user,
+            seller,
+            CHANGE,
+            f"Registered pickup facility with Shiprocket: {nickname} (Status: {seller.shiprocket_pickup_registration_status})",
+        )
+        messages.success(
+            request,
+            f"Shiprocket pickup facility registered successfully! Nickname: '{nickname}'. "
+            f"Status: {seller.get_shiprocket_pickup_registration_status_display()}.",
+        )
+    except ShiprocketError as err:
+        messages.error(request, f"Shiprocket pickup registration failed: {err.user_message}")
+    except Exception as exc:
+        messages.error(request, f"Failed to register pickup location with Shiprocket: {str(exc)}")
+
+    return redirect("custom_admin:seller_detail", seller_id=seller.pk)

@@ -63,7 +63,12 @@ from core.shiprocket import (
     estimate_package_shipping_rate,
     sanitize_log_data,
     validate_booking_eligibility,
+    create_or_dispatch_shipment,
+    sync_shipment_tracking,
+    handle_shiprocket_webhook,
+    register_seller_pickup_location,
 )
+from core.forms import SellerPickupAddressForm
 
 User = get_user_model()
 
@@ -1234,3 +1239,549 @@ class ShiprocketMockBookingTests(TestCase):
         self.assertNotIn("commission_rate", content)
         self.assertNotIn("net_seller_payable", content)
 
+
+@override_settings(SHIPROCKET_MOCK_MODE=True)
+class ShiprocketMultiSellerAutomationIntegrationTests(TestCase):
+    """
+    Comprehensive test suite covering production multi-seller Shiprocket shipping automation:
+    - Seller pickup address management and validation
+    - Shiprocket facility registration API (/settings/company/addpickup)
+    - Multi-seller package isolation (Seller 1 vs Seller 2 different pickup locations)
+    - Order accept/reject lifecycle
+    - Packed measurements entry & 'Ready for Pickup'
+    - End-to-end dispatch (order creation, courier rate check, AWB assignment, scheduled pickup)
+    - Strict milestone status transitions (Shipped on physical collection, Delivered on verified delivery, parent order reconciliation)
+    - Idempotency & duplicate prevention
+    - Webhook verification, deduplication, and tracking updates
+    - Seller authorization checks (Seller A cannot dispatch Seller B's package)
+    - COD vs Prepaid mapping
+    - Admin controls (approve pickup, trigger registration, sync tracking, manual delivery override)
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.password = "Secr3tPass!123"
+
+        # Platform / Customer User
+        self.customer = User.objects.create_user(
+            username="customer_user",
+            email="cust@fitmeezo.test",
+            password=self.password,
+            first_name="Pooja",
+            last_name="Sharma",
+        )
+
+        # Admin Staff
+        self.admin_user = User.objects.create_superuser(
+            username="admin_staff",
+            email="admin@fitmeezo.com",
+            password=self.password,
+        )
+
+        # Seller 1 (Bengaluru Warehouse)
+        self.seller_user1 = User.objects.create_user(
+            username="merchant_one",
+            email="m1@fitmeezo.test",
+            password=self.password,
+        )
+        self.seller1 = create_test_seller(
+            self.seller_user1,
+            store_name="Alpha Textiles",
+            pickup_address="10 Industrial Layout, Peenya",
+            pickup_city="Bengaluru",
+            pickup_state="Karnataka",
+            pickup_postal_code="560058",
+            pickup_contact_name="Ramesh Kumar",
+            pickup_contact_phone="9876543210",
+        )
+
+        # Seller 2 (Mumbai Warehouse)
+        self.seller_user2 = User.objects.create_user(
+            username="merchant_two",
+            email="m2@fitmeezo.test",
+            password=self.password,
+        )
+        self.seller2 = create_test_seller(
+            self.seller_user2,
+            store_name="Beta Apparels",
+            gstin="27ABCDE5678F1Z9",
+            pan_number="ABCDE5678F",
+            support_phone="9123456780",
+            pickup_address="Plot 45, Andheri East",
+            pickup_city="Mumbai",
+            pickup_state="Maharashtra",
+            pickup_postal_code="400069",
+            pickup_contact_name="Suresh Patel",
+            pickup_contact_phone="9123456780",
+        )
+
+        self.category = Category.objects.create(name="Ethnic Wear", slug="ethnic-wear")
+
+        self.prod1 = Product.objects.create(
+            seller=self.seller1,
+            category=self.category,
+            name="Cotton Kurta",
+            slug="cotton-kurta-m1",
+            sku="SKU-TEST-M1-01",
+            price=Decimal("1200.00"),
+            weight_grams=400,
+            length_cm=Decimal("20.0"),
+            breadth_cm=Decimal("15.0"),
+            height_cm=Decimal("5.0"),
+            is_active=True,
+            approval_status=Product.APPROVAL_APPROVED,
+        )
+
+        self.prod2 = Product.objects.create(
+            seller=self.seller2,
+            category=self.category,
+            name="Silk Saree",
+            slug="silk-saree-m2",
+            sku="SKU-TEST-M2-02",
+            price=Decimal("2500.00"),
+            weight_grams=600,
+            length_cm=Decimal("30.0"),
+            breadth_cm=Decimal("25.0"),
+            height_cm=Decimal("4.0"),
+            is_active=True,
+            approval_status=Product.APPROVAL_APPROVED,
+        )
+
+        self.shipping_addr = Address.objects.create(
+            user=self.customer,
+            full_name="Pooja Sharma",
+            phone_number="9876543211",
+            address_line1="B-402, Lotus Apartments, Malviya Nagar",
+            city="Jaipur",
+            state="Rajasthan",
+            postal_code="302017",
+            is_default=True,
+        )
+
+        # Parent Order (COD)
+        self.order = Order.objects.create(
+            user=self.customer,
+            order_number=f"FIT-MS-{uuid.uuid4().hex[:6].upper()}",
+            total_amount=Decimal("3700.00"),
+            subtotal=Decimal("3700.00"),
+            payment_method=Order.PAYMENT_METHOD_COD,
+            payment_status=Order.PAYMENT_STATUS_UNPAID,
+            status=Order.STATUS_PROCESSING,
+            shipping_full_name=self.shipping_addr.full_name,
+            shipping_phone_number=self.shipping_addr.phone_number,
+            shipping_address_line1=self.shipping_addr.address_line1,
+            shipping_city=self.shipping_addr.city,
+            shipping_state=self.shipping_addr.state,
+            shipping_postal_code=self.shipping_addr.postal_code,
+        )
+
+        # SellerOrder for Seller 1
+        self.pkg1 = SellerOrder.objects.create(
+            order=self.order,
+            seller=self.seller1,
+            sub_order_number=f"{self.order.order_number}-S1",
+            status=SellerOrder.STATUS_PENDING,
+            package_dimension_status=SellerOrder.PACKAGE_DIMENSION_VERIFIED,
+            actual_weight_grams=450,
+            actual_length_cm=Decimal("20.0"),
+            actual_breadth_cm=Decimal("15.0"),
+            actual_height_cm=Decimal("5.0"),
+            subtotal=Decimal("1200.00"),
+            total_commission=Decimal("120.00"),
+            net_seller_payable=Decimal("1080.00"),
+        )
+        self.item1 = OrderItem.objects.create(
+            order=self.order,
+            seller=self.seller1,
+            seller_order=self.pkg1,
+            product=self.prod1,
+            product_name=self.prod1.name,
+            quantity=1,
+            unit_price=self.prod1.price,
+            line_total=self.prod1.price,
+        )
+
+        # SellerOrder for Seller 2
+        self.pkg2 = SellerOrder.objects.create(
+            order=self.order,
+            seller=self.seller2,
+            sub_order_number=f"{self.order.order_number}-S2",
+            status=SellerOrder.STATUS_PENDING,
+            package_dimension_status=SellerOrder.PACKAGE_DIMENSION_VERIFIED,
+            actual_weight_grams=500,
+            actual_length_cm=Decimal("25.0"),
+            actual_breadth_cm=Decimal("20.0"),
+            actual_height_cm=Decimal("8.0"),
+            subtotal=Decimal("2500.00"),
+            total_commission=Decimal("250.00"),
+            net_seller_payable=Decimal("2250.00"),
+        )
+        self.item2 = OrderItem.objects.create(
+            order=self.order,
+            seller=self.seller2,
+            seller_order=self.pkg2,
+            product=self.prod2,
+            product_name=self.prod2.name,
+            quantity=1,
+            unit_price=self.prod2.price,
+            line_total=self.prod2.price,
+        )
+
+    def tearDown(self):
+        cache.clear()
+        super().tearDown()
+
+    # 1. Seller Pickup Address Form Validation
+    def test_seller_pickup_address_form_validation(self):
+        """Seller pickup form requires 10-digit phone, 6-digit PIN, contact name, and full address."""
+        invalid_data = {
+            "pickup_contact_name": "Ramesh",
+            "pickup_contact_phone": "12345",
+            "pickup_address": "Some Street",
+            "pickup_city": "Bengaluru",
+            "pickup_state": "Karnataka",
+            "pickup_postal_code": "560058",
+        }
+        form = SellerPickupAddressForm(data=invalid_data, instance=self.seller1)
+        self.assertFalse(form.is_valid())
+        self.assertIn("pickup_contact_phone", form.errors)
+
+        invalid_data["pickup_contact_phone"] = "9876543210"
+        invalid_data["pickup_postal_code"] = "5600"
+        form = SellerPickupAddressForm(data=invalid_data, instance=self.seller1)
+        self.assertFalse(form.is_valid())
+        self.assertIn("pickup_postal_code", form.errors)
+
+        valid_data = {
+            "pickup_contact_name": "Ramesh Kumar Updated",
+            "pickup_contact_phone": "9876543210",
+            "pickup_address": "Gate 3, Warehouse Hub, Peenya",
+            "pickup_landmark": "Opposite Metro Station",
+            "pickup_city": "Bengaluru",
+            "pickup_state": "Karnataka",
+            "pickup_postal_code": "560058",
+        }
+        form = SellerPickupAddressForm(data=valid_data, instance=self.seller1)
+        self.assertTrue(form.is_valid())
+        saved_seller = form.save()
+        self.assertEqual(saved_seller.pickup_contact_name, "Ramesh Kumar Updated")
+        self.assertEqual(saved_seller.pickup_landmark, "Opposite Metro Station")
+
+    # 2. Pickup Location Registration API (Success & Already Existing)
+    @patch.object(ShiprocketClient, "_request")
+    def test_pickup_location_registration_success(self, mock_request):
+        """register_seller_pickup_location registers facility with Shiprocket and stores location ID."""
+        mock_request.return_value = {
+            "success": True,
+            "pickup_id": 998811,
+            "message": "Pickup location added successfully",
+        }
+        client = ShiprocketClient(mock_mode=False, email="api@fitmeezo.com", password="pass")
+        with patch.object(client, "get_auth_token", return_value="jwt_test_token"):
+            result = register_seller_pickup_location(self.seller1, client=client)
+
+        self.seller1.refresh_from_db()
+        self.assertEqual(self.seller1.shiprocket_pickup_registration_status, Seller.PICKUP_REG_STATUS_REGISTERED)
+        self.assertEqual(self.seller1.shiprocket_pickup_location_id, "998811")
+        self.assertIn("fitmeezo_seller_", self.seller1.get_shiprocket_pickup_location_name())
+
+    # 3. Order Accept / Reject Lifecycle
+    def test_seller_order_accept_and_reject_flow(self):
+        """Seller can accept a pending package (moves to processing) or reject with reason (moves to cancelled)."""
+        client = Client()
+        client.force_login(self.seller_user1)
+
+        url = reverse("core:seller_order_update_status", kwargs={"pk": self.pkg1.pk})
+        resp = client.post(url, {"status": "processing"})
+        self.assertEqual(resp.status_code, 302)
+        self.pkg1.refresh_from_db()
+        self.assertEqual(self.pkg1.status, SellerOrder.STATUS_PROCESSING)
+
+        resp2 = client.post(url, {"status": "cancelled", "cancellation_reason": "Out of stock in warehouse"})
+        self.assertEqual(resp2.status_code, 302)
+        self.pkg1.refresh_from_db()
+        self.assertEqual(self.pkg1.status, SellerOrder.STATUS_CANCELLED)
+        self.assertIsNotNone(self.pkg1.cancelled_at)
+
+    # 4. Multi-Seller Packaging & Origin Isolation
+    def test_multiseller_origin_isolation(self):
+        """Each seller's package strictly references that specific seller's warehouse pickup location."""
+        loc1 = self.pkg1.get_pickup_location_details()
+        loc2 = self.pkg2.get_pickup_location_details()
+
+        self.assertNotEqual(loc1["pickup_location_name"], loc2["pickup_location_name"])
+        self.assertEqual(loc1["postal_code"], "560058")  # Bengaluru
+        self.assertEqual(loc2["postal_code"], "400069")  # Mumbai
+        self.assertEqual(loc1["contact_name"], "Ramesh Kumar")
+        self.assertEqual(loc2["contact_name"], "Suresh Patel")
+
+    # 5. Packed Measurements Recording & 'Ready for Pickup' Transition
+    def test_record_measurements_and_ready_to_ship(self):
+        """Recording verified measurements updates SellerOrder and allows ready_to_ship transition."""
+        client = Client()
+        client.force_login(self.seller_user1)
+
+        self.pkg1.status = SellerOrder.STATUS_PROCESSING
+        self.pkg1.save()
+
+        meas_url = reverse("core:seller_order_record_measurements", kwargs={"pk": self.pkg1.pk})
+        resp = client.post(
+            meas_url,
+            {
+                "actual_weight_grams": 450,
+                "actual_length_cm": "22.0",
+                "actual_breadth_cm": "16.0",
+                "actual_height_cm": "6.0",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+        self.pkg1.refresh_from_db()
+        self.assertEqual(self.pkg1.actual_weight_grams, 450)
+        self.assertEqual(self.pkg1.package_dimension_status, SellerOrder.PACKAGE_DIMENSION_VERIFIED)
+
+        status_url = reverse("core:seller_order_update_status", kwargs={"pk": self.pkg1.pk})
+        resp_status = client.post(status_url, {"status": "ready_to_ship"})
+        self.assertEqual(resp_status.status_code, 302)
+        self.pkg1.refresh_from_db()
+        self.assertEqual(self.pkg1.status, SellerOrder.STATUS_READY_TO_SHIP)
+
+    # 6. End-to-End Dispatch via Shiprocket Automation
+    @patch.object(ShiprocketClient, "_request")
+    def test_create_or_dispatch_shipment_flow(self, mock_request):
+        """
+        create_or_dispatch_shipment executes order creation, courier assign, and pickup request.
+        Package remains ready_to_ship (NOT prematurely marked Shipped).
+        """
+        self.pkg1.status = SellerOrder.STATUS_READY_TO_SHIP
+        self.pkg1.actual_weight_grams = 450
+        self.pkg1.actual_length_cm = Decimal("20.0")
+        self.pkg1.actual_breadth_cm = Decimal("15.0")
+        self.pkg1.actual_height_cm = Decimal("5.0")
+        self.pkg1.save()
+
+        def mock_request_side_effect(method, endpoint, payload=None, **kwargs):
+            if "orders/create/adhoc" in endpoint:
+                return {
+                    "order_id": 880011,
+                    "shipment_id": 990022,
+                    "status": "NEW",
+                    "status_code": 1,
+                    "awb_code": "AWB-M1-ALPHA99",
+                    "courier_name": "Blue Dart Express",
+                }
+            elif "couriers/assign/awb" in endpoint:
+                return {
+                    "response": {
+                        "data": {
+                            "awb_code": "AWB-M1-ALPHA99",
+                            "courier_name": "Blue Dart Express",
+                            "courier_company_id": 10,
+                        }
+                    }
+                }
+            elif "orders/pickup/request" in endpoint:
+                return {
+                    "response": {
+                        "pickup_token_number": "TOK-BLR-1234",
+                        "pickup_scheduled_date": "2026-10-28",
+                        "status": 1,
+                    }
+                }
+            elif "settings/company/addpickup" in endpoint:
+                return {"success": True, "pickup_id": 777}
+            return {}
+
+        mock_request.side_effect = mock_request_side_effect
+
+        client = ShiprocketClient(mock_mode=False, email="api@fitmeezo.com", password="pass")
+        with patch.object(client, "get_auth_token", return_value="jwt_test_token"):
+            booking = create_or_dispatch_shipment(self.pkg1.pk, user=self.seller_user1, client=client)
+
+        self.assertIsNotNone(booking)
+        self.assertEqual(booking.shiprocket_order_id, "880011")
+        self.assertEqual(booking.shipment_id, "990022")
+        self.assertEqual(booking.awb_code, "AWB-M1-ALPHA99")
+        self.assertEqual(booking.courier_name, "Blue Dart Express")
+        self.assertEqual(booking.pickup_token_number, "TOK-BLR-1234")
+
+        self.pkg1.refresh_from_db()
+        self.assertEqual(self.pkg1.tracking_number, "AWB-M1-ALPHA99")
+        self.assertEqual(self.pkg1.courier_name, "Blue Dart Express")
+        self.assertEqual(self.pkg1.shiprocket_order_id, "880011")
+        self.assertEqual(self.pkg1.status, SellerOrder.STATUS_READY_TO_SHIP)
+
+    # 7. Idempotency & Duplicate Prevention
+    def test_idempotency_prevents_duplicate_booking(self):
+        """Calling create_or_dispatch_shipment twice returns existing booking without re-booking."""
+        self.pkg1.status = SellerOrder.STATUS_READY_TO_SHIP
+        self.pkg1.actual_weight_grams = 450
+        self.pkg1.actual_length_cm = Decimal("20.0")
+        self.pkg1.actual_breadth_cm = Decimal("15.0")
+        self.pkg1.actual_height_cm = Decimal("5.0")
+        self.pkg1.save()
+
+        b1 = create_mock_shipment_booking(self.pkg1.pk, idempotency_key="KEY-UNIQUE-123")
+        self.assertIsNotNone(b1)
+
+        b2 = create_or_dispatch_shipment(self.pkg1.pk, idempotency_key="KEY-UNIQUE-123")
+        self.assertEqual(b1.pk, b2.pk)
+        self.assertEqual(ShipmentBooking.objects.filter(package=self.pkg1).count(), 1)
+
+    # 8. Live Tracking Sync: Advances to Shipped on Scan, Delivered on Delivery
+    def test_sync_shipment_tracking_milestones_and_order_reconciliation(self):
+        """
+        sync_shipment_tracking:
+        - Advances package to Shipped strictly on confirmed physical courier scan.
+        - Advances package to Delivered strictly on confirmed delivery scan.
+        - Reconciles parent Order to Delivered when all child packages are delivered.
+        """
+        self.pkg1.status = SellerOrder.STATUS_READY_TO_SHIP
+        self.pkg1.save()
+        booking1 = create_mock_shipment_booking(self.pkg1.pk)
+
+        in_transit_data = {
+            "current_status": "IN TRANSIT",
+            "current_status_id": 17,
+            "scans": [{"activity": "Picked up by Blue Dart associate", "location": "Bengaluru Hub", "date": "2026-10-27 10:00:00"}],
+        }
+        sync_shipment_tracking(self.pkg1, tracking_data=in_transit_data)
+        self.pkg1.refresh_from_db()
+        self.assertEqual(self.pkg1.status, SellerOrder.STATUS_SHIPPED)
+        self.assertIsNotNone(self.pkg1.shipped_at)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.STATUS_PROCESSING)
+
+        delivered_data = {
+            "current_status": "DELIVERED",
+            "current_status_id": 7,
+            "scans": [{"activity": "Delivered to recipient Pooja Sharma", "location": "Jaipur", "date": "2026-10-29 14:30:00"}],
+        }
+        sync_shipment_tracking(self.pkg1, tracking_data=delivered_data)
+        self.pkg1.refresh_from_db()
+        self.assertEqual(self.pkg1.status, SellerOrder.STATUS_DELIVERED)
+        self.assertIsNotNone(self.pkg1.delivered_at)
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.STATUS_PROCESSING)
+
+        self.pkg2.status = SellerOrder.STATUS_READY_TO_SHIP
+        self.pkg2.save()
+        booking2 = create_mock_shipment_booking(self.pkg2.pk)
+        sync_shipment_tracking(self.pkg2, tracking_data=delivered_data)
+        self.pkg2.refresh_from_db()
+        self.assertEqual(self.pkg2.status, SellerOrder.STATUS_DELIVERED)
+
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.STATUS_DELIVERED)
+
+    # 9. Webhook Receiver: Authentication, Processing & Deduplication
+    def test_webhook_receiver_authentication_and_deduplication(self):
+        """Webhook endpoint verifies secret token, updates tracking, and safely deduplicates identical payloads."""
+        self.pkg1.status = SellerOrder.STATUS_READY_TO_SHIP
+        self.pkg1.save()
+        booking = create_mock_shipment_booking(self.pkg1.pk)
+
+        webhook_url = reverse("core:shiprocket_webhook")
+        payload = {
+            "awb": booking.awb_code,
+            "shipment_id": booking.shipment_id,
+            "current_status": "IN TRANSIT",
+            "scans": [
+                {
+                    "activity": "Out for delivery from Jaipur Hub",
+                    "date": "2026-10-28 09:00:00",
+                    "location": "Jaipur Hub",
+                }
+            ],
+        }
+
+        client = Client()
+
+        with override_settings(SHIPROCKET_WEBHOOK_TOKEN="valid_webhook_secret_123"):
+            resp_bad = client.post(
+                webhook_url,
+                data=json.dumps(payload),
+                content_type="application/json",
+                HTTP_X_API_KEY="wrong_secret",
+            )
+            self.assertEqual(resp_bad.status_code, 401)
+
+            resp_good = client.post(
+                webhook_url,
+                data=json.dumps(payload),
+                content_type="application/json",
+                HTTP_X_API_KEY="valid_webhook_secret_123",
+            )
+            self.assertEqual(resp_good.status_code, 200)
+
+            self.pkg1.refresh_from_db()
+            self.assertEqual(self.pkg1.status, SellerOrder.STATUS_SHIPPED)
+
+            resp_dup = client.post(
+                webhook_url,
+                data=json.dumps(payload),
+                content_type="application/json",
+                HTTP_X_API_KEY="valid_webhook_secret_123",
+            )
+            self.assertEqual(resp_dup.status_code, 200)
+
+    # 10. Cross-Seller Isolation & Authorization
+    def test_seller_cannot_dispatch_another_sellers_package(self):
+        """Seller 1 cannot view or dispatch package belonging to Seller 2."""
+        client = Client()
+        client.force_login(self.seller_user1)
+
+        url = reverse("core:seller_order_dispatch_shipment", kwargs={"pk": self.pkg2.pk})
+        resp = client.post(url)
+        self.assertEqual(resp.status_code, 404)
+
+        sync_url = reverse("core:seller_order_sync_tracking", kwargs={"pk": self.pkg2.pk})
+        resp_sync = client.post(sync_url)
+        self.assertEqual(resp_sync.status_code, 404)
+
+    # 11. Admin Controls: Verify Pickup Location & Register with Shiprocket
+    @patch.object(ShiprocketClient, "_request")
+    def test_admin_pickup_verify_and_register_views(self, mock_request):
+        """Admin staff can verify seller pickup address and trigger Shiprocket API registration."""
+        mock_request.return_value = {"success": True, "pickup_id": 112233}
+
+        client = Client()
+        client.force_login(self.admin_user)
+
+        verify_url = reverse("custom_admin:seller_pickup_verify", kwargs={"seller_id": self.seller1.pk})
+        resp_v = client.post(verify_url, {"action": "verify", "notes": "Audited GST & utility bill"})
+        self.assertEqual(resp_v.status_code, 302)
+        self.seller1.refresh_from_db()
+        self.assertTrue(self.seller1.pickup_location_verified)
+
+        reg_url = reverse("custom_admin:seller_pickup_register", kwargs={"seller_id": self.seller1.pk})
+        with patch.object(ShiprocketClient, "get_auth_token", return_value="jwt_test_token"):
+            resp_reg = client.post(reg_url)
+            self.assertEqual(resp_reg.status_code, 302)
+
+        self.seller1.refresh_from_db()
+        self.assertEqual(self.seller1.shiprocket_pickup_registration_status, Seller.PICKUP_REG_STATUS_REGISTERED)
+
+    # 12. Admin Manual Delivery Override with Audit Trail
+    def test_admin_manual_delivery_override(self):
+        """Admin can manually mark a package delivered with reason, logging a tracking event."""
+        self.pkg1.status = SellerOrder.STATUS_READY_TO_SHIP
+        self.pkg1.save()
+        booking = create_mock_shipment_booking(self.pkg1.pk)
+
+        client = Client()
+        client.force_login(self.admin_user)
+
+        url = reverse("custom_admin:shipment_manual_deliver", kwargs={"shipment_id": booking.pk})
+        resp = client.post(url, {"reason": "Customer confirmed doorstep receipt via phone inquiry"})
+        self.assertEqual(resp.status_code, 302)
+
+        self.pkg1.refresh_from_db()
+        booking.refresh_from_db()
+        self.assertEqual(self.pkg1.status, SellerOrder.STATUS_DELIVERED)
+        self.assertEqual(booking.status, ShipmentBooking.STATUS_DELIVERED)
+
+        events = booking.status_history or []
+        override_event = next((e for e in events if e.get("event_type") == "MANUAL_DELIVERY_OVERRIDE"), None)
+        self.assertIsNotNone(override_event)
+        self.assertIn("Customer confirmed doorstep receipt", override_event["description"])

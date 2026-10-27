@@ -574,45 +574,73 @@
               <div class="small text-secondary mb-1">Courier Carrier: <strong>{{ package.courier_name }}</strong></div>
               <div class="small text-secondary mb-2">Tracking / AWB #: <code>{{ package.tracking_number }}</code></div>
               {% if package.shipped_at %}
-                <div class="small text-muted" style="font-size: 11px;">Dispatched: {{ package.shipped_at|date:"d M Y, h:i A" }}</div>
+                <div class="small text-muted mb-2" style="font-size: 11px;">Dispatched: {{ package.shipped_at|date:"d M Y, h:i A" }}</div>
               {% endif %}
+
+              <div class="d-flex flex-wrap gap-2 mt-2">
+                {% if shipment_booking.tracking_url or package.tracking_url %}
+                  <a href="{{ shipment_booking.tracking_url|default:package.tracking_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-outline-primary btn-sm">
+                    <i class="bi bi-box-arrow-up-right me-1"></i> Open Carrier Tracking
+                  </a>
+                {% endif %}
+                <form method="post" action="{% url 'core:seller_order_sync_tracking' package.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-secondary btn-sm">
+                    <i class="bi bi-arrow-repeat me-1"></i> Sync Live Tracking
+                  </button>
+                </form>
+              </div>
+
               <div class="alert alert-info py-2 px-3 mt-3 mb-0 small" style="font-size: 11px;">
-                <i class="bi bi-info-circle me-1"></i> Delivery confirmation is platform-verified upon courier carrier completion.
+                <i class="bi bi-info-circle me-1"></i> Delivery milestone is verified automatically through courier tracking synchronization.
               </div>
             </div>
 
           {% elif package.status == "ready_to_ship" %}
             {% if shipment_booking %}
-              <!-- Existing Mock Shipment Details Card -->
-              <div class="card border-info mb-3 bg-light">
+              <!-- Existing Shipment Booking Details Card -->
+              <div class="card border-primary mb-3 bg-light">
                 <div class="card-body p-3">
                   <div class="d-flex align-items-center justify-content-between mb-2">
-                    <span class="badge bg-info text-dark">
-                      <i class="bi bi-box-seam me-1"></i> Simulated Booking
+                    <span class="badge bg-primary text-white">
+                      <i class="bi bi-box-seam me-1"></i> Booking Confirmed
                     </span>
-                    <span class="badge bg-secondary">Mock Reference</span>
+                    <span class="badge bg-secondary">{{ shipment_booking.status|title }}</span>
                   </div>
                   <div class="small fw-bold text-dark mb-1">
-                    Shipment Ref: <code class="text-primary">{{ shipment_booking.shipment_id }}</code>
+                    Shipment ID: <code class="text-primary">{{ shipment_booking.shipment_id }}</code>
                   </div>
                   <div class="small text-muted mb-1">
-                    Simulated Tracking Ref: <code>{{ shipment_booking.awb_code }}</code>
+                    AWB Tracking Code: <code>{{ shipment_booking.awb_code }}</code>
                   </div>
                   <div class="small text-muted mb-1">
-                    Simulated Carrier: <strong>{{ shipment_booking.courier_name }}</strong>
+                    Assigned Courier: <strong>{{ shipment_booking.courier_name }}</strong>
                   </div>
+                  {% if shipment_booking.pickup_scheduled_date %}
+                    <div class="small text-muted mb-1">
+                      Scheduled Pickup: <strong>{{ shipment_booking.pickup_scheduled_date }}</strong>
+                    </div>
+                  {% endif %}
+                  {% if shipment_booking.pickup_token_number %}
+                    <div class="small text-muted mb-1">
+                      Pickup Token: <code>{{ shipment_booking.pickup_token_number }}</code>
+                    </div>
+                  {% endif %}
                   <div class="small text-muted mb-2">
                     Chargeable Weight: {{ shipment_booking.chargeable_weight_kg }} kg
                   </div>
-                  <div class="alert alert-warning py-1 px-2 mb-2 small text-muted" style="font-size: 10px;">
-                    <i class="bi bi-info-circle me-1"></i>
-                    <strong>Simulated Test Reference:</strong> This is a mock booking for fulfillment simulation. No real courier was contacted, and no live carrier tracking exists.
-                  </div>
+
                   <div class="d-grid gap-1 mt-2">
+                    <form method="post" action="{% url 'core:seller_order_sync_tracking' package.pk %}" class="mb-1">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+                        <i class="bi bi-arrow-repeat me-1"></i> Sync Courier Tracking
+                      </button>
+                    </form>
                     <a href="{% url 'core:seller_order_shipping_label' package.pk %}" class="btn btn-dark btn-sm" target="_blank" id="btn-download-shipping-label">
                       <i class="bi bi-tag me-1"></i> Print Shipping Label (4x6)
                     </a>
-                    <a href="{% url 'core:seller_order_packing_summary' package.pk %}" class="btn btn-outline-primary btn-sm" target="_blank" id="btn-download-packing-slip">
+                    <a href="{% url 'core:seller_order_packing_summary' package.pk %}" class="btn btn-outline-secondary btn-sm" target="_blank" id="btn-download-packing-slip">
                       <i class="bi bi-file-earmark-pdf me-1"></i> Warehouse Packing Summary (PDF)
                     </a>
                   </div>
@@ -620,21 +648,29 @@
               </div>
             {% else %}
               {% if is_booking_eligible %}
-                <!-- Create Mock Shipment Action -->
-                <div class="bg-primary-subtle p-3 rounded-2 border border-primary mb-3">
-                  <div class="small fw-bold text-primary mb-1">
-                    <i class="bi bi-lightning-charge me-1"></i> Automated Mock Shipment Booking
+                <!-- Automated Shiprocket Dispatch Action -->
+                <div class="bg-success-subtle p-3 rounded-2 border border-success mb-3">
+                  <div class="small fw-bold text-success mb-1">
+                    <i class="bi bi-rocket-takeoff me-1"></i> Shiprocket Multi-Seller Dispatch
                   </div>
                   <p class="small text-muted mb-2" style="font-size: 11px;">
-                    All payment and packaging requirements are verified. Generate a deterministic simulated shipment and AWB.
+                    Order items and package measurements are verified. One-click booking assigns optimal carrier, generates AWB, and schedules pickup from your warehouse.
                   </p>
-                  <div class="alert alert-secondary py-1 px-2 mb-2 small text-muted" style="font-size: 10px;">
-                    <i class="bi bi-shield-check me-1"></i> Simulated mock booking. No real carrier will be contacted.
-                  </div>
-                  <form method="post" action="{% url 'core:seller_order_create_mock_shipment' package.pk %}">
+                  <form method="post" action="{% url 'core:seller_order_dispatch_shipment' package.pk %}">
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-primary btn-sm w-100" id="btn-create-mock-shipment" onclick="return confirm('Create simulated mock shipment for this package? (No real courier contacted)');">
-                      <i class="bi bi-box-seam me-1"></i> Create Mock Shipment
+                    <button type="submit" class="btn btn-success btn-sm w-100 mb-2" id="btn-dispatch-shiprocket" onclick="return confirm('Book shipment and schedule carrier pickup via Shiprocket?');">
+                      <i class="bi bi-rocket-takeoff me-1"></i> Book Shipment &amp; Schedule Pickup
+                    </button>
+                  </form>
+                </div>
+
+                <!-- Alternative Mock Booking for Simulation -->
+                <div class="bg-light p-2 rounded-2 border mb-3 text-center">
+                  <span class="text-muted small" style="font-size: 10px;">Developer / Sandbox Mode:</span>
+                  <form method="post" action="{% url 'core:seller_order_create_mock_shipment' package.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-link btn-sm text-secondary p-0 text-decoration-none" style="font-size: 11px;" id="btn-create-mock-shipment">
+                      <i class="bi bi-cpu me-1"></i> Create Mock Booking
                     </button>
                   </form>
                 </div>
@@ -642,16 +678,16 @@
                 <!-- Ineligible Notice -->
                 <div class="alert alert-warning p-2 mb-3 small" style="font-size: 11px;">
                   <i class="bi bi-exclamation-triangle me-1"></i>
-                  <strong>Mock Booking Ineligible:</strong> {{ booking_ineligible_reason }}
+                  <strong>Shipment Booking Ineligible:</strong> {{ booking_ineligible_reason }}
                 </div>
               {% endif %}
             {% endif %}
 
-            <!-- Transition to Shipped Form -->
+            <!-- Manual Dispatch Form -->
             <div class="bg-light p-3 rounded-2 border">
-              <div class="small fw-bold text-dark mb-2"><i class="bi bi-send-check me-1 text-primary"></i> Dispatch Package</div>
+              <div class="small fw-bold text-dark mb-2"><i class="bi bi-send-check me-1 text-primary"></i> Manual Carrier Dispatch</div>
               <p class="small text-muted mb-3" style="font-size: 11px;">
-                Enter the assigned courier name and shipment tracking number to mark this package as Shipped.
+                Alternatively, if you use an external logistics partner, enter the tracking number below to mark this package as Shipped.
               </p>
               <form method="post" action="{% url 'core:seller_order_update_status' package.pk %}">
                 {% csrf_token %}
@@ -673,10 +709,6 @@
                   {% endif %}
                 </div>
 
-                <div class="form-text small mb-3" style="font-size: 11px;">
-                  Note: Tracking details are recorded as seller-provided operational data.
-                </div>
-
                 <button type="submit" class="btn seller-btn-navy btn-sm w-100" onclick="return confirm('Confirm package dispatch with entered courier details?');">
                   <i class="bi bi-truck me-1"></i> Mark as Shipped
                 </button>
@@ -688,7 +720,7 @@
             <div class="bg-light p-3 rounded-2 border text-center">
               <div class="small fw-bold text-dark mb-1">Package Packing in Progress</div>
               <p class="small text-muted mb-3" style="font-size: 11px;">
-                Once all items are verified, boxed, and ready for courier handover, advance the status:
+                Once all items are verified, boxed, and packed measurements are recorded above, advance to ready:
               </p>
               <form method="post" action="{% url 'core:seller_order_update_status' package.pk %}">
                 {% csrf_token %}
@@ -701,18 +733,36 @@
 
           {% elif package.status == "pending" %}
             <!-- Transition to Processing Form -->
-            <div class="bg-light p-3 rounded-2 border text-center">
-              <div class="small fw-bold text-dark mb-1">New Order Acknowledgment</div>
-              <p class="small text-muted mb-3" style="font-size: 11px;">
-                Acknowledge this package to signal that your warehouse has begun packing the merchandise:
+            <div class="bg-light p-3 rounded-2 border">
+              <div class="small fw-bold text-dark mb-1 text-center">New Order Acknowledgment</div>
+              <p class="small text-muted mb-3 text-center" style="font-size: 11px;">
+                Accept this package to confirm item availability and begin packing at your warehouse:
               </p>
-              <form method="post" action="{% url 'core:seller_order_update_status' package.pk %}">
+              <form method="post" action="{% url 'core:seller_order_update_status' package.pk %}" class="mb-2">
                 {% csrf_token %}
                 <input type="hidden" name="status" value="processing">
-                <button type="submit" class="btn seller-btn-gold btn-sm w-100" onclick="return confirm('Acknowledge package and start packing?');">
-                  <i class="bi bi-gear-wide-connected me-1"></i> Acknowledge &amp; Start Processing
+                <button type="submit" class="btn seller-btn-gold btn-sm w-100" onclick="return confirm('Accept order and start processing?');">
+                  <i class="bi bi-check2-circle me-1"></i> Accept &amp; Start Processing
                 </button>
               </form>
+
+              <!-- Reject Order Form -->
+              <details class="mt-2">
+                <summary class="small text-danger cursor-pointer text-center" style="cursor: pointer;">
+                  <i class="bi bi-x-circle me-1"></i> Reject Order Package
+                </summary>
+                <form method="post" action="{% url 'core:seller_order_update_status' package.pk %}" class="mt-2 pt-2 border-top">
+                  {% csrf_token %}
+                  <input type="hidden" name="status" value="cancelled">
+                  <div class="mb-2">
+                    <label class="form-label small fw-semibold text-danger">Rejection Reason</label>
+                    <input type="text" name="cancellation_reason" class="form-control form-control-sm" placeholder="e.g., Out of stock / defective batch" required>
+                  </div>
+                  <button type="submit" class="btn btn-outline-danger btn-sm w-100" onclick="return confirm('Are you sure you want to reject this order? This cannot be undone.');">
+                    Confirm Rejection
+                  </button>
+                </form>
+              </details>
             </div>
           {% endif %}
         </div>

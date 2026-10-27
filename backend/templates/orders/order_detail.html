@@ -247,11 +247,22 @@
 
                   <!-- Tracking Details -->
                   {% if pkg.tracking_number %}
-                    <div class="d-flex align-items-center gap-2 mb-2 p-2 rounded bg-white border small">
-                      <i class="bi bi-geo-alt text-primary"></i>
-                      <span><strong>Carrier:</strong> {{ pkg.courier_name|default:"Logistics Partner" }}</span>
-                      <span class="text-muted">|</span>
-                      <span><strong>Tracking / AWB:</strong> <span class="font-monospace fw-bold text-dark">{{ pkg.tracking_number }}</span></span>
+                    <div class="d-flex align-items-center justify-content-between mb-2 p-2 rounded bg-white border small flex-wrap gap-2">
+                      <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-geo-alt-fill text-primary"></i>
+                        <span><strong>Carrier:</strong> {{ pkg.courier_name|default:"Logistics Partner" }}</span>
+                        <span class="text-muted">|</span>
+                        <span><strong>AWB / Tracking:</strong> <span class="font-monospace fw-bold text-dark">{{ pkg.tracking_number }}</span></span>
+                      </div>
+                      {% if pkg.shipment_booking.tracking_url or pkg.tracking_url %}
+                        <a href="{{ pkg.shipment_booking.tracking_url|default:pkg.tracking_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary py-0 px-2">
+                          <i class="bi bi-box-arrow-up-right me-1"></i> Track Live
+                        </a>
+                      {% elif pkg.shiprocket_awb_code %}
+                        <a href="https://shiprocket.co/tracking/{{ pkg.shiprocket_awb_code }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary py-0 px-2">
+                          <i class="bi bi-box-arrow-up-right me-1"></i> Track Live
+                        </a>
+                      {% endif %}
                     </div>
                   {% endif %}
 

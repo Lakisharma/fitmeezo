@@ -104,6 +104,91 @@
       </div>
     </div>
 
+    <!-- Multi-Seller Packages & Shiprocket Shipments Card -->
+    {% if order.seller_orders.exists %}
+    <div class="fm-card mb-4">
+      <div class="fm-card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+          <i class="bi bi-boxes text-primary"></i>
+          <span>Multi-Seller Shipment Packages ({{ order.seller_orders.count }})</span>
+        </div>
+      </div>
+      <div class="fm-card-body p-0">
+        <div class="table-responsive">
+          <table class="table mb-0 align-middle">
+            <thead class="bg-light">
+              <tr>
+                <th>Package / Seller</th>
+                <th>Status</th>
+                <th>Carrier &amp; AWB</th>
+                <th>Pickup / Tracking</th>
+                <th class="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for pkg in order.seller_orders.all %}
+                <tr>
+                  <td>
+                    <div class="fw-bold font-monospace text-primary">{{ pkg.sub_order_number }}</div>
+                    <div class="small text-muted">{{ pkg.seller.store_name|default:"Platform Direct" }}</div>
+                  </td>
+                  <td>
+                    <span class="badge badge-status badge-status-{{ pkg.status }}">{{ pkg.get_status_display }}</span>
+                  </td>
+                  <td>
+                    <div><strong>{{ pkg.courier_name|default:"Unassigned" }}</strong></div>
+                    {% if pkg.tracking_number %}
+                      <div class="small font-monospace text-dark">{{ pkg.tracking_number }}</div>
+                    {% else %}
+                      <div class="small text-muted fst-italic">No AWB yet</div>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if pkg.shipment_booking %}
+                      <div class="small text-muted">
+                        Pickup: <strong>{{ pkg.shipment_booking.pickup_scheduled_date|default:"Scheduled" }}</strong>
+                      </div>
+                      {% if pkg.shipment_booking.tracking_url %}
+                        <a href="{{ pkg.shipment_booking.tracking_url }}" target="_blank" rel="noopener noreferrer" class="small text-decoration-none text-primary">
+                          <i class="bi bi-box-arrow-up-right me-1"></i>Track Live
+                        </a>
+                      {% endif %}
+                    {% else %}
+                      <span class="small text-muted">-</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    {% if pkg.shipment_booking %}
+                      <div class="d-flex justify-content-end gap-1 flex-wrap">
+                        <form method="post" action="{% url 'custom_admin:shipment_sync_tracking' shipment_id=pkg.shipment_booking.pk %}" class="d-inline">
+                          {% csrf_token %}
+                          <button type="submit" class="btn btn-sm btn-outline-secondary" title="Sync live tracking">
+                            <i class="bi bi-arrow-repeat"></i> Sync
+                          </button>
+                        </form>
+                        {% if pkg.status != 'delivered' %}
+                          <form method="post" action="{% url 'custom_admin:shipment_manual_deliver' shipment_id=pkg.shipment_booking.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <input type="hidden" name="reason" value="Staff verified manual delivery">
+                            <button type="submit" class="btn btn-sm btn-outline-success" onclick="return confirm('Override delivery status for package {{ pkg.sub_order_number }}?');" title="Manual delivery override">
+                              <i class="bi bi-check2-circle"></i> Deliver
+                            </button>
+                          </form>
+                        {% endif %}
+                      </div>
+                    {% else %}
+                      <span class="text-muted small">Awaiting booking</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Customer & Delivery Snapshot Card -->
     <div class="fm-card">
       <div class="fm-card-header">
