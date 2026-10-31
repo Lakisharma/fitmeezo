@@ -51,12 +51,12 @@ elif not DEBUG and SECRET_KEY == DEV_SECRET_KEY:
         "Please generate a unique, cryptographically secure SECRET_KEY."
     )
 
-_default_hosts = "127.0.0.1,localhost,testserver,fitmeezo.com,www.fitmeezo.com" if DEBUG else "fitmeezo.com,www.fitmeezo.com"
+_default_hosts = "127.0.0.1,localhost,testserver,fitmeezo.com,www.fitmeezo.com" if DEBUG else "fitmeezo.com,www.fitmeezo.com,127.0.0.1,localhost"
 _allowed_hosts_raw = os.getenv("ALLOWED_HOSTS", _default_hosts)
 ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts_raw.split(",") if host.strip()]
 
-# Explicitly ensure custom production domains are always permitted
-for host in ("fitmeezo.com", "www.fitmeezo.com"):
+# Explicitly ensure core production domains and local loopback are always permitted
+for host in ("fitmeezo.com", "www.fitmeezo.com", "127.0.0.1", "localhost"):
     if host not in ALLOWED_HOSTS:
         ALLOWED_HOSTS.append(host)
 

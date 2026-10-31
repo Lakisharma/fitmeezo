@@ -59,15 +59,17 @@ class SecurityConfigurationTests(SimpleTestCase):
         ):
             # Test the exact parsing logic from settings.py
             debug_val = False
-            default_hosts = "127.0.0.1,localhost,testserver,fitmeezo.com,www.fitmeezo.com" if debug_val else "fitmeezo.com,www.fitmeezo.com"
+            default_hosts = "127.0.0.1,localhost,testserver,fitmeezo.com,www.fitmeezo.com" if debug_val else "fitmeezo.com,www.fitmeezo.com,127.0.0.1,localhost"
             raw = os.getenv("ALLOWED_HOSTS", default_hosts)
             hosts = [h.strip() for h in raw.split(",") if h.strip()]
-            for host in ("fitmeezo.com", "www.fitmeezo.com"):
+            for host in ("fitmeezo.com", "www.fitmeezo.com", "127.0.0.1", "localhost"):
                 if host not in hosts:
                     hosts.append(host)
 
             self.assertIn("fitmeezo.com", hosts)
             self.assertIn("www.fitmeezo.com", hosts)
+            self.assertIn("127.0.0.1", hosts)
+            self.assertIn("localhost", hosts)
             self.assertNotIn("*", hosts)
 
     def test_production_fails_when_secret_key_is_missing(self):
