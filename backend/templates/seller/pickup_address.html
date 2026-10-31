@@ -111,6 +111,25 @@
                 </div>
               </div>
             {% endif %}
+            <div class="col-12 mt-2 pt-2 border-top d-flex justify-content-between align-items-center flex-wrap gap-2">
+              <div class="small text-muted">
+                Registration Status: <strong class="text-dark">{{ seller.get_shiprocket_pickup_registration_status_display }}</strong>
+                {% if seller.shiprocket_pickup_location_id %}
+                  &bull; Facility ID: <span class="font-monospace text-primary">{{ seller.shiprocket_pickup_location_id }}</span>
+                {% endif %}
+                {% if seller.shiprocket_pickup_registered_at %}
+                  &bull; Registered: {{ seller.shiprocket_pickup_registered_at|date:"d M Y, H:i" }}
+                {% endif %}
+              </div>
+              {% if seller.pickup_address and seller.shiprocket_pickup_registration_status != 'registered' and seller.shiprocket_pickup_registration_status != 'REGISTERED' %}
+                <form method="post" action="{% url 'core:seller_pickup_register' %}" class="d-inline">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-sm btn-primary" id="btn-retry-pickup-registration">
+                    <i class="bi bi-cloud-arrow-up me-1"></i> Register with Shiprocket
+                  </button>
+                </form>
+              {% endif %}
+            </div>
           </div>
         </div>
       </div>
@@ -188,6 +207,14 @@
                 {% if form.pickup_postal_code.errors %}
                   <div class="text-danger small mt-1">{{ form.pickup_postal_code.errors.0 }}</div>
                 {% endif %}
+              </div>
+              <div class="col-12">
+                <label for="id_pickup_location_nickname" class="form-label small fw-semibold">Unique Pickup Location Nickname</label>
+                {{ form.pickup_location_nickname }}
+                {% if form.pickup_location_nickname.errors %}
+                  <div class="text-danger small mt-1">{{ form.pickup_location_nickname.errors.0 }}</div>
+                {% endif %}
+                <div class="form-text small">Optional nickname for this facility (e.g. <code>WH-Primary</code>, <code>Main_Facility</code>). Fitmeezo automatically namespaces this for Shiprocket.</div>
               </div>
 
               <div class="col-12 mt-4 pt-2 border-top d-flex justify-content-between align-items-center">

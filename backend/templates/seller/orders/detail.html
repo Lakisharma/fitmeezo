@@ -659,7 +659,7 @@
                   <form method="post" action="{% url 'core:seller_order_dispatch_shipment' package.pk %}">
                     {% csrf_token %}
                     <button type="submit" class="btn btn-success btn-sm w-100 mb-2" id="btn-dispatch-shiprocket" onclick="return confirm('Book shipment and schedule carrier pickup via Shiprocket?');">
-                      <i class="bi bi-rocket-takeoff me-1"></i> Book Shipment &amp; Schedule Pickup
+                      <i class="bi bi-rocket-takeoff me-1"></i> Ship with Shiprocket
                     </button>
                   </form>
                 </div>

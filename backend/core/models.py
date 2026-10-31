@@ -776,7 +776,7 @@ class Seller(models.Model):
         if not clean_pin or not PIN_CODE_PATTERN.match(clean_pin):
             errors.append("Valid 6-digit Indian PIN code is required for pickup facility (e.g. 560001).")
 
-        clean_phone = (self.support_phone or "").strip()
+        clean_phone = (self.pickup_contact_phone or self.support_phone or "").strip()
         if not clean_phone or not PHONE_PATTERN.match(clean_phone):
             errors.append("Valid dispatch contact phone number is required (10-15 digits).")
 
@@ -835,11 +835,15 @@ class Seller(models.Model):
         """
         Returns sanitized pickup location nickname suitable for Shiprocket.
         Shiprocket requires alphanumeric and underscores, max 36 chars.
-        Format: fitmeezo_seller_<id>_<store_slug>
+        Format: fm_<seller_id>_<nickname> or fitmeezo_seller_<id>_<store_slug>
         """
         seller_id = str(self.pk or "new")
+        if self.pickup_location_nickname:
+            clean_nick = re.sub(r"[^a-zA-Z0-9_]", "_", slugify(str(self.pickup_location_nickname)).replace("-", "_")).strip("_")
+            if clean_nick:
+                return f"fitmeezo_seller_{seller_id}_{clean_nick}"[:35]
         raw_slug = slugify(self.store_name or "").replace("-", "_")
-        slug = re.sub(r"[^a-zA-Z0-9_]", "_", raw_slug)
+        slug = re.sub(r"[^a-zA-Z0-9_]", "_", raw_slug).strip("_")
         if slug:
             candidate = f"fitmeezo_seller_{seller_id}_{slug}"[:35]
         else:
@@ -2922,6 +2926,7 @@ class SellerOrder(models.Model):
     """
 
     STATUS_PENDING = "pending"
+    STATUS_ACCEPTED = "accepted"
     STATUS_PROCESSING = "processing"
     STATUS_READY_TO_SHIP = "ready_to_ship"
     STATUS_SHIPPED = "shipped"
@@ -2929,12 +2934,13 @@ class SellerOrder(models.Model):
     STATUS_CANCELLED = "cancelled"
 
     STATUS_CHOICES = [
-        (STATUS_PENDING, "Pending Acknowledgment"),
-        (STATUS_PROCESSING, "Processing / Packing"),
-        (STATUS_READY_TO_SHIP, "Ready for Dispatch"),
+        (STATUS_PENDING, "New Order"),
+        (STATUS_ACCEPTED, "Accepted"),
+        (STATUS_PROCESSING, "Packing"),
+        (STATUS_READY_TO_SHIP, "Ready to Ship"),
         (STATUS_SHIPPED, "Shipped"),
         (STATUS_DELIVERED, "Delivered"),
-        (STATUS_CANCELLED, "Cancelled"),
+        (STATUS_CANCELLED, "Cancelled / Rejected"),
     ]
 
     # Linkages

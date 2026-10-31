@@ -1,0 +1,367 @@
+{% extends "custom_admin/base.html" %}
+{% load static %}
+
+{% block title %}Shipping &amp; Logistics Console — Fitmeezo Admin{% endblock %}
+
+{% block page_header_title %}Multi-Seller Shipping &amp; Carrier Logistics Console{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0">
+
+  <!-- Breadcrumbs -->
+  <nav class="d-flex align-items-center gap-2 small text-muted mb-3" aria-label="Breadcrumbs">
+    <a href="{% url 'custom_admin:dashboard' %}" class="text-decoration-none text-muted d-flex align-items-center gap-1">
+      <i class="bi bi-speedometer2"></i>
+      <span>Dashboard</span>
+    </a>
+    <i class="bi bi-chevron-right text-muted" style="font-size: 11px;"></i>
+    <span class="text-dark fw-semibold" aria-current="page">Shipping &amp; Logistics Console</span>
+  </nav>
+
+  <!-- 1. Live Shipping Readiness Indicator Card (STEP 7 & STEP 8) -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-shield-check fs-5 text-primary"></i>
+        <h5 class="mb-0 fw-bold">Live Shipping Readiness &amp; Environment Diagnostics</h5>
+      </div>
+      <div>
+        {% if readiness.readiness_state == 'MOCK_SANDBOX' %}
+          <span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25 px-3 py-1.5 fs-7">
+            <i class="bi bi-cpu me-1"></i> MOCK SANDBOX MODE (SAFE)
+          </span>
+        {% elif readiness.readiness_state == 'LIVE_READY' %}
+          <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-3 py-1.5 fs-7">
+            <i class="bi bi-check2-circle me-1"></i> READY FOR LIVE SHIPPING
+          </span>
+        {% else %}
+          <span class="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25 px-3 py-1.5 fs-7">
+            <i class="bi bi-exclamation-triangle me-1"></i> CONFIGURATION PENDING
+          </span>
+        {% endif %}
+      </div>
+    </div>
+    <div class="card-body p-4">
+      <div class="row g-3 mb-4">
+        <!-- Operating Mode -->
+        <div class="col-md-3 col-sm-6">
+          <div class="p-3 bg-light rounded-2 border">
+            <span class="text-muted small d-block mb-1">Operating Mode</span>
+            <div class="fw-bold {% if readiness.mock_mode %}text-primary{% else %}text-danger{% endif %}">
+              {% if readiness.mock_mode %}
+                <i class="bi bi-cpu me-1"></i> Mock Simulation Mode
+              {% else %}
+                <i class="bi bi-broadcast me-1"></i> Live Production Mode
+              {% endif %}
+            </div>
+            <div class="text-muted small mt-1" style="font-size: 11px;">
+              {% if readiness.mock_mode %}
+                Zero carrier charges incurred.
+              {% else %}
+                Real courier dispatches and wallet billing active.
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Provider Credentials -->
+        <div class="col-md-3 col-sm-6">
+          <div class="p-3 bg-light rounded-2 border">
+            <span class="text-muted small d-block mb-1">Provider Credentials</span>
+            <div class="fw-semibold text-dark">
+              {% if readiness.is_configured %}
+                <span class="text-success"><i class="bi bi-check-circle me-1"></i>Configured</span>
+                <span class="text-muted font-monospace small d-block">{{ readiness.masked_email }}</span>
+              {% else %}
+                <span class="text-warning"><i class="bi bi-exclamation-circle me-1"></i>Missing / Mock</span>
+              {% endif %}
+            </div>
+            <div class="text-muted small mt-1" style="font-size: 11px;">Secrets protected at rest.</div>
+          </div>
+        </div>
+
+        <!-- Platform Warehouse -->
+        <div class="col-md-3 col-sm-6">
+          <div class="p-3 bg-light rounded-2 border">
+            <span class="text-muted small d-block mb-1">Platform Warehouse</span>
+            <div class="fw-semibold text-dark text-truncate">{{ readiness.platform_pickup_location }}</div>
+            <div class="text-muted small mt-1" style="font-size: 11px;">Default dispatch center.</div>
+          </div>
+        </div>
+
+        <!-- Webhook Status -->
+        <div class="col-md-3 col-sm-6">
+          <div class="p-3 bg-light rounded-2 border">
+            <span class="text-muted small d-block mb-1">Tracking Webhook</span>
+            <div class="fw-semibold">
+              {% if readiness.webhook_token_configured %}
+                <span class="text-success"><i class="bi bi-lock-fill me-1"></i>Token Configured</span>
+              {% else %}
+                <span class="text-muted"><i class="bi bi-unlock me-1"></i>Token Not Set</span>
+              {% endif %}
+            </div>
+            <div class="text-muted small mt-1 text-truncate" style="font-size: 11px;" title="{{ readiness.webhook_url }}">{{ readiness.webhook_url }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Diagnostic Checklist -->
+      <div class="bg-light p-3 rounded-2 border">
+        <h6 class="fw-bold mb-2 small text-uppercase text-muted"><i class="bi bi-list-check me-1"></i>Logistics Diagnostic Checklist</h6>
+        <ul class="list-unstyled mb-0 small">
+          {% for diag in readiness.diagnostics %}
+            <li class="d-flex align-items-start gap-2 mb-1.5">
+              <i class="bi bi-info-circle-fill text-primary flex-shrink-0 mt-0.5"></i>
+              <span>{{ diag }}</span>
+            </li>
+          {% empty %}
+            <li class="text-muted">All logistics systems are functioning nominally.</li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Statistics Summary Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <span class="text-muted small d-block">Approved Sellers</span>
+        <div class="fs-4 fw-bold text-dark">{{ readiness.seller_stats.approved_sellers }}</div>
+        <div class="small text-muted">{{ readiness.seller_stats.registered_with_shiprocket }} registered facilities</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <span class="text-muted small d-block">Total Shipment Bookings</span>
+        <div class="fs-4 fw-bold text-dark">{{ readiness.shipment_stats.total_bookings }}</div>
+        <div class="small text-muted">{{ readiness.shipment_stats.mock_bookings }} mock &bull; {{ readiness.shipment_stats.live_bookings }} live</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <span class="text-muted small d-block">In Transit / Out for Delivery</span>
+        <div class="fs-4 fw-bold text-primary">{{ readiness.shipment_stats.in_transit }}</div>
+        <div class="small text-muted">Active courier dispatches</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card border-0 shadow-sm p-3">
+        <span class="text-muted small d-block">Delivered Shipments</span>
+        <div class="fs-4 fw-bold text-success">{{ readiness.shipment_stats.delivered }}</div>
+        <div class="small text-muted">Completed doorstep handoffs</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Seller Pickup Facilities Directory -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-building-check text-primary fs-5"></i>
+        <h5 class="mb-0 fw-bold">Seller Warehouse Pickup Facilities</h5>
+      </div>
+      <span class="text-muted small">{{ sellers.count }} approved seller{{ sellers.count|pluralize }}</span>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light small text-uppercase">
+          <tr>
+            <th>Seller Store</th>
+            <th>Pickup Warehouse Address</th>
+            <th>On-Site Contact</th>
+            <th>Shiprocket Nickname / ID</th>
+            <th>Verification</th>
+            <th>Shiprocket Status</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="small">
+          {% for seller in sellers %}
+            <tr>
+              <td>
+                <a href="{% url 'custom_admin:seller_detail' seller.pk %}" class="fw-bold text-dark text-decoration-none">
+                  {{ seller.store_name }}
+                </a>
+                <div class="text-muted font-monospace" style="font-size: 11px;">ID: #{{ seller.pk }}</div>
+              </td>
+              <td>
+                {% if seller.pickup_address %}
+                  <div class="fw-semibold text-dark text-truncate" style="max-width: 250px;">{{ seller.pickup_address }}</div>
+                  {% if seller.pickup_landmark %}
+                    <div class="text-muted" style="font-size: 11px;">Near {{ seller.pickup_landmark }}</div>
+                  {% endif %}
+                  <div class="text-muted">{{ seller.pickup_city }}, {{ seller.pickup_state }} — <strong>{{ seller.pickup_postal_code }}</strong></div>
+                {% else %}
+                  <span class="text-danger fst-italic">No pickup address on file</span>
+                {% endif %}
+              </td>
+              <td>
+                <div>{{ seller.pickup_contact_name|default:seller.user.get_full_name|default:"Not specified" }}</div>
+                <div class="text-muted">{{ seller.pickup_contact_phone|default:seller.support_phone|default:"-" }}</div>
+              </td>
+              <td>
+                <div class="font-monospace fw-semibold">{{ seller.get_shiprocket_pickup_location_name }}</div>
+                {% if seller.shiprocket_pickup_location_id %}
+                  <span class="badge bg-light text-dark border font-monospace mt-1" style="font-size: 10px;">ID: {{ seller.shiprocket_pickup_location_id }}</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if seller.pickup_location_verified %}
+                  <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Verified</span>
+                {% else %}
+                  <span class="badge bg-warning bg-opacity-10 text-dark border border-warning border-opacity-25">Unverified</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if seller.shiprocket_pickup_registration_status == 'registered' or seller.shiprocket_pickup_registration_status == 'REGISTERED' %}
+                  <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">
+                    <i class="bi bi-check2-circle me-1"></i>Registered
+                  </span>
+                {% elif seller.shiprocket_pickup_registration_status == 'failed' or seller.shiprocket_pickup_registration_status == 'FAILED' %}
+                  <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" title="{{ seller.shiprocket_pickup_registration_error }}">
+                    <i class="bi bi-x-circle me-1"></i>Sync Failed
+                  </span>
+                {% else %}
+                  <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">Pending</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="btn-group btn-group-sm">
+                  <a href="{% url 'custom_admin:seller_detail' seller.pk %}" class="btn btn-outline-secondary" title="View Merchant Details">
+                    <i class="bi bi-eye"></i>
+                  </a>
+                  {% if seller.pickup_address %}
+                    <form method="post" action="{% url 'custom_admin:seller_pickup_register' seller.pk %}" class="d-inline">
+                      {% csrf_token %}
+                      <button type="submit" class="btn btn-outline-primary" title="Sync/Register with Shiprocket" onclick="return confirm('Register/Sync warehouse with Shiprocket?');">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="7" class="text-center py-4 text-muted">No approved sellers registered.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 4. Shipment Directory & Tracking Sync -->
+  <div class="card border-0 shadow-sm mb-4">
+    <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-boxes text-primary fs-5"></i>
+        <h5 class="mb-0 fw-bold">Recent Courier Shipments &amp; Live Tracking</h5>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <a href="{% url 'custom_admin:order_list' %}" class="btn btn-sm btn-outline-secondary">
+          <i class="bi bi-cart me-1"></i> View All Orders
+        </a>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light small text-uppercase">
+          <tr>
+            <th>Sub-Order / Package</th>
+            <th>Seller</th>
+            <th>Courier Partner</th>
+            <th>AWB / Tracking Number</th>
+            <th>Pickup Status</th>
+            <th>Tracking Milestone</th>
+            <th>Mode</th>
+            <th class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="small">
+          {% for booking in shipments_page %}
+            <tr>
+              <td>
+                <a href="{% url 'custom_admin:order_detail' booking.package.order_id %}" class="fw-bold text-dark text-decoration-none">
+                  {{ booking.package.sub_order_number }}
+                </a>
+                <div class="text-muted" style="font-size: 11px;">Parent: #{{ booking.package.order.order_number }}</div>
+              </td>
+              <td>
+                {% if booking.package.seller %}
+                  <span class="fw-semibold">{{ booking.package.seller.store_name }}</span>
+                {% else %}
+                  <span class="badge bg-light text-dark border">Platform Owned</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="fw-semibold text-dark">{{ booking.courier_name|default:"Standard Logistics" }}</span>
+                <div class="text-muted" style="font-size: 11px;">Shipment ID: {{ booking.shipment_id }}</div>
+              </td>
+              <td>
+                <span class="font-monospace fw-bold text-primary">{{ booking.awb_code }}</span>
+                {% if booking.tracking_url %}
+                  <a href="{{ booking.tracking_url }}" target="_blank" class="small d-block text-decoration-none" style="font-size: 11px;">
+                    <i class="bi bi-box-arrow-up-right me-0.5"></i> Track
+                  </a>
+                {% endif %}
+              </td>
+              <td>
+                {% if booking.pickup_status == 'scheduled' %}
+                  <span class="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25">Scheduled</span>
+                  {% if booking.pickup_scheduled_date %}
+                    <div class="text-muted" style="font-size: 10px;">{{ booking.pickup_scheduled_date|date:"d M, H:i" }}</div>
+                  {% endif %}
+                {% elif booking.pickup_status == 'picked_up' %}
+                  <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25">Picked Up</span>
+                {% elif booking.pickup_status == 'failed' %}
+                  <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25">Failed</span>
+                {% else %}
+                  <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25">{{ booking.get_pickup_status_display }}</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge {% if booking.tracking_status == 'DELIVERED' %}bg-success{% elif booking.tracking_status == 'IN TRANSIT' %}bg-primary{% else %}bg-secondary{% endif %} bg-opacity-10 {% if booking.tracking_status == 'DELIVERED' %}text-success{% elif booking.tracking_status == 'IN TRANSIT' %}text-primary{% else %}text-secondary{% endif %} border">
+                  {{ booking.tracking_status|default:"Booked" }}
+                </span>
+                {% if booking.last_tracking_sync %}
+                  <div class="text-muted" style="font-size: 10px;">Synced: {{ booking.last_tracking_sync|timesince }} ago</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if booking.is_mock %}
+                  <span class="badge bg-info bg-opacity-10 text-primary border border-info border-opacity-25" style="font-size: 10px;">MOCK</span>
+                {% else %}
+                  <span class="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25" style="font-size: 10px;">LIVE</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="btn-group btn-group-sm">
+                  <form method="post" action="{% url 'custom_admin:shipment_sync_tracking' booking.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-primary" title="Sync Live Tracking">
+                      <i class="bi bi-arrow-repeat"></i>
+                    </button>
+                  </form>
+                  {% if booking.label_url %}
+                    <a href="{{ booking.label_url }}" target="_blank" class="btn btn-outline-dark" title="View Carrier Label">
+                      <i class="bi bi-tag"></i>
+                    </a>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="8" class="text-center py-4 text-muted">No courier shipments recorded yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+

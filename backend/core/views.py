@@ -2064,6 +2064,14 @@ def checkout_view(request):
         # Dispatch order confirmation email for new COD order
         if payment_method != Order.PAYMENT_METHOD_RAZORPAY:
             send_order_confirmation_email(order)
+            # Dispatch seller new-order notifications for fulfilling merchants
+            try:
+                from core.emails import send_seller_new_order_email
+                for so in order.seller_orders.all():
+                    if so.seller:
+                        send_seller_new_order_email(so)
+            except Exception as notify_err:
+                logger.warning("Non-blocking seller new order email notification error for order #%s: %s", order.order_number, notify_err)
             messages.success(request, f"Order #{order.order_number} placed successfully!")
             return redirect("core:order_confirmation", order_number=order.order_number)
 
@@ -2211,6 +2219,15 @@ def razorpay_payment_verify(request):
 
     # Dispatch payment success email notification
     send_payment_success_email(locked_order)
+
+    # Dispatch seller new-order notifications for fulfilling merchants
+    try:
+        from core.emails import send_seller_new_order_email
+        for so in locked_order.seller_orders.all():
+            if so.seller:
+                send_seller_new_order_email(so)
+    except Exception as notify_err:
+        logger.warning("Non-blocking seller new order email notification error for order #%s: %s", locked_order.order_number, notify_err)
 
     messages.success(request, f"Payment verified successfully! Order #{locked_order.order_number} is confirmed.")
     return redirect("core:order_confirmation", order_number=locked_order.order_number)
@@ -5119,15 +5136,39 @@ def seller_pickup_address_view(request):
     if request.method == "POST":
         form = SellerPickupAddressForm(request.POST, instance=seller)
         if form.is_valid():
-            seller = form.save(commit=False)
-            seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_PENDING
-            seller.shiprocket_pickup_registration_error = ""
-            seller.save()
-            messages.success(
-                request,
-                "Warehouse pickup address updated successfully. "
-                "Fitmeezo operations team will verify your facility coordinates for courier dispatch."
-            )
+            seller = form.save(commit=True)
+            # Attempt Shiprocket registration workflow
+            try:
+                from core.shiprocket import register_seller_pickup_location, ShiprocketError
+                reg_res = register_seller_pickup_location(seller)
+                loc_nick = seller.get_shiprocket_pickup_location_name()
+                if seller.shiprocket_pickup_registration_status == Seller.PICKUP_REG_STATUS_REGISTERED:
+                    messages.success(
+                        request,
+                        f"Warehouse pickup address saved and registered with Shiprocket successfully! "
+                        f"Pickup Identifier: '{loc_nick}'."
+                    )
+                else:
+                    messages.warning(
+                        request,
+                        f"Warehouse pickup address saved. Shiprocket registration status is "
+                        f"{seller.get_shiprocket_pickup_registration_status_display()}: "
+                        f"{seller.shiprocket_pickup_registration_error or 'Action required before courier dispatch.'}"
+                    )
+            except ShiprocketError as s_err:
+                logger.warning("Shiprocket pickup registration error for seller #%s: %s", seller.pk, s_err)
+                messages.warning(
+                    request,
+                    f"Warehouse pickup address saved, but Shiprocket registration failed: {s_err.user_message}. "
+                    "You can retry registration below once resolved."
+                )
+            except Exception as exc:
+                logger.exception("Unexpected error registering pickup location for seller #%s", seller.pk)
+                messages.warning(
+                    request,
+                    "Warehouse pickup address saved. Automatic Shiprocket sync could not be completed. "
+                    "Please use the Retry button below."
+                )
             return redirect("core:seller_pickup_address")
         else:
             messages.error(request, "Please correct the errors in the pickup address form below.")
@@ -5143,6 +5184,42 @@ def seller_pickup_address_view(request):
         "brand_name": getattr(settings, "BRAND_NAME", "Fitmeezo"),
     }
     return render(request, "seller/pickup_address.html", context)
+
+
+@seller_required
+@require_POST
+def seller_pickup_address_register_view(request):
+    """
+    Dedicated action allowing a seller to trigger or retry Shiprocket registration
+    for their saved warehouse pickup location without having to re-submit address fields.
+    """
+    seller = getattr(request.user, "seller_profile", None)
+    if not seller:
+        messages.warning(request, "You do not have an active seller profile.")
+        return redirect("core:seller_register")
+
+    from core.shiprocket import register_seller_pickup_location, ShiprocketError
+
+    try:
+        reg_result = register_seller_pickup_location(seller)
+        loc_name = seller.get_shiprocket_pickup_location_name()
+        if seller.shiprocket_pickup_registration_status == Seller.PICKUP_REG_STATUS_REGISTERED:
+            messages.success(
+                request,
+                f"Pickup location '{loc_name}' registered successfully with Shiprocket!"
+            )
+        else:
+            messages.warning(
+                request,
+                f"Shiprocket registration status: {seller.get_shiprocket_pickup_registration_status_display()}. "
+                f"{seller.shiprocket_pickup_registration_error or 'Pending administrative action.'}"
+            )
+    except ShiprocketError as err:
+        messages.error(request, f"Shiprocket registration failed: {err.user_message}")
+    except Exception as exc:
+        messages.error(request, f"Registration could not be completed: {str(exc)}")
+
+    return redirect("core:seller_pickup_address")
 
 
 @seller_required
@@ -5246,7 +5323,15 @@ def shiprocket_webhook_view(request):
     except Exception:
         return JsonResponse({"error": "Invalid JSON payload"}, status=400)
 
+    # Build comprehensive header map: lower-cased request.headers + WSGI META headers
     headers = {k.lower(): v for k, v in request.headers.items()}
+    for meta_key, meta_val in request.META.items():
+        if meta_key.startswith("HTTP_"):
+            clean_key = meta_key[5:].replace("_", "-").lower()
+            if clean_key not in headers:
+                headers[clean_key] = meta_val
+            headers[meta_key] = meta_val
+
     success, msg, data = handle_shiprocket_webhook(payload, headers=headers)
 
     if not success:

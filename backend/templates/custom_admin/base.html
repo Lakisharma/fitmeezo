@@ -400,6 +400,10 @@
           <i class="bi bi-cart-check-fill"></i>
           <span>Orders</span>
         </a>
+        <a href="{% url 'custom_admin:shipping_dashboard' %}" class="admin-nav-link {% if 'shipping' in request.resolver_match.url_name %}active{% endif %}">
+          <i class="bi bi-truck"></i>
+          <span>Shipping &amp; Logistics</span>
+        </a>
       {% endif %}
       {% if can_manage_support %}
         <a href="{% url 'custom_admin:customer_list' %}" class="admin-nav-link {% if 'customer' in request.resolver_match.url_name %}active{% endif %}">

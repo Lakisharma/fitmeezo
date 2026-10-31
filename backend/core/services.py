@@ -711,6 +711,14 @@ def ensure_seller_orders_for_order(order) -> list:
                     shipping_allocated_to_seller=Decimal("0.00"),
                     shipping_margin=Decimal("0.00"),
                 )
+                if not is_platform and prod_seller:
+                    def _notify_seller(pkg_to_notify=existing_pkg):
+                        try:
+                            from core.emails import send_seller_new_order_email
+                            send_seller_new_order_email(pkg_to_notify)
+                        except Exception as email_err:
+                            logger.warning("Non-blocking seller new order email error: %s", email_err)
+                    transaction.on_commit(_notify_seller)
             else:
                 if so_status == SellerOrder.STATUS_DELIVERED and existing_pkg.status != SellerOrder.STATUS_DELIVERED:
                     existing_pkg.status = SellerOrder.STATUS_DELIVERED

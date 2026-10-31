@@ -61,6 +61,7 @@ from .views import (
     seller_order_record_measurements_view,
     seller_order_update_status_view,
     seller_pickup_address_view,
+    seller_pickup_address_register_view,
     seller_product_add_view,
     seller_product_edit_view,
     seller_product_image_add_view,
@@ -242,6 +243,7 @@ urlpatterns = [
     path("seller/status/", seller_status_view, name="seller_status"),
     path("seller/profile/", seller_profile_view, name="seller_profile"),
     path("seller/pickup-address/", seller_pickup_address_view, name="seller_pickup_address"),
+    path("seller/pickup-address/register/", seller_pickup_address_register_view, name="seller_pickup_register"),
     path("seller/closure/", seller_closure_request_view, name="seller_close_account"),
     path("seller/dashboard/", seller_dashboard_view, name="seller_dashboard"),
 
@@ -326,6 +328,8 @@ urlpatterns = [
     # Logistics & Courier Webhooks
     path("api/shipping/shiprocket/webhook/", shiprocket_webhook_view, name="shiprocket_webhook"),
     path("api/shiprocket/webhook/", shiprocket_webhook_view, name="shiprocket_webhook_alt"),
+    path("api/shipping/tracking/webhook/", shiprocket_webhook_view, name="shipping_tracking_webhook"),
+    path("api/logistics/webhook/", shiprocket_webhook_view, name="logistics_webhook"),
 
     # DRF API endpoints
     path("api/products/<slug:slug>/variants/", product_variants_api, name="product_variants_api"),

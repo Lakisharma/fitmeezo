@@ -67,6 +67,7 @@ from core.shiprocket import (
     sync_shipment_tracking,
     handle_shiprocket_webhook,
     register_seller_pickup_location,
+    check_shipping_readiness,
 )
 from core.forms import SellerPickupAddressForm
 
@@ -1726,6 +1727,105 @@ class ShiprocketMultiSellerAutomationIntegrationTests(TestCase):
             )
             self.assertEqual(resp_dup.status_code, 200)
 
+    def test_webhook_missing_token_rejected_when_configured(self):
+        """When SHIPROCKET_WEBHOOK_TOKEN is configured, omitting the token header returns 401 Unauthorized."""
+        client = Client()
+        webhook_url = reverse("core:shiprocket_webhook")
+        payload = {"awb": "MOCK-AWB-TEST-123", "current_status": "IN TRANSIT"}
+
+        with override_settings(SHIPROCKET_WEBHOOK_TOKEN="super_secret_webhook_token_999"):
+            resp = client.post(
+                webhook_url,
+                data=json.dumps(payload),
+                content_type="application/json",
+            )
+            self.assertEqual(resp.status_code, 401)
+            self.assertIn("Unauthorized", resp.json().get("error", ""))
+
+    def test_webhook_alternative_auth_headers_accepted(self):
+        """Webhook accepts token via x-api-key, Authorization Bearer, or x-shiprocket-token."""
+        self.pkg1.status = SellerOrder.STATUS_READY_TO_SHIP
+        self.pkg1.save()
+        booking = create_mock_shipment_booking(self.pkg1.pk)
+        client = Client()
+
+        with override_settings(SHIPROCKET_WEBHOOK_TOKEN="shared_secret_token_abc"):
+            # 1. Standard Shiprocket Header: X-Api-Key
+            payload1 = {"awb": booking.awb_code, "current_status": "IN TRANSIT", "event": "scan1"}
+            resp1 = client.post(
+                reverse("core:shiprocket_webhook"),
+                data=json.dumps(payload1),
+                content_type="application/json",
+                HTTP_X_API_KEY="shared_secret_token_abc",
+            )
+            self.assertEqual(resp1.status_code, 200)
+
+            # 2. Authorization Bearer Header
+            payload2 = {"awb": booking.awb_code, "current_status": "OUT FOR DELIVERY", "event": "scan2"}
+            resp2 = client.post(
+                reverse("core:shiprocket_webhook"),
+                data=json.dumps(payload2),
+                content_type="application/json",
+                HTTP_AUTHORIZATION="Bearer shared_secret_token_abc",
+            )
+            self.assertEqual(resp2.status_code, 200)
+
+            # 3. Custom X-Shiprocket-Token Header
+            payload3 = {"awb": booking.awb_code, "current_status": "OUT FOR DELIVERY", "event": "scan3"}
+            resp3 = client.post(
+                reverse("core:shiprocket_webhook"),
+                data=json.dumps(payload3),
+                content_type="application/json",
+                HTTP_X_SHIPROCKET_TOKEN="shared_secret_token_abc",
+            )
+            self.assertEqual(resp3.status_code, 200)
+
+    def test_webhook_keyword_safe_routes_and_sample_mock_delivery(self):
+        """Keyword-safe routes without 'shiprocket' work identically and update delivery status in mock mode."""
+        self.pkg1.status = SellerOrder.STATUS_READY_TO_SHIP
+        self.pkg1.save()
+        booking = create_mock_shipment_booking(self.pkg1.pk)
+        booking.pickup_status = ShipmentBooking.PICKUP_SCHEDULED
+        booking.tracking_status = "IN TRANSIT"
+        booking.save()
+
+        client = Client()
+        token = "test_webhook_secret_key_555"
+
+        sample_delivery_payload = {
+            "awb": booking.awb_code,
+            "shipment_id": booking.shipment_id,
+            "current_status": "DELIVERED",
+            "location": "Jaipur Delivery Hub",
+            "activity": "Parcel delivered to customer successfully.",
+            "courier_name": "Blue Dart Express",
+        }
+
+        with override_settings(SHIPROCKET_WEBHOOK_TOKEN=token):
+            # Test keyword-safe route: /api/shipping/tracking/webhook/
+            safe_url = reverse("core:shipping_tracking_webhook")
+            self.assertEqual(safe_url, "/api/shipping/tracking/webhook/")
+            self.assertNotIn("shiprocket", safe_url)
+
+            resp = client.post(
+                safe_url,
+                data=json.dumps(sample_delivery_payload),
+                content_type="application/json",
+                HTTP_X_API_KEY=token,
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertEqual(data.get("status"), "success")
+
+            # Verify database state updated by the sample webhook in mock mode
+            self.pkg1.refresh_from_db()
+            self.assertEqual(self.pkg1.status, SellerOrder.STATUS_DELIVERED)
+            self.assertIsNotNone(self.pkg1.delivered_at)
+
+            booking.refresh_from_db()
+            self.assertEqual(booking.tracking_status, "DELIVERED")
+            self.assertTrue(len(booking.status_history) > 0)
+
     # 10. Cross-Seller Isolation & Authorization
     def test_seller_cannot_dispatch_another_sellers_package(self):
         """Seller 1 cannot view or dispatch package belonging to Seller 2."""
@@ -1786,3 +1886,114 @@ class ShiprocketMultiSellerAutomationIntegrationTests(TestCase):
         override_event = next((e for e in events if e.get("event_type") == "MANUAL_DELIVERY_OVERRIDE"), None)
         self.assertIsNotNone(override_event)
         self.assertIn("Customer confirmed doorstep receipt", override_event["description"])
+
+    # 13. Two Sellers with Different Pickup Addresses
+    def test_two_sellers_different_pickup_addresses(self):
+        """Two distinct sellers maintain isolated warehouse addresses, PINs, and nicknames."""
+        self.assertNotEqual(self.seller1.pickup_postal_code, self.seller2.pickup_postal_code)
+        self.assertNotEqual(self.seller1.pickup_address, self.seller2.pickup_address)
+        self.assertNotEqual(
+            self.seller1.get_shiprocket_pickup_location_name(),
+            self.seller2.get_shiprocket_pickup_location_name(),
+        )
+
+        client = Client()
+        client.force_login(self.seller_user1)
+
+        # Seller 1 can edit their own pickup address
+        url = reverse("core:seller_pickup_address")
+        post_data = {
+            "pickup_contact_name": "Ramesh Direct",
+            "pickup_contact_phone": "9876543211",
+            "pickup_address": "Updated Dock 1, Peenya Industrial Area",
+            "pickup_landmark": "Gate 1",
+            "pickup_city": "Bengaluru",
+            "pickup_state": "Karnataka",
+            "pickup_postal_code": "560058",
+            "pickup_location_nickname": "Peenya_Dock",
+        }
+        resp = client.post(url, post_data)
+        self.assertEqual(resp.status_code, 302)
+        self.seller1.refresh_from_db()
+        self.assertEqual(self.seller1.pickup_contact_name, "Ramesh Direct")
+        self.seller2.refresh_from_db()
+        # Seller 2 remains completely untouched
+        self.assertEqual(self.seller2.pickup_contact_name, "Suresh Patel")
+        self.assertEqual(self.seller2.pickup_postal_code, "400069")
+
+    # 14. Pickup Registration Failure Handling & Retry
+    @patch.object(ShiprocketClient, "_request")
+    def test_pickup_registration_failure_and_retry(self, mock_request):
+        """Registration failure sets failed status and error; retry recovers when resolved."""
+        mock_request.side_effect = ShiprocketValidationError("PIN code 999999 is unserviceable by Shiprocket courier network.")
+
+        client = ShiprocketClient(mock_mode=False, email="api@fitmeezo.com", password="pass")
+        with patch.object(client, "get_auth_token", return_value="jwt_test_token"):
+            with self.assertRaises(ShiprocketValidationError):
+                register_seller_pickup_location(self.seller1, client=client)
+
+        self.seller1.refresh_from_db()
+        self.assertEqual(self.seller1.shiprocket_pickup_registration_status, Seller.PICKUP_REG_STATUS_FAILED)
+        self.assertIn("unserviceable", self.seller1.shiprocket_pickup_registration_error)
+
+        # Retry succeeds when provider returns success
+        mock_request.side_effect = None
+        mock_request.return_value = {"success": True, "pickup_id": 554433}
+        with patch.object(client, "get_auth_token", return_value="jwt_test_token"):
+            res = register_seller_pickup_location(self.seller1, client=client)
+
+        self.seller1.refresh_from_db()
+        self.assertEqual(self.seller1.shiprocket_pickup_registration_status, Seller.PICKUP_REG_STATUS_REGISTERED)
+        self.assertEqual(self.seller1.shiprocket_pickup_location_id, "554433")
+        self.assertEqual(self.seller1.shiprocket_pickup_registration_error, "")
+
+    # 15. Duplicate Location Detection (Pre-Check Prevention)
+    def test_registration_pre_check_prevents_duplicate_location(self):
+        """If location nickname already exists in Shiprocket, register_pickup_location reuses it without re-adding."""
+        client = ShiprocketClient(mock_mode=False, email="api@fitmeezo.com", password="pass")
+        expected_nick = self.seller1.get_shiprocket_pickup_location_name()
+
+        with patch.object(client, "get_auth_token", return_value="jwt_test_token"), \
+             patch.object(client, "get_pickup_locations", return_value=[{"pickup_location": expected_nick, "id": 778899}]), \
+             patch.object(client, "_request") as mock_req:
+            res = client.register_pickup_location(self.seller1)
+
+            # _request POST should NOT be called because pre-check found existing location
+            mock_req.assert_not_called()
+            self.assertTrue(res.get("already_exists"))
+            self.seller1.refresh_from_db()
+            self.assertEqual(self.seller1.shiprocket_pickup_registration_status, Seller.PICKUP_REG_STATUS_REGISTERED)
+            self.assertEqual(self.seller1.shiprocket_pickup_location_id, "778899")
+
+    # 16. Seller Portal Registration Retry View
+    def test_seller_pickup_register_retry_endpoint(self):
+        """Seller can invoke core:seller_pickup_register to trigger Shiprocket registration without modifying form."""
+        client = Client()
+        client.force_login(self.seller_user1)
+
+        url = reverse("core:seller_pickup_register")
+        resp = client.post(url)
+        self.assertEqual(resp.status_code, 302)
+        self.seller1.refresh_from_db()
+        self.assertEqual(self.seller1.shiprocket_pickup_registration_status, Seller.PICKUP_REG_STATUS_REGISTERED)
+
+    # 17. Admin Shipping Console & Live Readiness Check
+    def test_admin_shipping_dashboard_and_readiness_diagnostics(self):
+        """Admin can access shipping dashboard with live readiness indicator and diagnostics."""
+        readiness = check_shipping_readiness()
+        self.assertIn("mock_mode", readiness)
+        self.assertIn("readiness_state", readiness)
+        self.assertIn("seller_stats", readiness)
+        self.assertIn("shipment_stats", readiness)
+        self.assertIn("diagnostics", readiness)
+        # Ensure credentials are never exposed
+        self.assertNotIn("password", str(readiness))
+
+        client = Client()
+        client.force_login(self.admin_user)
+
+        url = reverse("custom_admin:shipping_dashboard")
+        resp = client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Shipping &amp; Logistics Console")
+        self.assertContains(resp, "Live Shipping Readiness")

@@ -67,6 +67,7 @@ from .admin_views import (
     admin_seller_closure_finalize_view,
     admin_shipment_sync_tracking_view,
     admin_shipment_manual_deliver_view,
+    admin_shipping_dashboard_view,
 )
 from .admin_extended_views import (
     admin_seller_list_view,
@@ -161,6 +162,7 @@ urlpatterns = [
     path("orders/<int:pk>/reconcile-refund/", admin_order_reconcile_refund_view, name="order_reconcile_refund"),
     path("shipments/<int:shipment_id>/sync-tracking/", admin_shipment_sync_tracking_view, name="shipment_sync_tracking"),
     path("shipments/<int:shipment_id>/manual-deliver/", admin_shipment_manual_deliver_view, name="shipment_manual_deliver"),
+    path("shipping/", admin_shipping_dashboard_view, name="shipping_dashboard"),
 
     # Customers
     path("customers/", admin_customer_list_view, name="customer_list"),

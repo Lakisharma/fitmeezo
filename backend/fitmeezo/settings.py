@@ -531,8 +531,8 @@ SHIPROCKET_MAX_RETRIES = int(os.getenv("SHIPROCKET_MAX_RETRIES", "3"))
 SHIPROCKET_BACKOFF_FACTOR = float(os.getenv("SHIPROCKET_BACKOFF_FACTOR", "0.5"))
 SHIPROCKET_RETRY_STATUS_CODES = (429, 500, 502, 503, 504)
 
-# Mock Mode (allows offline / simulated testing without live network calls)
-SHIPROCKET_MOCK_MODE = os.getenv("SHIPROCKET_MOCK_MODE", "False").lower() in ("true", "1", "t", "yes")
+# Mock Mode (allows offline / simulated testing without live network calls; defaults to True for safety)
+SHIPROCKET_MOCK_MODE = os.getenv("SHIPROCKET_MOCK_MODE", "True").lower() in ("true", "1", "t", "yes")
 
 # Token Cache Timeout (Shiprocket tokens expire after 10 days = 864,000s; cache for 7 days = 604,800s)
 SHIPROCKET_TOKEN_CACHE_TIMEOUT = int(os.getenv("SHIPROCKET_TOKEN_CACHE_TIMEOUT", str(86400 * 7)))

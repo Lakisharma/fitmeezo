@@ -312,3 +312,198 @@ def send_seller_closure_finalized_email(seller, notes: str = "") -> bool:
             f"Failed to dispatch seller closure notification email to {recipient_email} for seller #{seller.id}: {exc}"
         )
         return False
+
+
+def send_seller_new_order_email(seller_order) -> bool:
+    """
+    Sends a new-order notification email to the fulfilling seller for their assigned sub-order package.
+    Fails safely so email transport errors never block order placement or checkout.
+    """
+    seller = getattr(seller_order, "seller", None)
+    if not seller:
+        return False
+
+    recipient_email = (
+        (seller.user.email if seller.user else "")
+        or seller.support_email
+        or ""
+    ).strip()
+    if not recipient_email:
+        logger.info("Skipping seller new order notification: no valid email for seller #%s.", seller.pk)
+        return False
+
+    brand_name = getattr(settings, "BRAND_NAME", "Fitmeezo")
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", f"{brand_name} <support@fitmeezo.com>")
+    subject = f"New Order Received: Package #{seller_order.sub_order_number} | {brand_name}"
+
+    order = seller_order.order
+    items_summary = "\n".join(
+        f"  - {item.quantity}x {item.product_name} (SKU: {item.sku or 'N/A'}) — ₹{item.line_total}"
+        for item in seller_order.items.all()
+    ) or f"  - Package #{seller_order.sub_order_number} (Total: ₹{seller_order.subtotal})"
+
+    body = (
+        f"Dear {seller.store_name} Team,\n\n"
+        f"You have received a new fulfillment package #{seller_order.sub_order_number} "
+        f"under Customer Order #{order.order_number}.\n\n"
+        f"Package Summary:\n"
+        f"{items_summary}\n\n"
+        f"Total Package Value: ₹{seller_order.subtotal}\n"
+        f"Payment Method: {order.get_payment_method_display() if hasattr(order, 'get_payment_method_display') else order.payment_method}\n"
+        f"Destination: {order.shipping_city}, {order.shipping_state} ({order.shipping_postal_code})\n\n"
+        f"Next Action:\n"
+        f"Please log in to your Merchant Dashboard to accept the order and verify packed parcel measurements.\n\n"
+        f"Warm regards,\n"
+        f"{brand_name} Logistics Operations\n"
+    )
+
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=body,
+            from_email=from_email,
+            to=[recipient_email],
+        )
+        msg.send(fail_silently=False)
+        logger.info("Sent seller new order notification for package #%s to %s", seller_order.sub_order_number, recipient_email)
+        return True
+    except Exception as exc:
+        logger.warning("Failed to send seller new order notification for package #%s: %s", seller_order.sub_order_number, exc)
+        return False
+
+
+def send_customer_shipment_created_email(seller_order) -> bool:
+    """
+    Sends a shipping dispatch notification to the customer once their package has been booked
+    and an AWB tracking code has been issued by the carrier.
+    """
+    order = getattr(seller_order, "order", None)
+    if not order or not order.user or not order.user.email:
+        return False
+
+    recipient_email = order.user.email.strip()
+    brand_name = getattr(settings, "BRAND_NAME", "Fitmeezo")
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", f"{brand_name} <support@fitmeezo.com>")
+    subject = f"Your Package is Ready for Dispatch! #{seller_order.sub_order_number} | {brand_name}"
+
+    courier = seller_order.courier_name or "Courier Partner"
+    awb = seller_order.tracking_number or seller_order.shiprocket_awb_code or "Pending"
+    tracking_url = seller_order.tracking_url or f"https://fitmeezo.com/orders/track/?awb={awb}"
+
+    body = (
+        f"Dear {order.shipping_full_name},\n\n"
+        f"Great news! Your package #{seller_order.sub_order_number} from order #{order.order_number} "
+        f"has been packed and booked for shipment.\n\n"
+        f"Logistics Details:\n"
+        f"- Courier Partner: {courier}\n"
+        f"- Tracking / AWB Number: {awb}\n"
+        f"- Live Tracking: {tracking_url}\n\n"
+        f"You can track the live delivery progress on {brand_name} at any time.\n\n"
+        f"Thank you for shopping with us!\n"
+        f"{brand_name} Customer Care\n"
+    )
+
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=body,
+            from_email=from_email,
+            to=[recipient_email],
+        )
+        msg.send(fail_silently=False)
+        logger.info("Sent customer shipment created email for package #%s to %s", seller_order.sub_order_number, recipient_email)
+        return True
+    except Exception as exc:
+        logger.warning("Failed to send customer shipment created email for package #%s: %s", seller_order.sub_order_number, exc)
+        return False
+
+
+def send_seller_pickup_scheduled_email(seller_order) -> bool:
+    """
+    Notifies the seller that courier warehouse pickup has been scheduled for their package.
+    """
+    seller = getattr(seller_order, "seller", None)
+    if not seller:
+        return False
+
+    recipient_email = (
+        (seller.user.email if seller.user else "")
+        or seller.support_email
+        or ""
+    ).strip()
+    if not recipient_email:
+        return False
+
+    booking = getattr(seller_order, "shipment_booking", None)
+    pickup_date_str = str(booking.pickup_scheduled_date) if booking and booking.pickup_scheduled_date else "As scheduled by carrier"
+    token = booking.pickup_token_number if booking else ""
+
+    brand_name = getattr(settings, "BRAND_NAME", "Fitmeezo")
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", f"{brand_name} <support@fitmeezo.com>")
+    subject = f"Courier Pickup Scheduled: Package #{seller_order.sub_order_number} | {brand_name}"
+
+    body = (
+        f"Dear {seller.store_name} Team,\n\n"
+        f"Carrier pickup has been scheduled for package #{seller_order.sub_order_number}.\n\n"
+        f"Pickup Details:\n"
+        f"- Scheduled Window: {pickup_date_str}\n"
+        f"- Courier Associate / Partner: {seller_order.courier_name or 'Courier'}\n"
+        f"- AWB: {seller_order.tracking_number}\n"
+        f"- Pickup Token / CRN: {token or 'Confirmed'}\n"
+        f"- Origin Warehouse: {seller.pickup_address}, {seller.pickup_city} ({seller.pickup_postal_code})\n\n"
+        f"Please ensure the parcel is packed, sealed, and labeled with the 4x6 shipping label "
+        f"before the courier arrives.\n\n"
+        f"{brand_name} Logistics Operations\n"
+    )
+
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=body,
+            from_email=from_email,
+            to=[recipient_email],
+        )
+        msg.send(fail_silently=False)
+        logger.info("Sent seller pickup scheduled email for package #%s to %s", seller_order.sub_order_number, recipient_email)
+        return True
+    except Exception as exc:
+        logger.warning("Failed to send seller pickup scheduled email for package #%s: %s", seller_order.sub_order_number, exc)
+        return False
+
+
+def send_customer_tracking_update_email(seller_order, current_status: str, location: str = "") -> bool:
+    """
+    Sends an update to customer when package is physically collected (Shipped) or Delivered.
+    """
+    order = getattr(seller_order, "order", None)
+    if not order or not order.user or not order.user.email:
+        return False
+
+    recipient_email = order.user.email.strip()
+    brand_name = getattr(settings, "BRAND_NAME", "Fitmeezo")
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", f"{brand_name} <support@fitmeezo.com>")
+    subject = f"Shipment Status Update: Package #{seller_order.sub_order_number} is {current_status.title()} | {brand_name}"
+
+    loc_str = f" (Location: {location})" if location else ""
+    body = (
+        f"Dear {order.shipping_full_name},\n\n"
+        f"Your package #{seller_order.sub_order_number} status has been updated: {current_status.upper()}{loc_str}.\n\n"
+        f"- Courier: {seller_order.courier_name}\n"
+        f"- Tracking Code: {seller_order.tracking_number}\n"
+        f"- Live Tracking: {seller_order.tracking_url or 'https://fitmeezo.com/track-order/'}\n\n"
+        f"Thank you for shopping with {brand_name}!\n"
+    )
+
+    try:
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=body,
+            from_email=from_email,
+            to=[recipient_email],
+        )
+        msg.send(fail_silently=False)
+        return True
+    except Exception as exc:
+        logger.warning("Failed to send tracking update email for package #%s: %s", seller_order.sub_order_number, exc)
+        return False
+

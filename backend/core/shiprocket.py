@@ -26,6 +26,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import time
 from typing import Any
 import uuid
@@ -802,11 +803,13 @@ class ShiprocketClient:
                 seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_REGISTERED
                 seller.shiprocket_pickup_registered_at = timezone.now()
                 seller.shiprocket_pickup_registration_error = ""
+                seller.pickup_location_verified = True
                 seller.save(update_fields=[
                     "shiprocket_pickup_location_id",
                     "shiprocket_pickup_registration_status",
                     "shiprocket_pickup_registered_at",
                     "shiprocket_pickup_registration_error",
+                    "pickup_location_verified",
                     "updated_at",
                 ])
             return {
@@ -816,6 +819,30 @@ class ShiprocketClient:
                 "is_mock": True,
                 "message": "[MOCK] Pickup facility registered successfully.",
             }
+
+        # Check if location already registered in Shiprocket (Pre-check duplicate prevention)
+        try:
+            existing_locs = self.get_pickup_locations()
+            for ex in existing_locs:
+                if str(ex.get("pickup_location", "")).strip().lower() == loc_nickname.lower():
+                    confirmed_loc = str(ex.get("id") or ex.get("pickup_id") or ex.get("pickup_location") or loc_nickname)
+                    if seller:
+                        seller.shiprocket_pickup_location_id = confirmed_loc
+                        seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_REGISTERED
+                        seller.shiprocket_pickup_registered_at = timezone.now()
+                        seller.shiprocket_pickup_registration_error = ""
+                        seller.pickup_location_verified = True
+                        seller.save(update_fields=[
+                            "shiprocket_pickup_location_id",
+                            "shiprocket_pickup_registration_status",
+                            "shiprocket_pickup_registered_at",
+                            "shiprocket_pickup_registration_error",
+                            "pickup_location_verified",
+                            "updated_at",
+                        ])
+                    return {"success": True, "pickup_location": confirmed_loc, "already_exists": True}
+        except Exception as check_err:
+            logger.debug("Could not pre-fetch pickup locations: %s", check_err)
 
         logger.info("Registering pickup location '%s' with Shiprocket.", loc_nickname)
         try:
@@ -836,11 +863,13 @@ class ShiprocketClient:
                     seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_REGISTERED
                     seller.shiprocket_pickup_registered_at = timezone.now()
                     seller.shiprocket_pickup_registration_error = ""
+                    seller.pickup_location_verified = True
                     seller.save(update_fields=[
                         "shiprocket_pickup_location_id",
                         "shiprocket_pickup_registration_status",
                         "shiprocket_pickup_registered_at",
                         "shiprocket_pickup_registration_error",
+                        "pickup_location_verified",
                         "updated_at",
                     ])
                 return {"success": True, "pickup_location": loc_nickname, "already_exists": True}
@@ -869,11 +898,13 @@ class ShiprocketClient:
             seller.shiprocket_pickup_registration_status = Seller.PICKUP_REG_STATUS_REGISTERED
             seller.shiprocket_pickup_registered_at = timezone.now()
             seller.shiprocket_pickup_registration_error = ""
+            seller.pickup_location_verified = True
             seller.save(update_fields=[
                 "shiprocket_pickup_location_id",
                 "shiprocket_pickup_registration_status",
                 "shiprocket_pickup_registered_at",
                 "shiprocket_pickup_registration_error",
+                "pickup_location_verified",
                 "updated_at",
             ])
 
@@ -1830,6 +1861,16 @@ def create_or_dispatch_shipment(
             awb_code,
             assigned_courier_name,
         )
+
+        # Step 7: Automated Notifications (Customer tracking dispatch & Seller pickup readiness)
+        try:
+            from core.emails import send_customer_shipment_created_email, send_seller_pickup_scheduled_email
+            send_customer_shipment_created_email(package)
+            if booking.pickup_status in (ShipmentBooking.PICKUP_SCHEDULED, ShipmentBooking.PICKUP_REQUESTED, "scheduled", "requested"):
+                send_seller_pickup_scheduled_email(package)
+        except Exception as notify_err:
+            logger.warning("Non-blocking notification dispatch error for package #%s: %s", package.sub_order_number, notify_err)
+
         return booking
 
 
@@ -1897,6 +1938,11 @@ def sync_shipment_tracking(
                 locked_pkg.shipped_at = timezone.now()
                 locked_pkg.save(update_fields=["status", "shipped_at", "updated_at"])
                 logger.info("Package #%s transitioned to SHIPPED based on courier pickup confirmation.", locked_pkg.sub_order_number)
+                try:
+                    from core.emails import send_customer_tracking_update_email
+                    send_customer_tracking_update_email(locked_pkg, "Picked Up / In Transit")
+                except Exception as email_err:
+                    logger.warning("Tracking update email error on Shipped for #%s: %s", locked_pkg.sub_order_number, email_err)
 
         # 2. Doorstep Delivery Confirmation -> Mark Delivered
         if current_status in DELIVERED_MILESTONES:
@@ -1906,6 +1952,11 @@ def sync_shipment_tracking(
                 locked_pkg.delivered_at = timezone.now()
                 locked_pkg.save(update_fields=["status", "delivered_at", "updated_at"])
                 logger.info("Package #%s confirmed DELIVERED by courier.", locked_pkg.sub_order_number)
+                try:
+                    from core.emails import send_customer_tracking_update_email
+                    send_customer_tracking_update_email(locked_pkg, "Delivered")
+                except Exception as email_err:
+                    logger.warning("Tracking update email error on Delivered for #%s: %s", locked_pkg.sub_order_number, email_err)
 
                 # Reconcile parent Order: mark delivered if all seller packages are delivered
                 parent_order = locked_pkg.order
@@ -1956,6 +2007,40 @@ def sync_shipment_tracking(
 # SECURE WEBHOOK PROCESSING ENGINE
 # ==============================================================================
 
+def extract_webhook_auth_token(headers: dict) -> str:
+    """
+    Extracts the webhook authentication secret token from request headers.
+    Compatible with:
+    - Primary Shiprocket webhook security header: 'x-api-key' / 'X-Api-Key' / 'HTTP_X_API_KEY'
+    - Custom Shiprocket token header: 'x-shiprocket-token' / 'X-Shiprocket-Token'
+    - Standard authorization header: 'authorization' / 'Authorization' (Bearer or raw token)
+    - Generic token header: 'x-auth-token' / 'X-Auth-Token'
+    """
+    candidate_keys = (
+        "x-api-key",
+        "X-Api-Key",
+        "HTTP_X_API_KEY",
+        "x-shiprocket-token",
+        "X-Shiprocket-Token",
+        "HTTP_X_SHIPROCKET_TOKEN",
+        "authorization",
+        "Authorization",
+        "HTTP_AUTHORIZATION",
+        "x-auth-token",
+        "X-Auth-Token",
+        "HTTP_X_AUTH_TOKEN",
+    )
+    for key in candidate_keys:
+        raw_val = headers.get(key)
+        if raw_val is not None:
+            val = str(raw_val).strip()
+            if val.lower().startswith("bearer "):
+                val = val[7:].strip()
+            if val:
+                return val
+    return ""
+
+
 def handle_shiprocket_webhook(
     payload: dict,
     headers: dict | None = None,
@@ -1978,17 +2063,15 @@ def handle_shiprocket_webhook(
     # 1. Webhook Authentication
     configured_token = getattr(settings, "SHIPROCKET_WEBHOOK_TOKEN", "")
     if configured_token:
-        auth_header = (
-            headers.get("x-api-key")
-            or headers.get("HTTP_X_API_KEY")
-            or headers.get("authorization")
-            or headers.get("HTTP_AUTHORIZATION")
-            or ""
-        ).replace("Bearer ", "").strip()
+        configured_token = str(configured_token).strip()
 
-        if auth_header != configured_token:
-            logger.warning("Rejected Shiprocket webhook: invalid authentication token.")
+    if configured_token:
+        extracted_token = extract_webhook_auth_token(headers)
+        if not extracted_token or not secrets.compare_digest(extracted_token, configured_token):
+            logger.warning("Rejected Shiprocket webhook: invalid or missing authentication token.")
             return False, "Unauthorized webhook token.", {}
+    else:
+        logger.warning("Shiprocket webhook received without SHIPROCKET_WEBHOOK_TOKEN configured on server.")
 
     # 2. Idempotency & Event Deduplication
     event_str = json.dumps(payload, sort_keys=True)
@@ -2039,3 +2122,120 @@ def handle_shiprocket_webhook(
 
     logger.info("Processed Shiprocket webhook for package #%s (Status: %s).", booking.package.sub_order_number, status_text)
     return True, "Webhook processed successfully.", sync_result
+
+
+# ==============================================================================
+# SHIPPING READINESS CHECK & DIAGNOSTICS ENGINE (STEP 7 & STEP 8)
+# ==============================================================================
+
+def check_shipping_readiness() -> dict[str, Any]:
+    """
+    Evaluates system readiness for live Shiprocket carrier booking.
+    Inspects:
+    1. Operating mode: Mock Sandbox Mode vs Live Production
+    2. API credentials: Present, non-placeholder, securely masked
+    3. Platform warehouse setup: Configured origin pickup location
+    4. Merchant warehouse setup: Approved sellers, complete addresses, verified & registered pickup facilities
+    5. Webhook receiver setup: Secret token and live webhook URL
+    6. Historical shipment volume: Mock vs live bookings, active transit, deliveries, failures
+    7. Overall readiness state & actionable prerequisites
+    """
+    from core.models import Seller, SellerOrder, ShipmentBooking
+
+    client = ShiprocketClient()
+    mock_mode = getattr(settings, "SHIPROCKET_MOCK_MODE", True)
+    base_url = client.base_url
+    is_configured = client.is_configured
+
+    # Safely mask provider email (never reveal sensitive credentials)
+    email = client.email or ""
+    if email and "@" in email:
+        parts = email.split("@")
+        user_part = parts[0]
+        masked_user = (user_part[:2] + "***") if len(user_part) > 2 else (user_part[:1] + "***")
+        masked_email = f"{masked_user}@{parts[1]}"
+    elif email:
+        masked_email = email[:2] + "***"
+    else:
+        masked_email = "Not Configured"
+
+    webhook_token = getattr(settings, "SHIPROCKET_WEBHOOK_TOKEN", "") or ""
+    webhook_url = "https://fitmeezo.com/api/shipping/tracking/webhook/"
+    platform_wh = getattr(settings, "SHIPROCKET_PICKUP_LOCATION", "") or getattr(settings, "PLATFORM_WAREHOUSE_NAME", "") or "Fitmeezo Central Warehouse"
+
+    # Seller metrics
+    total_sellers = Seller.objects.count()
+    approved_sellers = Seller.objects.filter(status=Seller.STATUS_APPROVED).count()
+    sellers_with_address = Seller.objects.filter(status=Seller.STATUS_APPROVED).exclude(pickup_address="").exclude(pickup_postal_code="").count()
+    sellers_registered = Seller.objects.filter(
+        status=Seller.STATUS_APPROVED,
+        shiprocket_pickup_registration_status=Seller.PICKUP_REG_STATUS_REGISTERED,
+    ).count()
+    sellers_failed = Seller.objects.filter(
+        status=Seller.STATUS_APPROVED,
+        shiprocket_pickup_registration_status=Seller.PICKUP_REG_STATUS_FAILED,
+    ).count()
+    sellers_pending = Seller.objects.filter(
+        status=Seller.STATUS_APPROVED,
+        shiprocket_pickup_registration_status=Seller.PICKUP_REG_STATUS_PENDING,
+    ).count()
+
+    # Shipment metrics
+    total_bookings = ShipmentBooking.objects.count()
+    mock_bookings = ShipmentBooking.objects.filter(is_mock=True).count()
+    live_bookings = ShipmentBooking.objects.filter(is_mock=False).count()
+    pickup_scheduled = ShipmentBooking.objects.filter(pickup_status=ShipmentBooking.PICKUP_SCHEDULED).count()
+    in_transit = ShipmentBooking.objects.filter(tracking_status__in=["IN TRANSIT", "MANIFEST_GENERATED"]).count()
+    delivered = ShipmentBooking.objects.filter(tracking_status="DELIVERED").count()
+    failed = ShipmentBooking.objects.filter(pickup_status=ShipmentBooking.PICKUP_FAILED).count()
+
+    # Determine readiness state & diagnostics
+    diagnostics = []
+    if mock_mode:
+        readiness_state = "MOCK_SANDBOX"
+        diagnostics.append("Shiprocket Mock Mode is currently ACTIVE (zero-cost simulated testing).")
+        diagnostics.append("All shipment bookings, AWBs, and pickups are safely generated as MOCK records.")
+    else:
+        if not is_configured:
+            readiness_state = "PREREQUISITES_MISSING"
+            diagnostics.append("SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD must be configured in environment with non-placeholder values.")
+        elif approved_sellers > 0 and sellers_registered == 0:
+            readiness_state = "PREREQUISITES_MISSING"
+            diagnostics.append("No approved sellers have registered their pickup warehouse with Shiprocket yet.")
+        else:
+            readiness_state = "LIVE_READY"
+            diagnostics.append("Live credentials and seller warehouse locations are configured and ready for live carrier booking.")
+
+    if not webhook_token:
+        diagnostics.append("SHIPROCKET_WEBHOOK_TOKEN is not configured; tracking webhooks will operate unauthenticated or fall back to polling.")
+
+    return {
+        "mock_mode": mock_mode,
+        "base_url": base_url,
+        "is_configured": is_configured,
+        "masked_email": masked_email,
+        "credentials_secret_present": bool(client.password and not client.password.lower().startswith(("replace_", "your_", "todo"))),
+        "platform_pickup_location": platform_wh,
+        "webhook_token_configured": bool(webhook_token),
+        "webhook_url": webhook_url,
+        "readiness_state": readiness_state,
+        "diagnostics": diagnostics,
+        "seller_stats": {
+            "total_sellers": total_sellers,
+            "approved_sellers": approved_sellers,
+            "with_pickup_address": sellers_with_address,
+            "registered_with_shiprocket": sellers_registered,
+            "registration_failed": sellers_failed,
+            "pending_registration": sellers_pending,
+        },
+        "shipment_stats": {
+            "total_bookings": total_bookings,
+            "mock_bookings": mock_bookings,
+            "live_bookings": live_bookings,
+            "pickup_scheduled": pickup_scheduled,
+            "in_transit": in_transit,
+            "delivered": delivered,
+            "failed": failed,
+        },
+    }
+

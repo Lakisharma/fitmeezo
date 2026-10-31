@@ -1463,6 +1463,39 @@ class SellerPickupAddressForm(forms.ModelForm):
             ),
         }
 
+    def clean_pickup_contact_name(self):
+        name = (self.cleaned_data.get("pickup_contact_name") or "").strip()
+        if not name or len(name) < 2:
+            raise ValidationError("Contact person name is required (minimum 2 characters).")
+        return name
+
+    def clean_pickup_address(self):
+        address = (self.cleaned_data.get("pickup_address") or "").strip()
+        if not address or len(address) < 5:
+            raise ValidationError("Warehouse pickup address is required (minimum 5 characters).")
+        return address
+
+    def clean_pickup_city(self):
+        city = (self.cleaned_data.get("pickup_city") or "").strip()
+        if not city or len(city) < 2:
+            raise ValidationError("City is required.")
+        return city
+
+    def clean_pickup_state(self):
+        state = (self.cleaned_data.get("pickup_state") or "").strip()
+        if not state or len(state) < 2:
+            raise ValidationError("State is required.")
+        return state
+
+    def clean_pickup_location_nickname(self):
+        nickname = (self.cleaned_data.get("pickup_location_nickname") or "").strip()
+        if nickname:
+            cleaned = re.sub(r"[^a-zA-Z0-9_\- ]", "", nickname).strip()
+            if not cleaned:
+                raise ValidationError("Nickname must contain alphanumeric characters.")
+            return cleaned[:30]
+        return ""
+
     def clean_pickup_postal_code(self):
         from core.shipping_dimensions import PIN_CODE_PATTERN
         pin = (self.cleaned_data.get("pickup_postal_code") or "").strip()
@@ -1966,9 +1999,23 @@ class SellerFulfillmentUpdateForm(forms.Form):
     )
 
     ALLOWED_TRANSITIONS = {
-        SellerOrder.STATUS_PENDING: [SellerOrder.STATUS_PROCESSING, SellerOrder.STATUS_CANCELLED],
-        SellerOrder.STATUS_PROCESSING: [SellerOrder.STATUS_READY_TO_SHIP, SellerOrder.STATUS_CANCELLED],
-        SellerOrder.STATUS_READY_TO_SHIP: [SellerOrder.STATUS_SHIPPED],
+        SellerOrder.STATUS_PENDING: [
+            getattr(SellerOrder, "STATUS_ACCEPTED", "accepted"),
+            SellerOrder.STATUS_PROCESSING,
+            SellerOrder.STATUS_CANCELLED,
+        ],
+        getattr(SellerOrder, "STATUS_ACCEPTED", "accepted"): [
+            SellerOrder.STATUS_PROCESSING,
+            SellerOrder.STATUS_READY_TO_SHIP,
+            SellerOrder.STATUS_CANCELLED,
+        ],
+        SellerOrder.STATUS_PROCESSING: [
+            SellerOrder.STATUS_READY_TO_SHIP,
+            SellerOrder.STATUS_CANCELLED,
+        ],
+        SellerOrder.STATUS_READY_TO_SHIP: [
+            SellerOrder.STATUS_SHIPPED,
+        ],
     }
 
     def __init__(self, *args, package=None, **kwargs):

@@ -76,7 +76,9 @@ urlpatterns = [
     path("orders/<str:order_number>/cancel/", api_order_cancel, name="order_cancel"),
     path("orders/<str:order_number>/", api_order_detail, name="order_detail"),
 
-    # Logistics Webhook
+    # Logistics Webhooks
     path("shipping/shiprocket/webhook/", shiprocket_webhook_view, name="shiprocket_webhook"),
     path("shiprocket/webhook/", shiprocket_webhook_view, name="shiprocket_webhook_alt"),
+    path("shipping/tracking/webhook/", shiprocket_webhook_view, name="shipping_tracking_webhook"),
+    path("logistics/webhook/", shiprocket_webhook_view, name="logistics_webhook"),
 ]

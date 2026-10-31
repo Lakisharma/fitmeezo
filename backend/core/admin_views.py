@@ -2960,3 +2960,41 @@ def admin_shipment_manual_deliver_view(request, shipment_id):
         f"Package #{locked_package.sub_order_number} (AWB: {locked_booking.awb_code}) manually marked as Delivered. Audit record logged.",
     )
     return redirect("custom_admin:order_detail", pk=parent_order.pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_shipping_dashboard_view(request):
+    """
+    Fitmeezo Multi-Seller Shipping & Logistics Console (STEP 8).
+    Provides administrators with:
+    - Live Shipping Readiness Indicator & Diagnostic Checklist (STEP 7)
+    - Seller Pickup Facility directory with verification and Shiprocket registration controls
+    - Shipment directory with courier partners, AWB codes, and live tracking synchronization
+    - Safe diagnostic reporting without exposing provider credentials
+    """
+    from core.shiprocket import check_shipping_readiness
+    from core.models import Seller, ShipmentBooking
+
+    readiness = check_shipping_readiness()
+
+    # Filterable shipments
+    shipments_qs = ShipmentBooking.objects.select_related("package__order", "package__seller").order_by("-id")
+    status_filter = request.GET.get("status", "").strip()
+    if status_filter:
+        shipments_qs = shipments_qs.filter(status=status_filter)
+
+    paginator = Paginator(shipments_qs, 20)
+    page_number = request.GET.get("page", 1)
+    shipments_page = paginator.get_page(page_number)
+
+    # Approved sellers with pickup address summary
+    sellers = Seller.objects.filter(status=Seller.STATUS_APPROVED).order_by("store_name")
+
+    context = {
+        "title": "Shipping & Logistics Console",
+        "readiness": readiness,
+        "shipments_page": shipments_page,
+        "sellers": sellers,
+        "selected_status": status_filter,
+    }
+    return render(request, "custom_admin/shipping/dashboard.html", context)
