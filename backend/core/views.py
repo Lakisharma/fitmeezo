@@ -5316,28 +5316,84 @@ def shiprocket_webhook_view(request):
     """
     Public webhook receiver for Shiprocket tracking lifecycle updates.
     Enforces secret token verification, deduplication, and row-level locked transitions.
-    Accepts GET / HEAD as endpoint health verification, POST as webhook event delivery.
+    Accepts GET / HEAD as endpoint health verification, OPTIONS for CORS preflight,
+    and POST as webhook event delivery.
     """
-    if request.method in ("GET", "HEAD"):
-        return JsonResponse({
+    cors_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS, HEAD",
+        "Access-Control-Allow-Headers": "Content-Type, x-api-key, X-Api-Key, Authorization, X-Requested-With",
+        "Access-Control-Max-Age": "86400",
+    }
+
+    def _cors_response(resp):
+        for k, v in cors_headers.items():
+            resp[k] = v
+        return resp
+
+    if request.method == "OPTIONS":
+        return _cors_response(HttpResponse(b"", status=200, content_type="application/json"))
+
+    if request.method == "HEAD":
+        return _cors_response(HttpResponse(b"", status=200, content_type="application/json"))
+
+    if request.method == "GET":
+        return _cors_response(JsonResponse({
+            "success": True,
             "status": "healthy",
+            "code": 200,
             "service": "Fitmeezo Shiprocket Webhook Receiver",
-            "endpoint": "/api/shipping/tracking/webhook/",
-        }, status=200)
+            "endpoint": request.path,
+        }, status=200))
 
     if request.method != "POST":
-        return HttpResponseNotAllowed(["GET", "HEAD", "POST"])
+        return _cors_response(HttpResponseNotAllowed(["GET", "HEAD", "POST", "OPTIONS"]))
+
+    client_ip = (
+        request.META.get("HTTP_X_FORWARDED_FOR", "").split(",")[0].strip()
+        or request.META.get("REMOTE_ADDR")
+        or "unknown"
+    )
+    has_auth_header = bool(
+        request.headers.get("x-api-key")
+        or request.headers.get("X-Api-Key")
+        or request.headers.get("authorization")
+        or request.META.get("HTTP_X_API_KEY")
+        or request.META.get("HTTP_AUTHORIZATION")
+    )
+    logger.warning(
+        "Shiprocket Webhook POST received: path=%s, ip=%s, auth_present=%s, content_length=%s",
+        request.path,
+        client_ip,
+        has_auth_header,
+        request.META.get("CONTENT_LENGTH", "0"),
+    )
 
     try:
-        payload = json.loads(request.body.decode("utf-8") or "{}")
-    except Exception:
+        raw_body = request.body.decode("utf-8") if request.body else ""
+        payload = json.loads(raw_body) if raw_body else {}
+    except Exception as exc:
         if request.POST:
             payload = request.POST.dict()
         else:
-            return JsonResponse({"error": "Invalid JSON payload"}, status=400)
+            logger.warning("Shiprocket Webhook: Invalid JSON payload from %s: %s", client_ip, exc)
+            return _cors_response(JsonResponse({
+                "success": False,
+                "status": "error",
+                "code": 400,
+                "error": "Invalid JSON payload",
+                "message": "Invalid JSON payload",
+            }, status=400))
 
     if not isinstance(payload, dict):
-        return JsonResponse({"error": "Invalid JSON payload structure"}, status=400)
+        logger.warning("Shiprocket Webhook: Invalid payload structure from %s", client_ip)
+        return _cors_response(JsonResponse({
+            "success": False,
+            "status": "error",
+            "code": 400,
+            "error": "Invalid JSON payload structure",
+            "message": "Invalid JSON payload structure",
+        }, status=400))
 
     # Build comprehensive header map: lower-cased request.headers + WSGI META headers
     headers = {k.lower(): v for k, v in request.headers.items()}
@@ -5351,8 +5407,21 @@ def shiprocket_webhook_view(request):
     success, msg, data = handle_shiprocket_webhook(payload, headers=headers)
 
     if not success:
-        if "Unauthorized" in msg:
-            return JsonResponse({"error": msg}, status=401)
-        return JsonResponse({"error": msg}, status=400)
+        status_code = 401 if "Unauthorized" in msg else 400
+        logger.warning("Shiprocket Webhook rejected (%s) from %s: %s", status_code, client_ip, msg)
+        return _cors_response(JsonResponse({
+            "success": False,
+            "status": "error",
+            "code": status_code,
+            "error": msg,
+            "message": msg,
+        }, status=status_code))
 
-    return JsonResponse({"status": "success", "message": msg, "data": data}, status=200)
+    logger.warning("Shiprocket Webhook acknowledged/processed successfully: %s", msg)
+    return _cors_response(JsonResponse({
+        "success": True,
+        "status": "success",
+        "code": 200,
+        "message": msg,
+        "data": data,
+    }, status=200))

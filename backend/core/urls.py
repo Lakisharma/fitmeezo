@@ -332,8 +332,17 @@ urlpatterns = [
     path("api/shiprocket/webhook", shiprocket_webhook_view, name="shiprocket_webhook_alt_no_slash"),
     path("api/shipping/tracking/webhook/", shiprocket_webhook_view, name="shipping_tracking_webhook"),
     path("api/shipping/tracking/webhook", shiprocket_webhook_view, name="shipping_tracking_webhook_no_slash"),
+    path("api/shipping/webhook/", shiprocket_webhook_view, name="shipping_webhook_api"),
+    path("api/shipping/webhook", shiprocket_webhook_view, name="shipping_webhook_api_no_slash"),
     path("api/logistics/webhook/", shiprocket_webhook_view, name="logistics_webhook"),
     path("api/logistics/webhook", shiprocket_webhook_view, name="logistics_webhook_no_slash"),
+    # Non-API prefix aliases for direct Shiprocket configurations
+    path("shipping/tracking/webhook/", shiprocket_webhook_view, name="shipping_tracking_webhook_direct"),
+    path("shipping/tracking/webhook", shiprocket_webhook_view, name="shipping_tracking_webhook_direct_no_slash"),
+    path("shipping/webhook/", shiprocket_webhook_view, name="shipping_webhook_direct"),
+    path("shipping/webhook", shiprocket_webhook_view, name="shipping_webhook_direct_no_slash"),
+    path("shiprocket/webhook/", shiprocket_webhook_view, name="shiprocket_webhook_direct"),
+    path("shiprocket/webhook", shiprocket_webhook_view, name="shiprocket_webhook_direct_no_slash"),
 
     # DRF API endpoints
     path("api/products/<slug:slug>/variants/", product_variants_api, name="product_variants_api"),

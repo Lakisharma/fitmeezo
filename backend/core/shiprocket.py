@@ -2025,7 +2025,7 @@ def extract_webhook_auth_token(headers: dict) -> str:
         if not v:
             continue
         k_str = str(k).lower().strip()
-        val_str = str(v).strip()
+        val_str = str(v).strip().strip('"\'')
         normalized[k_str] = val_str
         clean_key = k_str.replace("_", "-")
         normalized[clean_key] = val_str
@@ -2070,31 +2070,66 @@ def handle_shiprocket_webhook(
     # 1. Webhook Authentication
     configured_token = getattr(settings, "SHIPROCKET_WEBHOOK_TOKEN", "")
     if configured_token:
-        configured_token = str(configured_token).strip()
+        configured_token = str(configured_token).strip().strip('"\'')
 
     if configured_token:
         extracted_token = extract_webhook_auth_token(headers)
+        if not extracted_token and isinstance(payload, dict):
+            extracted_token = (
+                payload.get("token") or
+                payload.get("x-api-key") or
+                payload.get("api_key") or
+                ""
+            )
+            if extracted_token:
+                extracted_token = str(extracted_token).strip().strip('"\'')
+
         if not extracted_token or not secrets.compare_digest(extracted_token, configured_token):
             logger.warning("Rejected Shiprocket webhook: invalid or missing authentication token.")
             return False, "Unauthorized webhook token.", {}
     else:
         logger.warning("Shiprocket webhook received without SHIPROCKET_WEBHOOK_TOKEN configured on server.")
 
-    # 2. Idempotency & Event Deduplication
+    # 2. Check for Test Ping / Test Verification
+    awb_code = str(payload.get("awb") or payload.get("awb_code") or "").strip()
+    shipment_id = str(payload.get("shipment_id") or "").strip()
+    order_id = str(payload.get("order_id") or "").strip()
+    status_raw = str(payload.get("current_status") or payload.get("status") or "").upper().strip()
+
+    is_test_ping = (
+        payload.get("test") is True
+        or status_raw in ("TEST_PING", "TEST_VERIFICATION", "TEST", "PING")
+        or awb_code in ("123456", "12345678", "123456789", "dummy_awb", "test_awb")
+        or (not awb_code and not shipment_id and not order_id)
+    )
+
+    if is_test_ping:
+        logger.warning(
+            "Shiprocket webhook test ping verified: awb=%s, shipment=%s, order=%s, status=%s",
+            awb_code,
+            shipment_id,
+            order_id,
+            status_raw,
+        )
+        return True, "Shiprocket webhook test ping verified successfully.", {
+            "test": True,
+            "status": "verified",
+            "awb": awb_code,
+            "shipment_id": shipment_id,
+            "order_id": order_id,
+        }
+
+    # 3. Idempotency & Event Deduplication (for real tracking events)
     event_str = json.dumps(payload, sort_keys=True)
     event_hash = hashlib.sha256(event_str.encode()).hexdigest()
     cache_key = f"shiprocket_webhook_processed_{event_hash}"
     if cache.get(cache_key):
-        logger.info("Ignoring duplicate webhook event (hash: %s).", event_hash[:12])
+        logger.warning("Ignoring duplicate webhook event (hash: %s).", event_hash[:12])
         return True, "Duplicate webhook event safely ignored.", {"event_hash": event_hash, "duplicate": True}
 
     cache.set(cache_key, True, 86400)  # Deduplicate for 24 hours
 
-    # 3. Match Target ShipmentBooking
-    awb_code = str(payload.get("awb") or payload.get("awb_code") or "").strip()
-    shipment_id = str(payload.get("shipment_id") or "").strip()
-    order_id = str(payload.get("order_id") or "").strip()
-
+    # 4. Match Target ShipmentBooking
     booking = None
     if awb_code:
         booking = ShipmentBooking.objects.filter(awb_code=awb_code).select_related("package", "package__order").first()
@@ -2104,21 +2139,21 @@ def handle_shiprocket_webhook(
         booking = ShipmentBooking.objects.filter(package__sub_order_number=order_id).select_related("package", "package__order").first()
 
     if not booking:
-        logger.info(
-            "Shiprocket webhook acknowledged for unmapped shipment or verification ping (AWB: %s, Shipment: %s, Order: %s).",
+        logger.warning(
+            "Shiprocket webhook acknowledged for unmapped shipment (AWB: %s, Shipment: %s, Order: %s).",
             awb_code,
             shipment_id,
             order_id,
         )
-        return True, "Webhook acknowledged (unmapped or test payload).", {
+        return True, "Webhook acknowledged (unmapped shipment payload).", {
             "awb": awb_code,
             "shipment_id": shipment_id,
             "order_id": order_id,
             "status": "acknowledged",
         }
 
-    # 4. Process Status Update
-    status_text = (payload.get("current_status") or payload.get("status") or "").upper().strip()
+    # 5. Process Status Update
+    status_text = status_raw
     activity = payload.get("activity") or payload.get("current_status") or f"Webhook status: {status_text}"
     location = payload.get("location") or ""
 
@@ -2132,7 +2167,7 @@ def handle_shiprocket_webhook(
 
     sync_result = sync_shipment_tracking(booking, client=None, tracking_data=tracking_simulation)
 
-    logger.info("Processed Shiprocket webhook for package #%s (Status: %s).", booking.package.sub_order_number, status_text)
+    logger.warning("Processed Shiprocket webhook for package #%s (Status: %s).", booking.package.sub_order_number, status_text)
     return True, "Webhook processed successfully.", sync_result
 
 

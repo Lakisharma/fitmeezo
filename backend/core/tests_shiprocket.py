@@ -1891,6 +1891,7 @@ class ShiprocketMultiSellerAutomationIntegrationTests(TestCase):
                 content_type="application/json",
             )
             self.assertEqual(resp_missing.status_code, 401)
+            self.assertFalse(resp_missing.json().get("success"))
 
             # Invalid header -> 401
             resp_invalid = client.post(
@@ -1900,6 +1901,7 @@ class ShiprocketMultiSellerAutomationIntegrationTests(TestCase):
                 HTTP_X_API_KEY="invalid_secret_token",
             )
             self.assertEqual(resp_invalid.status_code, 401)
+            self.assertFalse(resp_invalid.json().get("success"))
 
             # Valid x-api-key header -> 200 OK
             resp_valid = client.post(
@@ -1910,6 +1912,57 @@ class ShiprocketMultiSellerAutomationIntegrationTests(TestCase):
             )
             self.assertEqual(resp_valid.status_code, 200)
             self.assertEqual(resp_valid.json().get("status"), "success")
+            self.assertTrue(resp_valid.json().get("success"))
+            self.assertEqual(resp_valid.json().get("code"), 200)
+
+            # Repeated verification pings still return 200 (not blocked by deduplication)
+            resp_repeat = client.post(
+                reverse("core:shipping_tracking_webhook"),
+                data=json.dumps(dummy_payload),
+                content_type="application/json",
+                HTTP_X_API_KEY=secret,
+            )
+            self.assertEqual(resp_repeat.status_code, 200)
+            self.assertTrue(resp_repeat.json().get("success"))
+
+    def test_webhook_options_cors_preflight(self):
+        """OPTIONS request returns 200 OK with comprehensive CORS headers for browser test tools."""
+        client = Client()
+        for url in (
+            "/api/shipping/tracking/webhook/",
+            "/api/shipping/tracking/webhook",
+            "/shipping/tracking/webhook/",
+            "/shipping/tracking/webhook",
+        ):
+            resp = client.options(url)
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp["Access-Control-Allow-Origin"], "*")
+            self.assertIn("POST", resp["Access-Control-Allow-Methods"])
+            self.assertIn("x-api-key", resp["Access-Control-Allow-Headers"])
+
+    def test_webhook_direct_paths_without_api_prefix(self):
+        """Direct webhook paths without /api/ prefix resolve and accept requests."""
+        client = Client()
+        payload = {"awb": "123456", "current_status": "TEST_VERIFICATION"}
+        secret = "direct_path_test_token"
+        with override_settings(SHIPROCKET_WEBHOOK_TOKEN=secret):
+            resp1 = client.post(
+                "/shipping/tracking/webhook/",
+                data=json.dumps(payload),
+                content_type="application/json",
+                HTTP_X_API_KEY=secret,
+            )
+            self.assertEqual(resp1.status_code, 200)
+            self.assertTrue(resp1.json().get("success"))
+
+            resp2 = client.post(
+                "/shipping/tracking/webhook",
+                data=json.dumps(payload),
+                content_type="application/json",
+                HTTP_X_API_KEY=secret,
+            )
+            self.assertEqual(resp2.status_code, 200)
+            self.assertTrue(resp2.json().get("success"))
 
     # 10. Cross-Seller Isolation & Authorization
     def test_seller_cannot_dispatch_another_sellers_package(self):
