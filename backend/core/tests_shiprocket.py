@@ -1826,6 +1826,91 @@ class ShiprocketMultiSellerAutomationIntegrationTests(TestCase):
             self.assertEqual(booking.tracking_status, "DELIVERED")
             self.assertTrue(len(booking.status_history) > 0)
 
+    def test_webhook_verification_ping_and_dummy_payload_acknowledged_with_200(self):
+        """Shiprocket verification pings (dummy awb/order) return HTTP 200 OK without failing."""
+        client = Client()
+        dummy_ping_payload = {
+            "awb": "123456",
+            "order_id": "dummpy shiprocket order id 123",
+            "current_status": "TEST_PING",
+        }
+        # Test without token configured
+        with override_settings(SHIPROCKET_WEBHOOK_TOKEN=""):
+            resp = client.post(
+                reverse("core:shipping_tracking_webhook"),
+                data=json.dumps(dummy_ping_payload),
+                content_type="application/json",
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertEqual(data.get("status"), "success")
+            self.assertIn("acknowledged", data.get("message", "").lower())
+
+            # Empty payload ping
+            resp_empty = client.post(
+                reverse("core:shipping_tracking_webhook"),
+                data=json.dumps({}),
+                content_type="application/json",
+            )
+            self.assertEqual(resp_empty.status_code, 200)
+
+    def test_webhook_get_and_head_probes_return_200(self):
+        """GET and HEAD requests on webhook endpoint return HTTP 200 health probe response."""
+        client = Client()
+        resp_get = client.get(reverse("core:shipping_tracking_webhook"))
+        self.assertEqual(resp_get.status_code, 200)
+        self.assertEqual(resp_get.json().get("status"), "healthy")
+
+        resp_head = client.head(reverse("core:shipping_tracking_webhook"))
+        self.assertEqual(resp_head.status_code, 200)
+
+    def test_webhook_non_trailing_slash_routes_without_redirect(self):
+        """Webhook URL without trailing slash directly accepts POST without 301 redirection."""
+        client = Client()
+        dummy_payload = {"awb": "999888", "current_status": "PING"}
+        with override_settings(SHIPROCKET_WEBHOOK_TOKEN=""):
+            resp = client.post(
+                "/api/shipping/tracking/webhook",
+                data=json.dumps(dummy_payload),
+                content_type="application/json",
+            )
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.json().get("status"), "success")
+
+    def test_webhook_configured_token_enforcement_on_verification_payload(self):
+        """When token is configured, verification ping requires matching x-api-key header."""
+        client = Client()
+        dummy_payload = {"awb": "123456", "order_id": "dummpy shiprocket order id 123"}
+        secret = "secret_shiprocket_auth_key_888"
+
+        with override_settings(SHIPROCKET_WEBHOOK_TOKEN=secret):
+            # Missing header -> 401
+            resp_missing = client.post(
+                reverse("core:shipping_tracking_webhook"),
+                data=json.dumps(dummy_payload),
+                content_type="application/json",
+            )
+            self.assertEqual(resp_missing.status_code, 401)
+
+            # Invalid header -> 401
+            resp_invalid = client.post(
+                reverse("core:shipping_tracking_webhook"),
+                data=json.dumps(dummy_payload),
+                content_type="application/json",
+                HTTP_X_API_KEY="invalid_secret_token",
+            )
+            self.assertEqual(resp_invalid.status_code, 401)
+
+            # Valid x-api-key header -> 200 OK
+            resp_valid = client.post(
+                reverse("core:shipping_tracking_webhook"),
+                data=json.dumps(dummy_payload),
+                content_type="application/json",
+                HTTP_X_API_KEY=secret,
+            )
+            self.assertEqual(resp_valid.status_code, 200)
+            self.assertEqual(resp_valid.json().get("status"), "success")
+
     # 10. Cross-Seller Isolation & Authorization
     def test_seller_cannot_dispatch_another_sellers_package(self):
         """Seller 1 cannot view or dispatch package belonging to Seller 2."""

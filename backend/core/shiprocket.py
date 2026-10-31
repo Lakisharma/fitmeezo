@@ -2016,24 +2016,31 @@ def extract_webhook_auth_token(headers: dict) -> str:
     - Standard authorization header: 'authorization' / 'Authorization' (Bearer or raw token)
     - Generic token header: 'x-auth-token' / 'X-Auth-Token'
     """
+    if not headers or not isinstance(headers, dict):
+        return ""
+
+    # Build lower-cased and hyphenated lookup map
+    normalized = {}
+    for k, v in headers.items():
+        if not v:
+            continue
+        k_str = str(k).lower().strip()
+        val_str = str(v).strip()
+        normalized[k_str] = val_str
+        clean_key = k_str.replace("_", "-")
+        normalized[clean_key] = val_str
+        if clean_key.startswith("http-"):
+            normalized[clean_key[5:]] = val_str
+
     candidate_keys = (
         "x-api-key",
-        "X-Api-Key",
-        "HTTP_X_API_KEY",
         "x-shiprocket-token",
-        "X-Shiprocket-Token",
-        "HTTP_X_SHIPROCKET_TOKEN",
         "authorization",
-        "Authorization",
-        "HTTP_AUTHORIZATION",
         "x-auth-token",
-        "X-Auth-Token",
-        "HTTP_X_AUTH_TOKEN",
     )
     for key in candidate_keys:
-        raw_val = headers.get(key)
-        if raw_val is not None:
-            val = str(raw_val).strip()
+        val = normalized.get(key)
+        if val:
             if val.lower().startswith("bearer "):
                 val = val[7:].strip()
             if val:
@@ -2097,13 +2104,18 @@ def handle_shiprocket_webhook(
         booking = ShipmentBooking.objects.filter(package__sub_order_number=order_id).select_related("package", "package__order").first()
 
     if not booking:
-        logger.warning(
-            "Shiprocket webhook received for unmapped shipment (AWB: %s, Shipment: %s, Order: %s).",
+        logger.info(
+            "Shiprocket webhook acknowledged for unmapped shipment or verification ping (AWB: %s, Shipment: %s, Order: %s).",
             awb_code,
             shipment_id,
             order_id,
         )
-        return False, "No matching ShipmentBooking found for webhook payload.", {"awb": awb_code, "shipment_id": shipment_id}
+        return True, "Webhook acknowledged (unmapped or test payload).", {
+            "awb": awb_code,
+            "shipment_id": shipment_id,
+            "order_id": order_id,
+            "status": "acknowledged",
+        }
 
     # 4. Process Status Update
     status_text = (payload.get("current_status") or payload.get("status") or "").upper().strip()

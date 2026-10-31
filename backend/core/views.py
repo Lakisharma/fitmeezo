@@ -5312,16 +5312,32 @@ def seller_order_sync_tracking_view(request, pk):
 
 
 @csrf_exempt
-@require_POST
 def shiprocket_webhook_view(request):
     """
     Public webhook receiver for Shiprocket tracking lifecycle updates.
     Enforces secret token verification, deduplication, and row-level locked transitions.
+    Accepts GET / HEAD as endpoint health verification, POST as webhook event delivery.
     """
+    if request.method in ("GET", "HEAD"):
+        return JsonResponse({
+            "status": "healthy",
+            "service": "Fitmeezo Shiprocket Webhook Receiver",
+            "endpoint": "/api/shipping/tracking/webhook/",
+        }, status=200)
+
+    if request.method != "POST":
+        return HttpResponseNotAllowed(["GET", "HEAD", "POST"])
+
     try:
         payload = json.loads(request.body.decode("utf-8") or "{}")
     except Exception:
-        return JsonResponse({"error": "Invalid JSON payload"}, status=400)
+        if request.POST:
+            payload = request.POST.dict()
+        else:
+            return JsonResponse({"error": "Invalid JSON payload"}, status=400)
+
+    if not isinstance(payload, dict):
+        return JsonResponse({"error": "Invalid JSON payload structure"}, status=400)
 
     # Build comprehensive header map: lower-cased request.headers + WSGI META headers
     headers = {k.lower(): v for k, v in request.headers.items()}

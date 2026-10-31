@@ -78,7 +78,11 @@ urlpatterns = [
 
     # Logistics Webhooks
     path("shipping/shiprocket/webhook/", shiprocket_webhook_view, name="shiprocket_webhook"),
+    path("shipping/shiprocket/webhook", shiprocket_webhook_view, name="shiprocket_webhook_no_slash"),
     path("shiprocket/webhook/", shiprocket_webhook_view, name="shiprocket_webhook_alt"),
+    path("shiprocket/webhook", shiprocket_webhook_view, name="shiprocket_webhook_alt_no_slash"),
     path("shipping/tracking/webhook/", shiprocket_webhook_view, name="shipping_tracking_webhook"),
+    path("shipping/tracking/webhook", shiprocket_webhook_view, name="shipping_tracking_webhook_no_slash"),
     path("logistics/webhook/", shiprocket_webhook_view, name="logistics_webhook"),
+    path("logistics/webhook", shiprocket_webhook_view, name="logistics_webhook_no_slash"),
 ]
