@@ -113,9 +113,14 @@
               </span>
             </td>
             <td class="text-end">
-              <a href="{% url 'custom_admin:order_detail' pk=order.pk %}" class="btn btn-sm btn-outline-dark" title="View Order Details">
-                <i class="bi bi-eye"></i> Details
-              </a>
+              <div class="btn-group btn-group-sm">
+                <a href="{% url 'custom_admin:order_packing_slip' pk=order.pk %}" class="btn btn-outline-primary" target="_blank" title="Print Packing Slip">
+                  <i class="bi bi-printer"></i>
+                </a>
+                <a href="{% url 'custom_admin:order_detail' pk=order.pk %}" class="btn btn-outline-dark" title="View Order Details">
+                  <i class="bi bi-eye"></i> Details
+                </a>
+              </div>
             </td>
           </tr>
         {% empty %}

@@ -912,3 +912,336 @@ def generate_courier_shipping_label_pdf(package: Any, page_size: str = "4x6") ->
     doc.build(story)
     return buffer.getvalue()
 
+
+def generate_amazon_style_packing_slip_pdf(package: Any, page_size: str = "a4") -> bytes:
+    """
+    Generates a professional, industry-standard Amazon/Flipkart style Packing Slip PDF.
+    Enclosed inside or affixed to the customer shipment package.
+
+    Requirements Complied:
+    - Order ID (Order Number & Package Reference)
+    - Order Date
+    - Customer Name
+    - Complete Shipping Address (Unmasked: street, landmark, city, state, postal code)
+    - Customer Phone (Unmasked contact number)
+    - Product Name, SKU, Size/Variant, Quantity
+    - Seller Details (Store name, legal business entity, facility address, GSTIN, phone)
+    - Payment Method & Collectible Amount (COD vs Prepaid)
+    - Print-friendly for A4 standard portrait and 4x6 inch thermal sticker printing.
+    """
+    from core.models import Order, SellerOrder, ShipmentBooking
+
+    if not isinstance(package, SellerOrder):
+        raise ValueError("Package must be an instance of SellerOrder.")
+
+    order: Order = package.order
+    seller = package.seller
+    booking: ShipmentBooking | None = getattr(package, "shipment_booking", None)
+    items = list(package.items.all())
+
+    is_thermal = str(page_size).strip().lower() in ("4x6", "thermal", "thermal_4x6")
+    if is_thermal:
+        page_dim = (4 * inch, 6 * inch)
+        margin = 10
+        scale = 0.82
+    else:
+        page_dim = A4
+        margin = 32
+        scale = 1.0
+
+    usable_w = page_dim[0] - (margin * 2)
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=page_dim,
+        leftMargin=margin,
+        rightMargin=margin,
+        topMargin=margin,
+        bottomMargin=margin,
+        pageCompression=0,
+    )
+
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "PSTitle",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=15 * scale,
+        leading=18 * scale,
+        textColor=colors.HexColor("#0F172A"),
+    )
+    title_meta = ParagraphStyle(
+        "PSTitleMeta",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=8 * scale,
+        leading=11 * scale,
+        alignment=2,
+        textColor=colors.HexColor("#334155"),
+    )
+    sec_heading = ParagraphStyle(
+        "PSSecHead",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8.5 * scale,
+        leading=11 * scale,
+        textColor=colors.HexColor("#0F172A"),
+    )
+    body_bold = ParagraphStyle(
+        "PSBold",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=8 * scale,
+        leading=11 * scale,
+        textColor=colors.HexColor("#1E293B"),
+    )
+    body_reg = ParagraphStyle(
+        "PSReg",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=7.5 * scale,
+        leading=10.5 * scale,
+        textColor=colors.HexColor("#334155"),
+    )
+    body_muted = ParagraphStyle(
+        "PSMuted",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=7 * scale,
+        leading=9.5 * scale,
+        textColor=colors.HexColor("#64748B"),
+    )
+    th_style = ParagraphStyle(
+        "PSTh",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=7.5 * scale,
+        leading=9.5 * scale,
+        textColor=colors.HexColor("#FFFFFF"),
+    )
+    td_style = ParagraphStyle(
+        "PSTd",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=7.5 * scale,
+        leading=10 * scale,
+        textColor=colors.HexColor("#1E293B"),
+    )
+    td_center = ParagraphStyle("PSTdC", parent=td_style, alignment=1)
+
+    story = []
+
+    # 1. Header: Brand + Document Title + Order Identification
+    brand_name = getattr(settings, "BRAND_NAME", "Fitmeezo").upper()
+    order_date_str = order.created_at.strftime("%d-%b-%Y %H:%M")
+
+    header_left = [
+        Paragraph(f"<b>{brand_name}</b>", title_style),
+        Paragraph("<b>CUSTOMER PACKING SLIP &amp; ORDER SUMMARY</b>", body_bold),
+        Paragraph(f"Parent Order ID: <b>#{order.order_number}</b>", body_reg),
+        Paragraph(f"Package Reference: <b>#{package.sub_order_number}</b>", body_reg),
+    ]
+
+    is_cod = (order.payment_method == Order.PAYMENT_METHOD_COD) or getattr(order, "is_cod", False)
+    if is_cod:
+        pay_box_text = f"<font color='#B91C1C'><b>CASH ON DELIVERY (COD)</b></font><br/><b>Amount to Collect: Rs. {order.total_amount:.2f}</b>"
+    else:
+        pay_box_text = f"<font color='#15803D'><b>PREPAID ORDER</b></font><br/>Collectible: Rs. 0.00"
+
+    header_right = [
+        Paragraph(f"<b>Order Date:</b> {order_date_str}", title_meta),
+        Paragraph(f"<b>Payment Mode:</b> {pay_box_text}", title_meta),
+    ]
+
+    head_table = Table([[header_left, header_right]], colWidths=[usable_w * 0.58, usable_w * 0.42])
+    head_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    story.append(head_table)
+    story.append(Spacer(1, 4))
+
+    # Mock Mode Warning if applicable
+    if getattr(settings, "SHIPROCKET_MOCK_MODE", True):
+        mock_banner = Table(
+            [[Paragraph("<b>[SIMULATION MODE]</b> Fitmeezo Logistics is running in Mock Mode (SHIPROCKET_MOCK_MODE=True). No live carrier booked.", body_muted)]],
+            colWidths=[usable_w],
+        )
+        mock_banner.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#FEF3C7")),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#F59E0B")),
+            ("TOPPADDING", (0, 0), (-1, -1), 2),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+            ("LEFTPADDING", (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        story.append(mock_banner)
+        story.append(Spacer(1, 4))
+
+    # 2. Seller Details (Sold By) & Customer Details (Ship To) Box
+    if seller:
+        s_store = seller.store_name
+        s_legal = seller.legal_business_name or seller.store_name
+        s_addr = f"{seller.pickup_address or ''}, {seller.pickup_city or ''}, {seller.pickup_state or ''} - {seller.pickup_postal_code or ''}".strip(", -")
+        s_gstin = seller.gstin or "Unregistered / In Progress"
+        s_phone = getattr(seller, "registered_mobile", "") or getattr(seller, "support_phone", "") or "Not Listed"
+        s_email = getattr(seller, "support_email", "") or getattr(seller.user, "email", "")
+    else:
+        s_store = "Fitmeezo Direct Fulfillment"
+        s_legal = "Fitmeezo E-Commerce Pvt Ltd"
+        s_addr = "Fitmeezo Central Logistics Hub, Industrial Area, Bengaluru, Karnataka - 560100"
+        s_gstin = "29AAAAA0000A1Z5"
+        s_phone = "+91 80 4000 0000"
+        s_email = "support@fitmeezo.com"
+
+    seller_p = [
+        Paragraph("<b>SOLD &amp; DISPATCHED BY:</b>", sec_heading),
+        Spacer(1, 2),
+        Paragraph(f"<b>{s_store}</b> ({s_legal})", body_bold),
+        Paragraph(f"{s_addr}", body_reg),
+        Paragraph(f"<b>GSTIN:</b> {s_gstin}", body_reg),
+        Paragraph(f"<b>Phone:</b> {s_phone} &bull; <b>Email:</b> {s_email}", body_muted),
+    ]
+
+    addr2_txt = f"<br/>{order.shipping_address_line2}" if order.shipping_address_line2 else ""
+    landmark_txt = f"<br/>Landmark: {order.shipping_landmark}" if order.shipping_landmark else ""
+    customer_p = [
+        Paragraph("<b>SHIPPING / DELIVERY DESTINATION:</b>", sec_heading),
+        Spacer(1, 2),
+        Paragraph(f"<b>{order.shipping_full_name}</b>", body_bold),
+        Paragraph(f"{order.shipping_address_line1}{addr2_txt}{landmark_txt}", body_reg),
+        Paragraph(f"<b>{order.shipping_city}, {order.shipping_state} — PIN: {order.shipping_postal_code}</b>", body_bold),
+        Paragraph(f"<b>Phone / Mobile:</b> {order.shipping_phone_number}", body_bold),
+    ]
+
+    addr_table = Table([[seller_p, customer_p]], colWidths=[usable_w * 0.50, usable_w * 0.50])
+    addr_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+        ("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#94A3B8")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(addr_table)
+    story.append(Spacer(1, 5))
+
+    # 3. Courier & Logistics Booking Strip (if booked)
+    if booking:
+        c_name = booking.courier_name or "Standard Courier"
+        awb = booking.awb_code or "Awaiting AWB"
+        p_stat = booking.get_pickup_status_display()
+        t_stat = booking.tracking_status or "Booked"
+        courier_info = [
+            Paragraph(
+                f"<b>Courier Partner:</b> {c_name} &nbsp;|&nbsp; "
+                f"<b>AWB Number:</b> {awb} &nbsp;|&nbsp; "
+                f"<b>Pickup:</b> {p_stat} &nbsp;|&nbsp; "
+                f"<b>Tracking Status:</b> {t_stat}",
+                body_reg,
+            )
+        ]
+        c_table = Table([[courier_info]], colWidths=[usable_w])
+        c_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F1F5F9")),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(c_table)
+        story.append(Spacer(1, 5))
+
+    # 4. Itemized Product Details Table (Amazon / Flipkart Style)
+    col_w_idx = 22 * scale
+    col_w_sku = 95 * scale
+    col_w_var = 75 * scale
+    col_w_qty = 35 * scale
+    col_w_name = usable_w - (col_w_idx + col_w_sku + col_w_var + col_w_qty)
+
+    table_data = [[
+        Paragraph("#", th_style),
+        Paragraph("Product Description", th_style),
+        Paragraph("SKU", th_style),
+        Paragraph("Size / Variant", th_style),
+        Paragraph("Qty", th_style),
+    ]]
+
+    total_qty = 0
+    for idx, it in enumerate(items, 1):
+        total_qty += it.quantity
+        table_data.append([
+            Paragraph(str(idx), td_center),
+            Paragraph(f"<b>{it.product_name}</b>", td_style),
+            Paragraph(it.sku or "N/A", td_style),
+            Paragraph(it.variant_label or "Standard", td_style),
+            Paragraph(str(it.quantity), td_center),
+        ])
+
+    # Summary row
+    table_data.append([
+        Paragraph("", td_style),
+        Paragraph(f"<b>TOTAL: {len(items)} product line(s)</b>", body_bold),
+        Paragraph("", td_style),
+        Paragraph("<b>Total Units:</b>", body_bold),
+        Paragraph(f"<b>{total_qty}</b>", td_center),
+    ])
+
+    items_table = Table(
+        table_data,
+        colWidths=[col_w_idx, col_w_name, col_w_sku, col_w_var, col_w_qty],
+        repeatRows=1,
+    )
+    t_style = [
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F172A")),  # Dark Navy Header
+        ("ALIGN", (0, 0), (0, -1), "CENTER"),
+        ("ALIGN", (4, 0), (4, -1), "CENTER"),
+        ("TOPPADDING", (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+        ("GRID", (0, 0), (-1, -2), 0.5, colors.HexColor("#CBD5E1")),
+        ("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#64748B")),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#F1F5F9")),
+    ]
+    for r in range(1, len(items) + 1):
+        if r % 2 == 0:
+            t_style.append(("BACKGROUND", (0, r), (-1, r), colors.HexColor("#F8FAFC")))
+    items_table.setStyle(TableStyle(t_style))
+    story.append(items_table)
+    story.append(Spacer(1, 6))
+
+    # 5. Customer Instructions & Return Notice
+    notes = [
+        Paragraph("<b>CUSTOMER INSTRUCTIONS &amp; DISPATCH DIRECTIVES:</b>", sec_heading),
+        Spacer(1, 1),
+        Paragraph(
+            "&bull; <b>Package Inspection:</b> Please check carton condition before accepting delivery from courier associate.<br/>"
+            "&bull; <b>Returns &amp; Replacement:</b> Covered by Fitmeezo 7-Day Replacement Policy. Keep this packing slip safely for any return or exchange requests.<br/>"
+            "&bull; <b>Support:</b> For queries, contact support@fitmeezo.com or visit fitmeezo.com/orders/track/.",
+            body_muted,
+        ),
+    ]
+    notes_tbl = Table([[notes]], colWidths=[usable_w])
+    notes_tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F8FAFC")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(KeepTogether(notes_tbl))
+
+    doc.build(story)
+    return buffer.getvalue()
+
+

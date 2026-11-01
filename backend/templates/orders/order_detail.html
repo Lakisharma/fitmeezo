@@ -54,9 +54,15 @@
         {% endif %}
 
         {% if order.payment_status == 'paid' %}
-          <span class="badge bg-success text-white">Paid</span>
+          <span class="badge bg-success text-white"><i class="bi bi-check-circle-fill me-1"></i> Paid</span>
+        {% elif order.payment_status == 'refunded' %}
+          <span class="badge bg-secondary text-white"><i class="bi bi-arrow-counterclockwise me-1"></i> Refunded</span>
+        {% elif order.payment_status == 'failed' %}
+          <span class="badge bg-danger text-white"><i class="bi bi-x-circle me-1"></i> Payment Failed</span>
+        {% elif order.payment_method == 'cod' %}
+          <span class="badge bg-warning text-dark"><i class="bi bi-cash me-1"></i> Pay on Delivery (COD)</span>
         {% else %}
-          <span class="badge bg-warning text-dark">Payment Unpaid (COD)</span>
+          <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i> Payment Pending</span>
         {% endif %}
       </div>
       <p class="text-secondary small mb-0">
@@ -248,11 +254,15 @@
                   <!-- Tracking Details -->
                   {% if pkg.tracking_number %}
                     <div class="d-flex align-items-center justify-content-between mb-2 p-2 rounded bg-white border small flex-wrap gap-2">
-                      <div class="d-flex align-items-center gap-2">
+                      <div class="d-flex align-items-center gap-2 flex-wrap">
                         <i class="bi bi-geo-alt-fill text-primary"></i>
                         <span><strong>Carrier:</strong> {{ pkg.courier_name|default:"Logistics Partner" }}</span>
                         <span class="text-muted">|</span>
-                        <span><strong>AWB / Tracking:</strong> <span class="font-monospace fw-bold text-dark">{{ pkg.tracking_number }}</span></span>
+                        <span><strong>AWB:</strong> <span class="font-monospace fw-bold text-dark">{{ pkg.tracking_number }}</span></span>
+                        {% if pkg.shipment_booking.tracking_status %}
+                          <span class="text-muted">|</span>
+                          <span class="badge {% if pkg.shipment_booking.tracking_status == 'DELIVERED' %}bg-success{% elif pkg.shipment_booking.tracking_status == 'IN TRANSIT' %}bg-primary{% else %}bg-secondary{% endif %} text-white">{{ pkg.shipment_booking.tracking_status }}</span>
+                        {% endif %}
                       </div>
                       {% if pkg.shipment_booking.tracking_url or pkg.tracking_url %}
                         <a href="{{ pkg.shipment_booking.tracking_url|default:pkg.tracking_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary py-0 px-2">

@@ -2002,6 +2002,7 @@ class SellerFulfillmentUpdateForm(forms.Form):
         SellerOrder.STATUS_PENDING: [
             getattr(SellerOrder, "STATUS_ACCEPTED", "accepted"),
             SellerOrder.STATUS_PROCESSING,
+            SellerOrder.STATUS_READY_TO_SHIP,
             SellerOrder.STATUS_CANCELLED,
         ],
         getattr(SellerOrder, "STATUS_ACCEPTED", "accepted"): [

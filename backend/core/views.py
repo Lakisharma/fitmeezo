@@ -4199,6 +4199,73 @@ def seller_order_packing_summary_view(request, pk):
 
 
 @login_required
+def seller_order_packing_slip_view(request, pk):
+    """
+    Authorized view rendering an Amazon/Flipkart-style Packing Slip for a SellerOrder package.
+
+    Requirements:
+    - Order ID, Order Date, Customer Name, Complete Shipping Address, Phone, Product Name, SKU,
+      Size/Variant, Quantity, and Seller Details.
+    - Print-friendly for both A4 standard and thermal printing (e.g. 4x6 / sticker labels).
+    - PDF export when ?format=pdf.
+    - Strict seller package isolation: sellers can only view packing slips for their own packages.
+    """
+    if request.user.is_staff or request.user.is_superuser:
+        package = get_object_or_404(
+            SellerOrder.objects.select_related("order", "seller").prefetch_related("items"),
+            pk=pk,
+        )
+    else:
+        seller = getattr(request.user, "seller_profile", None)
+        allowed_statuses = (Seller.STATUS_APPROVED, Seller.STATUS_CLOSING, Seller.STATUS_CLOSED)
+        if (
+            not seller
+            or not seller.has_valid_gstin
+            or seller.status not in allowed_statuses
+            or (seller.status == Seller.STATUS_APPROVED and not seller.is_active)
+        ):
+            raise PermissionDenied("Access restricted to authorized marketplace sellers.")
+
+        package = get_object_or_404(
+            SellerOrder.objects.select_related("order", "seller").prefetch_related("items"),
+            pk=pk,
+            seller=seller,
+        )
+        if package.is_platform_fulfilled:
+            raise PermissionDenied("Platform-fulfilled packages cannot be accessed by third-party sellers.")
+
+    fmt = (request.GET.get("format") or "").lower().strip()
+    size = (request.GET.get("size") or "a4").lower().strip()
+
+    if fmt == "pdf":
+        from core.packing_slip import generate_amazon_style_packing_slip_pdf
+        pdf_bytes = generate_amazon_style_packing_slip_pdf(package, page_size=size)
+        response = HttpResponse(pdf_bytes, content_type="application/pdf")
+        response["Content-Disposition"] = f'inline; filename="packing_slip_{package.sub_order_number}.pdf"'
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Cache-Control"] = "private, no-cache, no-store, must-revalidate"
+        return response
+
+    items = list(package.items.all())
+    total_units = sum(it.quantity for it in items)
+    booking = getattr(package, "shipment_booking", None)
+
+    context = {
+        "package": package,
+        "order": package.order,
+        "seller": package.seller,
+        "items": items,
+        "total_units": total_units,
+        "booking": booking,
+        "is_admin": request.user.is_staff or request.user.is_superuser,
+        "is_mock_mode": getattr(settings, "SHIPROCKET_MOCK_MODE", True),
+        "BRAND_NAME": getattr(settings, "BRAND_NAME", "Fitmeezo"),
+    }
+    return render(request, "seller/orders/packing_slip.html", context)
+
+
+
+@login_required
 def seller_order_shipping_label_view(request, pk):
     """
     Authorized view returning a print-ready courier-style shipping label PDF.

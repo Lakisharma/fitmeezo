@@ -2111,7 +2111,7 @@ def handle_shiprocket_webhook(
             order_id,
             status_raw,
         )
-        return True, "Shiprocket webhook test ping verified successfully.", {
+        return True, "Shiprocket webhook test ping acknowledged and verified successfully.", {
             "test": True,
             "status": "verified",
             "awb": awb_code,

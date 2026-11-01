@@ -450,11 +450,22 @@
                       {% else %}
                         <span class="badge bg-light text-dark">{{ pkg.get_status_display }}</span>
                       {% endif %}
+                      {% if pkg.shipment_booking %}
+                        <div class="mt-1" style="font-size: 10px;">
+                          <span class="badge bg-light text-dark border" title="Pickup Status">Pickup: {{ pkg.shipment_booking.get_pickup_status_display }}</span>
+                          <span class="badge bg-secondary text-white" title="Tracking Status">{{ pkg.shipment_booking.tracking_status|default:"Booked" }}</span>
+                        </div>
+                      {% endif %}
                     </td>
                     <td class="text-end pe-3">
-                      <a href="{% url 'core:seller_order_detail' pkg.pk %}" class="btn btn-outline-dark btn-sm py-0 px-2" style="font-size: 11px;">
-                        Manage
-                      </a>
+                      <div class="btn-group btn-group-sm">
+                        <a href="{% url 'core:seller_order_packing_slip' pkg.pk %}" class="btn btn-outline-primary py-0 px-2" style="font-size: 11px;" target="_blank" title="Print Packing Slip">
+                          <i class="bi bi-printer"></i>
+                        </a>
+                        <a href="{% url 'core:seller_order_detail' pkg.pk %}" class="btn btn-outline-dark btn-sm py-0 px-2" style="font-size: 11px;">
+                          Manage
+                        </a>
+                      </div>
                     </td>
                   </tr>
                 {% endfor %}

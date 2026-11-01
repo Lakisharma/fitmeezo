@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Packing Slip — {{ package.sub_order_number }} | {{ BRAND_NAME }}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+  <style>
+    /* Reset & Base Typography */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #0f172a;
+      background-color: #f1f5f9;
+      padding: 20px;
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    /* Print Action Bar (Hidden when printing) */
+    .no-print-bar {
+      max-width: 800px;
+      margin: 0 auto 16px auto;
+      background: #ffffff;
+      padding: 12px 18px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: gap;
+      gap: 10px;
+    }
+    .btn-group-custom {
+      display: inline-flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s ease-in-out;
+    }
+    .btn-primary {
+      background-color: #0f172a;
+      color: #ffffff;
+      border-color: #0f172a;
+    }
+    .btn-primary:hover {
+      background-color: #1e293b;
+    }
+    .btn-outline {
+      background-color: #ffffff;
+      color: #334155;
+      border-color: #cbd5e1;
+    }
+    .btn-outline:hover {
+      background-color: #f8fafc;
+      border-color: #94a3b8;
+    }
+    .btn-outline.active {
+      background-color: #e2e8f0;
+      border-color: #64748b;
+      color: #0f172a;
+    }
+
+    /* Document Sheet Container */
+    .packing-slip-sheet {
+      background: #ffffff;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 32px 36px;
+      border-radius: 4px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+      border: 1px solid #e2e8f0;
+    }
+
+    /* Thermal 4x6 Layout Modifier */
+    body.thermal-mode .packing-slip-sheet {
+      max-width: 450px;
+      padding: 16px;
+      font-size: 11px;
+    }
+    body.thermal-mode .slip-header h1 {
+      font-size: 16px !important;
+    }
+    body.thermal-mode .slip-header .doc-type {
+      font-size: 12px !important;
+    }
+    body.thermal-mode .address-grid {
+      grid-template-columns: 1fr !important;
+      gap: 8px !important;
+    }
+
+    /* Header */
+    .slip-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #0f172a;
+      padding-bottom: 12px;
+      margin-bottom: 14px;
+    }
+    .slip-brand h1 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #0f172a;
+    }
+    .slip-brand .doc-type {
+      font-size: 13px;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+    }
+    .slip-meta {
+      text-align: right;
+    }
+    .slip-meta div {
+      font-size: 12px;
+      color: #334155;
+    }
+    .slip-meta strong {
+      color: #0f172a;
+    }
+
+    /* Simulation Banner */
+    .mock-banner {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Address Grid (Seller vs Customer) */
+    .address-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+    .address-card {
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 10px 12px;
+      background: #f8fafc;
+    }
+    .address-card h3 {
+      font-size: 11px;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 4px;
+    }
+    .address-card .primary-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 3px;
+    }
+    .address-card .address-lines {
+      color: #334155;
+      margin-bottom: 4px;
+    }
+    .address-card .phone-line {
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    /* Logistics & Payment Bar */
+    .logistics-bar {
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      padding: 8px 12px;
+      background: #ffffff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+      font-size: 12px;
+    }
+    .pay-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 700;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .pay-prepaid {
+      background: #dcfce7;
+      color: #166534;
+      border: 1px solid #bbf7d0;
+    }
+    .pay-cod {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
+    /* Product Lines Table */
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 14px;
+      font-size: 12px;
+    }
+    .items-table th {
+      background: #0f172a;
+      color: #ffffff;
+      font-weight: 700;
+      text-align: left;
+      padding: 6px 8px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .items-table td {
+      padding: 7px 8px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+      color: #1e293b;
+    }
+    .items-table tr:nth-child(even) td {
+      background-color: #f8fafc;
+    }
+    .items-table .text-center {
+      text-align: center;
+    }
+    .items-table .text-right {
+      text-align: right;
+    }
+    .items-table .sku-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 600;
+      color: #475569;
+      font-size: 11px;
+    }
+    .items-table .variant-tag {
+      display: inline-block;
+      color: #64748b;
+      font-size: 11px;
+    }
+    .items-table tfoot td {
+      background: #f1f5f9 !important;
+      font-weight: 700;
+      border-top: 2px solid #0f172a;
+      padding: 8px;
+    }
+
+    /* Footer & Directives */
+    .slip-footer {
+      border-top: 1px solid #e2e8f0;
+      padding-top: 10px;
+      margin-top: 10px;
+      font-size: 10.5px;
+      color: #64748b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    /* Print Styles */
+    @media print {
+      body {
+        background: #ffffff !important;
+        padding: 0 !important;
+      }
+      .no-print-bar {
+        display: none !important;
+      }
+      .packing-slip-sheet {
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        max-width: 100% !important;
+      }
+      body.thermal-mode .packing-slip-sheet {
+        padding: 0 !important;
+        max-width: 100% !important;
+      }
+      @page {
+        margin: 10mm;
+      }
+      body.thermal-mode @page {
+        size: 100mm 150mm;
+        margin: 4mm;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Controls Bar (Hidden during printing) -->
+  <div class="no-print-bar">
+    <div class="btn-group-custom">
+      <button onclick="window.print()" class="btn btn-primary" id="btn-print-slip">
+        <i class="bi bi-printer-fill"></i> Print Packing Slip (Ctrl+P)
+      </button>
+      <button onclick="setLayout('a4')" class="btn btn-outline active" id="btn-layout-a4">
+        <i class="bi bi-file-earmark-text"></i> A4 Standard
+      </button>
+      <button onclick="setLayout('thermal')" class="btn btn-outline" id="btn-layout-thermal">
+        <i class="bi bi-receipt"></i> Thermal (4x6 / Sticker)
+      </button>
+      <a href="?format=pdf{% if request.GET.size %}&size={{ request.GET.size }}{% endif %}" class="btn btn-outline" target="_blank" id="btn-download-pdf">
+        <i class="bi bi-file-earmark-pdf"></i> Download PDF
+      </a>
+    </div>
+    <div>
+      {% if is_admin %}
+        <a href="{% url 'custom_admin:order_detail' order.pk %}" class="btn btn-outline">
+          <i class="bi bi-arrow-left"></i> Order #{{ order.order_number }}
+        </a>
+      {% else %}
+        <a href="{% url 'core:seller_order_detail' package.pk %}" class="btn btn-outline">
+          <i class="bi bi-arrow-left"></i> Package #{{ package.sub_order_number }}
+        </a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Packing Slip Document Container -->
+  <div class="packing-slip-sheet" id="packingSlipContainer">
+
+    <!-- Header: Logo / Branding + Title + Order Info -->
+    <div class="slip-header">
+      <div class="slip-brand">
+        <h1>{{ BRAND_NAME|upper }}</h1>
+        <div class="doc-type">Amazon / Flipkart Style Packing Slip</div>
+      </div>
+      <div class="slip-meta">
+        <div>Order ID: <strong>#{{ order.order_number }}</strong></div>
+        <div>Package Ref: <strong>#{{ package.sub_order_number }}</strong></div>
+        <div>Order Date: <strong>{{ order.created_at|date:"d M Y, h:i A" }}</strong></div>
+        <div>Fulfillment Status: <strong>{{ package.get_status_display|upper }}</strong></div>
+      </div>
+    </div>
+
+    <!-- Mock Mode Simulation Notice if active -->
+    {% if is_mock_mode %}
+      <div class="mock-banner">
+        <i class="bi bi-cpu"></i>
+        <span><strong>SIMULATION MODE:</strong> Fitmeezo Logistics running in Mock Mode (SHIPROCKET_MOCK_MODE=True). No live carrier interaction.</span>
+      </div>
+    {% endif %}
+
+    <!-- Address Grid: Seller (Sold By) vs Customer (Ship To) -->
+    <div class="address-grid">
+      <!-- Seller / Dispatch Facility Details -->
+      <div class="address-card">
+        <h3><i class="bi bi-shop me-1"></i> Sold &amp; Dispatched By (Seller)</h3>
+        <div class="primary-name">
+          {{ seller.store_name|default:"Fitmeezo Direct Warehouse" }}
+          {% if seller.legal_business_name and seller.legal_business_name != seller.store_name %}
+            <span style="font-weight: 400; color: #475569; font-size: 11px;">({{ seller.legal_business_name }})</span>
+          {% endif %}
+        </div>
+        <div class="address-lines">
+          {% if seller.pickup_address %}
+            {{ seller.pickup_address }}<br>
+            {{ seller.pickup_city }}, {{ seller.pickup_state }} — <strong>{{ seller.pickup_postal_code }}</strong>
+          {% else %}
+            Fitmeezo Central Logistics Hub, Industrial Corridor, Bengaluru, Karnataka — 560100
+          {% endif %}
+        </div>
+        <div style="font-size: 11.5px; margin-top: 4px;">
+          <strong>GSTIN:</strong> {{ seller.gstin|default:"29AAAAA0000A1Z5" }}
+        </div>
+        <div class="phone-line" style="font-size: 11.5px; margin-top: 2px;">
+          <strong>Phone:</strong> {{ seller.registered_mobile|default:seller.support_phone|default:"+91 80 4000 0000" }}
+          {% if seller.support_email %}
+            &bull; <strong>Email:</strong> {{ seller.support_email }}
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Customer Complete Shipping Address Details -->
+      <div class="address-card">
+        <h3><i class="bi bi-geo-alt-fill me-1"></i> Shipping Destination (Customer)</h3>
+        <div class="primary-name">{{ order.shipping_full_name }}</div>
+        <div class="address-lines">
+          {{ order.shipping_address_line1 }}<br>
+          {% if order.shipping_address_line2 %}{{ order.shipping_address_line2 }}<br>{% endif %}
+          {% if order.shipping_landmark %}<span style="color:#64748b;">Landmark: {{ order.shipping_landmark }}</span><br>{% endif %}
+          <strong>{{ order.shipping_city }}, {{ order.shipping_state }} — PIN: {{ order.shipping_postal_code }}</strong>
+        </div>
+        <div class="phone-line" style="font-size: 12px; margin-top: 4px;">
+          <i class="bi bi-telephone-fill" style="font-size: 11px;"></i> Phone: {{ order.shipping_phone_number }}
+        </div>
+        {% if order.customer_notes %}
+          <div style="font-size: 11px; color: #64748b; margin-top: 4px; font-style: italic;">
+            Instructions: {{ order.customer_notes }}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Logistics & Payment Strip -->
+    <div class="logistics-bar">
+      <div>
+        <strong>Payment Method:</strong>
+        {% if order.payment_method == 'cod' %}
+          <span class="pay-badge pay-cod"><i class="bi bi-cash me-1"></i> Cash on Delivery (COD)</span>
+          <span style="font-weight: 700; color: #991b1b; margin-left: 6px;">Amount to Collect: ₹{{ order.total_amount }}</span>
+        {% else %}
+          <span class="pay-badge pay-prepaid"><i class="bi bi-check-circle-fill me-1"></i> Prepaid Order</span>
+          <span style="color: #166534; margin-left: 6px;">Cash to Collect: ₹0.00</span>
+        {% endif %}
+      </div>
+      <div>
+        {% if booking %}
+          <span><strong>Courier:</strong> {{ booking.courier_name }}</span>
+          <span style="color: #cbd5e1; margin: 0 4px;">|</span>
+          <span><strong>AWB:</strong> <code>{{ booking.awb_code }}</code></span>
+          <span style="color: #cbd5e1; margin: 0 4px;">|</span>
+          <span><strong>Pickup:</strong> {{ booking.get_pickup_status_display }}</span>
+        {% else %}
+          <span style="color: #64748b;"><i class="bi bi-box-seam me-1"></i> Awaiting Shiprocket Booking</span>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Product Line Items Table -->
+    <table class="items-table">
+      <thead>
+        <tr>
+          <th style="width: 5%;" class="text-center">#</th>
+          <th style="width: 48%;">Product Name &amp; Description</th>
+          <th style="width: 22%;">SKU</th>
+          <th style="width: 15%;">Size / Variant</th>
+          <th style="width: 10%;" class="text-center">Qty</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+          <tr>
+            <td class="text-center">{{ forloop.counter }}</td>
+            <td>
+              <div style="font-weight: 700; color: #0f172a;">{{ item.product_name }}</div>
+            </td>
+            <td>
+              <div class="sku-code">{{ item.sku|default:"N/A" }}</div>
+            </td>
+            <td>
+              <span class="variant-tag">{{ item.variant_label|default:"Standard" }}</span>
+            </td>
+            <td class="text-center" style="font-weight: 700;">
+              {{ item.quantity }}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" class="text-center" style="padding: 12px; color: #64748b;">No items recorded in this package.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2">TOTAL: {{ items|length }} product line(s)</td>
+          <td colspan="2" class="text-right">Total Units:</td>
+          <td class="text-center">{{ total_units }}</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <!-- Directives, Return Policy & Support Footer -->
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 8px 12px; margin-bottom: 12px; font-size: 11px; color: #475569;">
+      <strong>Customer Notes:</strong>
+      Please inspect package before opening. Items covered by Fitmeezo 7-Day Return / Replacement Policy. Keep this packing slip safely for exchange or return claims.
+    </div>
+
+    <div class="slip-footer">
+      <div>Fitmeezo Logistics &bull; Dispatched via Authorized Merchant Warehouse</div>
+      <div>Support: support@fitmeezo.com &bull; https://fitmeezo.com/orders/track/</div>
+    </div>
+
+  </div>
+
+  <script>
+    function setLayout(mode) {
+      const container = document.body;
+      const btnA4 = document.getElementById('btn-layout-a4');
+      const btnThermal = document.getElementById('btn-layout-thermal');
+      const pdfBtn = document.getElementById('btn-download-pdf');
+
+      if (mode === 'thermal') {
+        container.classList.add('thermal-mode');
+        btnThermal.classList.add('active');
+        btnA4.classList.remove('active');
+        if (pdfBtn) {
+          pdfBtn.href = '?format=pdf&size=4x6';
+        }
+      } else {
+        container.classList.remove('thermal-mode');
+        btnA4.classList.add('active');
+        btnThermal.classList.remove('active');
+        if (pdfBtn) {
+          pdfBtn.href = '?format=pdf&size=a4';
+        }
+      }
+    }
+
+    // Auto-select thermal if URL parameter size=4x6 or thermal
+    (function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sizeParam = urlParams.get('size') || urlParams.get('format');
+      if (sizeParam && (sizeParam === '4x6' || sizeParam === 'thermal')) {
+        setLayout('thermal');
+      }
+    })();
+  </script>
+</body>
+</html>
+

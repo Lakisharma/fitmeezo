@@ -49,17 +49,26 @@
       </p>
     </div>
     <div class="d-flex align-items-center gap-2 flex-wrap">
-      <a href="{% url 'core:seller_order_shipping_label' package.pk %}" class="btn btn-dark btn-sm" target="_blank" id="seller-download-shipping-label-btn" title="Download Courier Shipping Label (4x6 inch)">
-        <i class="bi bi-tag me-1"></i> Shipping Label (4x6)
+      <!-- 1. Print Packing Slip (Available immediately for picking and packing) -->
+      <a href="{% url 'core:seller_order_packing_slip' package.pk %}" class="btn btn-outline-primary btn-sm" target="_blank" id="seller-print-packing-slip-btn" title="Print Amazon/Flipkart Style Packing Slip (A4 / Thermal)">
+        <i class="bi bi-printer me-1"></i> Print Packing Slip
       </a>
-      <a href="{% url 'core:seller_order_shipping_label' package.pk %}?format=a4" class="btn btn-outline-dark btn-sm" target="_blank" id="seller-download-shipping-label-a4-btn" title="Download Shipping Label (A4 Sheet)">
-        <i class="bi bi-printer me-1"></i> Shipping Label (A4)
-      </a>
-      <a href="{% url 'core:seller_order_packing_summary' package.pk %}" class="btn btn-outline-primary btn-sm" target="_blank" id="seller-download-packing-slip-btn" title="Download Internal Warehouse Packing Summary Slip">
+
+      <!-- 2. Print Shipping Label (Available ONLY after courier shipment is booked) -->
+      {% if shipment_booking or package.is_booked %}
+        <a href="{% url 'core:seller_order_shipping_label' package.pk %}" class="btn btn-dark btn-sm" target="_blank" id="seller-download-shipping-label-btn" title="Download Courier Shipping Label (4x6 inch)">
+          <i class="bi bi-tag me-1"></i> Print Shipping Label (4x6)
+        </a>
+        <a href="{% url 'core:seller_order_shipping_label' package.pk %}?format=a4" class="btn btn-outline-dark btn-sm" target="_blank" id="seller-download-shipping-label-a4-btn" title="Download Shipping Label (A4 Sheet)">
+          <i class="bi bi-file-earmark-text me-1"></i> Shipping Label (A4)
+        </a>
+      {% endif %}
+
+      <a href="{% url 'core:seller_order_packing_summary' package.pk %}" class="btn btn-outline-secondary btn-sm" target="_blank" id="seller-download-packing-summary-btn" title="Download Internal Warehouse Packing Manifest">
         <i class="bi bi-file-earmark-pdf me-1"></i> Warehouse Manifest (PDF)
       </a>
       <a href="{% url 'core:seller_order_invoice' package.pk %}" class="btn btn-outline-secondary btn-sm" target="_blank" id="seller-download-invoice-btn" title="Download Seller Commercial Package Invoice">
-        <i class="bi bi-file-earmark-text me-1"></i> Commercial Invoice (PDF)
+        <i class="bi bi-file-earmark-text me-1"></i> Invoice (PDF)
       </a>
       <a href="{% url 'core:seller_order_list' %}" class="btn btn-outline-secondary btn-sm">
         <i class="bi bi-arrow-left me-1"></i> Back to Orders
@@ -616,9 +625,15 @@
                   <div class="small text-muted mb-1">
                     Assigned Courier: <strong>{{ shipment_booking.courier_name }}</strong>
                   </div>
+                  <div class="small text-muted mb-1">
+                    Pickup Status: <span class="badge bg-light text-dark border">{{ shipment_booking.get_pickup_status_display }}</span>
+                  </div>
+                  <div class="small text-muted mb-1">
+                    Tracking Milestone: <span class="badge {% if shipment_booking.tracking_status == 'DELIVERED' %}bg-success{% elif shipment_booking.tracking_status == 'IN TRANSIT' %}bg-primary{% else %}bg-secondary{% endif %} text-white">{{ shipment_booking.tracking_status|default:"Booked" }}</span>
+                  </div>
                   {% if shipment_booking.pickup_scheduled_date %}
                     <div class="small text-muted mb-1">
-                      Scheduled Pickup: <strong>{{ shipment_booking.pickup_scheduled_date }}</strong>
+                      Scheduled Pickup: <strong>{{ shipment_booking.pickup_scheduled_date|date:"d M Y, h:i A" }}</strong>
                     </div>
                   {% endif %}
                   {% if shipment_booking.pickup_token_number %}
@@ -640,8 +655,11 @@
                     <a href="{% url 'core:seller_order_shipping_label' package.pk %}" class="btn btn-dark btn-sm" target="_blank" id="btn-download-shipping-label">
                       <i class="bi bi-tag me-1"></i> Print Shipping Label (4x6)
                     </a>
-                    <a href="{% url 'core:seller_order_packing_summary' package.pk %}" class="btn btn-outline-secondary btn-sm" target="_blank" id="btn-download-packing-slip">
-                      <i class="bi bi-file-earmark-pdf me-1"></i> Warehouse Packing Summary (PDF)
+                    <a href="{% url 'core:seller_order_packing_slip' package.pk %}" class="btn btn-outline-primary btn-sm" target="_blank" id="btn-download-packing-slip">
+                      <i class="bi bi-printer me-1"></i> Print Packing Slip
+                    </a>
+                    <a href="{% url 'core:seller_order_packing_summary' package.pk %}" class="btn btn-outline-secondary btn-sm" target="_blank" id="btn-download-packing-summary">
+                      <i class="bi bi-file-earmark-pdf me-1"></i> Warehouse Manifest (PDF)
                     </a>
                   </div>
                 </div>
@@ -725,14 +743,14 @@
               <form method="post" action="{% url 'core:seller_order_update_status' package.pk %}">
                 {% csrf_token %}
                 <input type="hidden" name="status" value="ready_to_ship">
-                <button type="submit" class="btn seller-btn-navy btn-sm w-100" onclick="return confirm('Mark package as Ready for Dispatch?');">
-                  <i class="bi bi-box2-check me-1"></i> Mark as Ready to Ship
+                <button type="submit" class="btn seller-btn-navy btn-sm w-100" id="btn-mark-ready-to-ship" onclick="return confirm('Mark package as Packed and Ready for Pickup?');">
+                  <i class="bi bi-box-seam-fill me-1"></i> Mark as Packed / Ready for Pickup
                 </button>
               </form>
             </div>
 
           {% elif package.status == "pending" %}
-            <!-- Transition to Processing Form -->
+            <!-- Transition to Processing or Ready to Ship Form -->
             <div class="bg-light p-3 rounded-2 border">
               <div class="small fw-bold text-dark mb-1 text-center">New Order Acknowledgment</div>
               <p class="small text-muted mb-3 text-center" style="font-size: 11px;">
@@ -743,6 +761,13 @@
                 <input type="hidden" name="status" value="processing">
                 <button type="submit" class="btn seller-btn-gold btn-sm w-100" onclick="return confirm('Accept order and start processing?');">
                   <i class="bi bi-check2-circle me-1"></i> Accept &amp; Start Processing
+                </button>
+              </form>
+              <form method="post" action="{% url 'core:seller_order_update_status' package.pk %}" class="mb-2">
+                {% csrf_token %}
+                <input type="hidden" name="status" value="ready_to_ship">
+                <button type="submit" class="btn btn-outline-primary btn-sm w-100" id="btn-direct-pack-ready" onclick="return confirm('Mark package directly as Packed and Ready for Pickup?');">
+                  <i class="bi bi-box-seam-fill me-1"></i> Mark as Packed / Ready for Pickup
                 </button>
               </form>
 

@@ -157,9 +157,20 @@
                   </div>
                 </td>
 
-                <!-- Logistics / Courier -->
+                <!-- Logistics / Courier & Tracking Status -->
                 <td class="small">
-                  {% if pkg.courier_name and pkg.tracking_number %}
+                  {% if pkg.shipment_booking %}
+                    <div><strong>{{ pkg.shipment_booking.courier_name|default:pkg.courier_name }}</strong></div>
+                    <code class="text-primary">{{ pkg.shipment_booking.awb_code|default:pkg.tracking_number }}</code>
+                    <div class="mt-1 d-flex flex-wrap gap-1">
+                      <span class="badge bg-light text-dark border" style="font-size: 10px;">
+                        Pickup: {{ pkg.shipment_booking.get_pickup_status_display }}
+                      </span>
+                      <span class="badge {% if pkg.shipment_booking.tracking_status == 'DELIVERED' %}bg-success{% elif pkg.shipment_booking.tracking_status == 'IN TRANSIT' %}bg-primary{% else %}bg-secondary{% endif %} text-white" style="font-size: 10px;">
+                        {{ pkg.shipment_booking.tracking_status|default:"Booked" }}
+                      </span>
+                    </div>
+                  {% elif pkg.courier_name and pkg.tracking_number %}
                     <div><strong>{{ pkg.courier_name }}</strong></div>
                     <code class="text-muted">{{ pkg.tracking_number }}</code>
                   {% elif pkg.status == "ready_to_ship" %}
@@ -194,9 +205,19 @@
 
                 <!-- Action Button -->
                 <td class="text-end pe-3">
-                  <a href="{% url 'core:seller_order_detail' pkg.pk %}" class="btn btn-outline-dark btn-sm">
-                    Manage <i class="bi bi-chevron-right ms-1"></i>
-                  </a>
+                  <div class="btn-group btn-group-sm">
+                    <a href="{% url 'core:seller_order_packing_slip' pkg.pk %}" class="btn btn-outline-primary" target="_blank" title="Print Packing Slip">
+                      <i class="bi bi-printer"></i>
+                    </a>
+                    {% if pkg.shipment_booking or pkg.is_booked %}
+                      <a href="{% url 'core:seller_order_shipping_label' pkg.pk %}" class="btn btn-dark" target="_blank" title="Print Shipping Label (4x6)">
+                        <i class="bi bi-tag"></i>
+                      </a>
+                    {% endif %}
+                    <a href="{% url 'core:seller_order_detail' pkg.pk %}" class="btn btn-outline-dark">
+                      Manage <i class="bi bi-chevron-right ms-1"></i>
+                    </a>
+                  </div>
                 </td>
               </tr>
             {% endfor %}

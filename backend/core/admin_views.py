@@ -835,6 +835,43 @@ def admin_order_update_status_view(request, pk):
 
 
 @admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_package_packing_slip_view(request, order_id, pk):
+    """
+    Renders or downloads the Amazon/Flipkart style Packing Slip for a specific seller package within an order.
+    """
+    from core.views import seller_order_packing_slip_view
+    return seller_order_packing_slip_view(request, pk=pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_package_shipping_label_view(request, order_id, pk):
+    """
+    Renders or downloads the Shipping Label for a specific seller package within an order.
+    """
+    from core.views import seller_order_shipping_label_view
+    return seller_order_shipping_label_view(request, pk=pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_order_packing_slip_view(request, pk):
+    """
+    Admin shortcut to print packing slip for an order.
+    If the order has a specific package requested via ?package_id=..., it opens that package slip.
+    Otherwise, defaults to the first fulfillment package of the order.
+    """
+    order = get_object_or_404(Order, pk=pk)
+    pkg_id = request.GET.get("package_id")
+    if pkg_id:
+        pkg = get_object_or_404(SellerOrder, pk=pkg_id, order=order)
+        return admin_package_packing_slip_view(request, order_id=order.pk, pk=pkg.pk)
+    first_pkg = order.seller_orders.first()
+    if first_pkg:
+        return admin_package_packing_slip_view(request, order_id=order.pk, pk=first_pkg.pk)
+    messages.warning(request, f"Order #{order.order_number} has no fulfillment packages recorded.")
+    return redirect("custom_admin:order_detail", pk=order.pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
 @require_POST
 def admin_order_update_payment_view(request, pk):
     """
@@ -865,6 +902,43 @@ def admin_order_update_payment_view(request, pk):
     return redirect("custom_admin:order_detail", pk=order.pk)
 
 
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_package_packing_slip_view(request, order_id, pk):
+    """
+    Renders or downloads the Amazon/Flipkart style Packing Slip for a specific seller package within an order.
+    """
+    from core.views import seller_order_packing_slip_view
+    return seller_order_packing_slip_view(request, pk=pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_package_shipping_label_view(request, order_id, pk):
+    """
+    Renders or downloads the Shipping Label for a specific seller package within an order.
+    """
+    from core.views import seller_order_shipping_label_view
+    return seller_order_shipping_label_view(request, pk=pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_order_packing_slip_view(request, pk):
+    """
+    Admin shortcut to print packing slip for an order.
+    If the order has a specific package requested via ?package_id=..., it opens that package slip.
+    Otherwise, defaults to the first fulfillment package of the order.
+    """
+    order = get_object_or_404(Order, pk=pk)
+    pkg_id = request.GET.get("package_id")
+    if pkg_id:
+        pkg = get_object_or_404(SellerOrder, pk=pkg_id, order=order)
+        return admin_package_packing_slip_view(request, order_id=order.pk, pk=pkg.pk)
+    first_pkg = order.seller_orders.first()
+    if first_pkg:
+        return admin_package_packing_slip_view(request, order_id=order.pk, pk=first_pkg.pk)
+    messages.warning(request, f"Order #{order.order_number} has no fulfillment packages recorded.")
+    return redirect("custom_admin:order_detail", pk=order.pk)
+
+
 @admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_POST
 def admin_order_reconcile_refund_view(request, pk):
@@ -879,6 +953,81 @@ def admin_order_reconcile_refund_view(request, pk):
         messages.success(request, message)
     else:
         messages.error(request, message)
+    return redirect("custom_admin:order_detail", pk=order.pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_package_packing_slip_view(request, order_id, pk):
+    """
+    Renders or downloads the Amazon/Flipkart style Packing Slip for a specific seller package within an order.
+    """
+    from core.views import seller_order_packing_slip_view
+    return seller_order_packing_slip_view(request, pk=pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_package_shipping_label_view(request, order_id, pk):
+    """
+    Renders or downloads the Shipping Label for a specific seller package within an order.
+    """
+    from core.views import seller_order_shipping_label_view
+    return seller_order_shipping_label_view(request, pk=pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_order_packing_slip_view(request, pk):
+    """
+    Admin shortcut to print packing slip for an order.
+    If the order has a specific package requested via ?package_id=..., it opens that package slip.
+    Otherwise, defaults to the first fulfillment package of the order.
+    """
+    order = get_object_or_404(Order, pk=pk)
+    pkg_id = request.GET.get("package_id")
+    if pkg_id:
+        pkg = get_object_or_404(SellerOrder, pk=pkg_id, order=order)
+        return admin_package_packing_slip_view(request, order_id=order.pk, pk=pkg.pk)
+    first_pkg = order.seller_orders.first()
+    if first_pkg:
+        return admin_package_packing_slip_view(request, order_id=order.pk, pk=first_pkg.pk)
+    messages.warning(request, f"Order #{order.order_number} has no fulfillment packages recorded.")
+    return redirect("custom_admin:order_detail", pk=order.pk)
+
+
+# ==============================================================================
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_package_packing_slip_view(request, order_id, pk):
+    """
+    Renders or downloads the Amazon/Flipkart style Packing Slip for a specific seller package within an order.
+    """
+    from core.views import seller_order_packing_slip_view
+    return seller_order_packing_slip_view(request, pk=pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_package_shipping_label_view(request, order_id, pk):
+    """
+    Renders or downloads the Shipping Label for a specific seller package within an order.
+    """
+    from core.views import seller_order_shipping_label_view
+    return seller_order_shipping_label_view(request, pk=pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+def admin_order_packing_slip_view(request, pk):
+    """
+    Admin shortcut to print packing slip for an order.
+    If the order has a specific package requested via ?package_id=..., it opens that package slip.
+    Otherwise, defaults to the first fulfillment package of the order.
+    """
+    order = get_object_or_404(Order, pk=pk)
+    pkg_id = request.GET.get('package_id')
+    if pkg_id:
+        pkg = get_object_or_404(SellerOrder, pk=pkg_id, order=order)
+        return admin_package_packing_slip_view(request, order_id=order.pk, pk=pkg.pk)
+    first_pkg = order.seller_orders.first()
+    if first_pkg:
+        return admin_package_packing_slip_view(request, order_id=order.pk, pk=first_pkg.pk)
+    messages.warning(request, f"Order #{order.order_number} has no fulfillment packages recorded.")
     return redirect("custom_admin:order_detail", pk=order.pk)
 
 

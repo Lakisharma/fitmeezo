@@ -55,6 +55,7 @@ from .views import (
     seller_order_estimate_rates_view,
     seller_order_list_view,
     seller_order_invoice_pdf_view,
+    seller_order_packing_slip_view,
     seller_order_packing_summary_view,
     seller_order_shipping_label_view,
     seller_order_sync_tracking_view,
@@ -303,7 +304,7 @@ urlpatterns = [
     path("seller/orders/<int:pk>/dispatch/", seller_order_dispatch_shipment_view, name="seller_order_dispatch_shipment"),
     path("seller/orders/<int:pk>/sync-tracking/", seller_order_sync_tracking_view, name="seller_order_sync_tracking"),
     path("seller/orders/<int:pk>/packing-summary/", seller_order_packing_summary_view, name="seller_order_packing_summary"),
-    path("seller/orders/<int:pk>/packing-slip/", seller_order_shipping_label_view, name="seller_order_packing_slip"),
+    path("seller/orders/<int:pk>/packing-slip/", seller_order_packing_slip_view, name="seller_order_packing_slip"),
     path("seller/orders/<int:pk>/shipping-label/", seller_order_shipping_label_view, name="seller_order_shipping_label"),
     path("seller/orders/<int:pk>/invoice/", seller_order_invoice_pdf_view, name="seller_order_invoice"),
 
