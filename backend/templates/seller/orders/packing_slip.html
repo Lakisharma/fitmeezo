@@ -379,29 +379,52 @@
       <!-- Seller / Dispatch Facility Details -->
       <div class="address-card">
         <h3><i class="bi bi-shop me-1"></i> Sold &amp; Dispatched By (Seller)</h3>
-        <div class="primary-name">
-          {{ seller.store_name|default:"Fitmeezo Direct Warehouse" }}
-          {% if seller.legal_business_name and seller.legal_business_name != seller.store_name %}
-            <span style="font-weight: 400; color: #475569; font-size: 11px;">({{ seller.legal_business_name }})</span>
-          {% endif %}
-        </div>
-        <div class="address-lines">
-          {% if seller.pickup_address %}
-            {{ seller.pickup_address }}<br>
-            {{ seller.pickup_city }}, {{ seller.pickup_state }} — <strong>{{ seller.pickup_postal_code }}</strong>
-          {% else %}
+        {% if seller %}
+          <div class="primary-name">
+            {{ seller.store_name|default:"Fitmeezo Direct Warehouse" }}
+            {% if seller.legal_business_name and seller.legal_business_name != seller.store_name %}
+              <span style="font-weight: 400; color: #475569; font-size: 11px;">({{ seller.legal_business_name }})</span>
+            {% endif %}
+          </div>
+          <div class="address-lines">
+            {% if seller.pickup_address %}
+              {{ seller.pickup_address }}<br>
+              {{ seller.pickup_city }}, {{ seller.pickup_state }} — <strong>{{ seller.pickup_postal_code }}</strong>
+            {% else %}
+              Fitmeezo Central Logistics Hub, Industrial Corridor, Bengaluru, Karnataka — 560100
+            {% endif %}
+          </div>
+          <div style="font-size: 11.5px; margin-top: 4px;">
+            <strong>GSTIN:</strong> {{ seller.gstin|default:"29AAAAA0000A1Z5" }}
+          </div>
+          <div class="phone-line" style="font-size: 11.5px; margin-top: 2px;">
+            <strong>Phone:</strong>
+            {% if seller.registered_mobile %}
+              {{ seller.registered_mobile }}
+            {% elif seller.support_phone %}
+              {{ seller.support_phone }}
+            {% else %}
+              +91 80 4000 0000
+            {% endif %}
+            {% if seller.support_email %}
+              &bull; <strong>Email:</strong> {{ seller.support_email }}
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="primary-name">
+            Fitmeezo Direct Warehouse
+            <span style="font-weight: 400; color: #475569; font-size: 11px;">(Fitmeezo E-Commerce Pvt Ltd)</span>
+          </div>
+          <div class="address-lines">
             Fitmeezo Central Logistics Hub, Industrial Corridor, Bengaluru, Karnataka — 560100
-          {% endif %}
-        </div>
-        <div style="font-size: 11.5px; margin-top: 4px;">
-          <strong>GSTIN:</strong> {{ seller.gstin|default:"29AAAAA0000A1Z5" }}
-        </div>
-        <div class="phone-line" style="font-size: 11.5px; margin-top: 2px;">
-          <strong>Phone:</strong> {{ seller.registered_mobile|default:seller.support_phone|default:"+91 80 4000 0000" }}
-          {% if seller.support_email %}
-            &bull; <strong>Email:</strong> {{ seller.support_email }}
-          {% endif %}
-        </div>
+          </div>
+          <div style="font-size: 11.5px; margin-top: 4px;">
+            <strong>GSTIN:</strong> 29AAAAA0000A1Z5
+          </div>
+          <div class="phone-line" style="font-size: 11.5px; margin-top: 2px;">
+            <strong>Phone:</strong> +91 80 4000 0000 &bull; <strong>Email:</strong> support@fitmeezo.com
+          </div>
+        {% endif %}
       </div>
 
       <!-- Customer Complete Shipping Address Details -->

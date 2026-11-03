@@ -840,13 +840,15 @@ def admin_order_update_status_view(request, pk):
     return redirect("custom_admin:order_detail", pk=order.pk)
 
 
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
 def admin_package_packing_slip_view(request, order_id, pk):
     """
     Renders or downloads the Amazon/Flipkart style Packing Slip for a specific seller package within an order.
     """
+    order = get_object_or_404(Order, pk=order_id)
+    package = get_object_or_404(SellerOrder, pk=pk, order=order)
     from core.views import seller_order_packing_slip_view
-    return seller_order_packing_slip_view(request, pk=pk)
+    return seller_order_packing_slip_view(request, pk=package.pk)
 
 
 @admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
@@ -979,7 +981,7 @@ def admin_package_schedule_pickup_view(request, order_id, pk):
     return redirect("custom_admin:order_detail", pk=order_id)
 
 
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
 def admin_order_packing_slip_view(request, pk):
     """
     Admin shortcut to print packing slip for an order.
@@ -992,6 +994,11 @@ def admin_order_packing_slip_view(request, pk):
         pkg = get_object_or_404(SellerOrder, pk=pkg_id, order=order)
         return admin_package_packing_slip_view(request, order_id=order.pk, pk=pkg.pk)
     first_pkg = order.seller_orders.first()
+    if not first_pkg and order.items.exists():
+        from core.services import ensure_seller_orders_for_order
+        ensure_seller_orders_for_order(order)
+        first_pkg = order.seller_orders.first()
+
     if first_pkg:
         return admin_package_packing_slip_view(request, order_id=order.pk, pk=first_pkg.pk)
     messages.warning(request, f"Order #{order.order_number} has no fulfillment packages recorded.")

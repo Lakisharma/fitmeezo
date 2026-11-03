@@ -710,3 +710,145 @@ class PackingSlipAndShippingLabelWorkflowTests(TestCase):
 
         booking.refresh_from_db()
         self.assertEqual(booking.pickup_status, ShipmentBooking.PICKUP_SCHEDULED)
+
+    def test_17_platform_package_packing_slip_renders_without_500_error(self):
+        """
+        Regression Test for Packing Slip HTTP 500 error:
+        Packages with seller=None (platform-fulfilled) must render packing slip successfully
+        without raising VariableDoesNotExist on seller.support_phone or template attribute lookups.
+        """
+        # Create a platform-fulfilled package (seller=None)
+        platform_pkg = SellerOrder.objects.create(
+            order=self.order,
+            seller=None,
+            is_platform_fulfilled=True,
+            sub_order_number="FM-20261031-9876-PLT",
+            status=SellerOrder.STATUS_PROCESSING,
+            subtotal=Decimal("999.00"),
+            total_commission=Decimal("0.00"),
+            net_seller_payable=Decimal("0.00"),
+        )
+        OrderItem.objects.create(
+            order=self.order,
+            seller_order=platform_pkg,
+            seller=None,
+            product_name="Fitmeezo Brand Fitness Mat",
+            variant_label="Standard / 6mm",
+            sku="FM-MAT-01",
+            unit_price=Decimal("999.00"),
+            quantity=1,
+            line_total=Decimal("999.00"),
+        )
+
+        # 1. Staff Admin accesses HTML packing slip -> HTTP 200 (not HTTP 500)
+        self.client.force_login(self.admin_user)
+        url = reverse("core:seller_order_packing_slip", kwargs={"pk": platform_pkg.pk})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode("utf-8")
+        self.assertIn("Fitmeezo Direct Warehouse", content)
+        self.assertIn("Fitmeezo E-Commerce Pvt Ltd", content)
+        self.assertIn("29AAAAA0000A1Z5", content)
+        self.assertIn("FM-20261031-9876-PLT", content)
+        self.assertIn("Fitmeezo Brand Fitness Mat", content)
+
+        # 2. Staff Admin accesses PDF format -> HTTP 200, valid PDF
+        resp_pdf = self.client.get(url + "?format=pdf")
+        self.assertEqual(resp_pdf.status_code, 200)
+        self.assertEqual(resp_pdf["Content-Type"], "application/pdf")
+        self.assertTrue(resp_pdf.content.startswith(b"%PDF-"))
+
+
+        # 3. Third-party marketplace seller is denied access to platform-fulfilled package (tenant isolation)
+        self.client.force_login(self.seller_a_user)
+        resp_forbidden = self.client.get(url)
+        self.assertIn(resp_forbidden.status_code, (403, 404))
+
+    def test_18_admin_order_packing_slip_and_role_permissions(self):
+        """
+        Verify admin shortcut to packing slip works for both specific packages and first package,
+        and ensures ROLE_SELLER_MANAGER has full access.
+        """
+        from django.contrib.auth.models import Group
+        from core.admin_permissions import ROLE_SELLER_MANAGER
+
+        # Create a user with ROLE_SELLER_MANAGER
+        seller_manager_user = User.objects.create_user(
+            username="seller_manager_user",
+            email="sm@fitmeezo.com",
+            password="Password123!",
+            is_staff=True,
+        )
+        group, _ = Group.objects.get_or_create(name=ROLE_SELLER_MANAGER)
+        seller_manager_user.groups.add(group)
+
+        self.client.force_login(seller_manager_user)
+
+        # 1. Access via admin_order_packing_slip_view (order level)
+        order_slip_url = reverse("custom_admin:order_packing_slip", kwargs={"pk": self.order.pk})
+        resp_order = self.client.get(order_slip_url)
+        self.assertEqual(resp_order.status_code, 200)
+        self.assertContains(resp_order, self.order.order_number)
+
+        # 2. Access via admin_package_packing_slip_view (package level)
+        pkg_slip_url = reverse(
+            "custom_admin:order_package_packing_slip",
+            kwargs={"order_id": self.order.pk, "pk": self.package_a.pk},
+        )
+        resp_pkg = self.client.get(pkg_slip_url)
+        self.assertEqual(resp_pkg.status_code, 200)
+        self.assertContains(resp_pkg, self.package_a.sub_order_number)
+
+    def test_19_seller_packing_slip_safely_handles_empty_contact_fields(self):
+        """
+        Verify packing slip renders safely even if seller mobile and support phone are both empty.
+        """
+        self.seller_a.registered_mobile = ""
+        self.seller_a.support_phone = ""
+        self.seller_a.pickup_address = ""
+        self.seller_a.save(update_fields=["registered_mobile", "support_phone", "pickup_address"])
+
+        self.client.force_login(self.seller_a_user)
+        url = reverse("core:seller_order_packing_slip", kwargs={"pk": self.package_a.pk})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        content = resp.content.decode("utf-8")
+        self.assertIn("+91 80 4000 0000", content)
+        self.assertIn("Fitmeezo Central Logistics Hub", content)
+
+    def test_20_admin_order_packing_slip_backfills_unlinked_packages(self):
+        """
+        Verify that admin order packing slip backfills SellerOrder if an order had items without packages.
+        """
+        # Create order with item but no seller_orders
+        legacy_order = Order.objects.create(
+            user=self.customer_user,
+            order_number="FM-LEGACY-001",
+            status=Order.STATUS_PROCESSING,
+            payment_status=Order.PAYMENT_STATUS_PAID,
+            subtotal=Decimal("500.00"),
+            total_amount=Decimal("500.00"),
+            shipping_full_name="Legacy Customer",
+            shipping_phone_number="9876543210",
+            shipping_address_line1="123 Old Town",
+            shipping_city="Delhi",
+            shipping_state="Delhi",
+            shipping_postal_code="110001",
+        )
+        OrderItem.objects.create(
+            order=legacy_order,
+            product_name="Legacy Product",
+            unit_price=Decimal("500.00"),
+            quantity=1,
+            line_total=Decimal("500.00"),
+        )
+        self.assertEqual(legacy_order.seller_orders.count(), 0)
+
+        # Admin visits packing slip for legacy order
+        self.client.force_login(self.admin_user)
+        url = reverse("custom_admin:order_packing_slip", kwargs={"pk": legacy_order.pk})
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "FM-LEGACY-001")
+        self.assertEqual(legacy_order.seller_orders.count(), 1)
+

@@ -4254,10 +4254,28 @@ def seller_order_packing_slip_view(request, pk):
     total_units = sum(it.quantity for it in items)
     booking = getattr(package, "shipment_booking", None)
 
+    seller = package.seller
+    if seller:
+        seller_phone = (
+            getattr(seller, "registered_mobile", None)
+            or getattr(seller, "support_phone", None)
+            or "+91 80 4000 0000"
+        )
+        seller_email = (
+            getattr(seller, "support_email", None)
+            or getattr(getattr(seller, "user", None), "email", None)
+            or ""
+        )
+    else:
+        seller_phone = "+91 80 4000 0000"
+        seller_email = "support@fitmeezo.com"
+
     context = {
         "package": package,
         "order": package.order,
-        "seller": package.seller,
+        "seller": seller,
+        "seller_phone": seller_phone,
+        "seller_email": seller_email,
         "items": items,
         "total_units": total_units,
         "booking": booking,

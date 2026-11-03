@@ -453,7 +453,7 @@ class DocumentAccessAndPermissionTests(TestCase):
     def test_seller_can_download_own_packing_slip(self):
         """Seller 1 can download their warehouse packing slip."""
         self.client.force_login(self.seller_user_1)
-        url = reverse("core:seller_order_packing_slip", kwargs={"pk": self.pkg_1.pk})
+        url = reverse("core:seller_order_packing_slip", kwargs={"pk": self.pkg_1.pk}) + "?format=pdf"
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/pdf")
