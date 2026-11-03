@@ -152,13 +152,18 @@
                     {% if pkg.shipment_booking %}
                       <div class="small mb-1">
                         <span class="text-muted">Pickup:</span>
-                        <span class="badge bg-light text-dark border">
+                        <span class="badge {% if pkg.shipment_booking.pickup_status == 'scheduled' or pkg.shipment_booking.pickup_status == 'picked_up' %}bg-success-subtle text-success border border-success{% elif pkg.shipment_booking.pickup_status == 'failed' %}bg-danger-subtle text-danger border border-danger{% else %}bg-warning-subtle text-dark border border-warning{% endif %}">
                           {{ pkg.shipment_booking.get_pickup_status_display }}
                         </span>
                         {% if pkg.shipment_booking.pickup_scheduled_date %}
                           <span class="text-muted" style="font-size: 11px;">({{ pkg.shipment_booking.pickup_scheduled_date|date:"d M" }})</span>
                         {% endif %}
                       </div>
+                      {% if pkg.shipment_booking.pickup_token_number %}
+                        <div class="small text-muted mb-1" style="font-size: 11px;">
+                          Token: <code>{{ pkg.shipment_booking.pickup_token_number }}</code>
+                        </div>
+                      {% endif %}
                       <div class="small">
                         <span class="text-muted">Tracking:</span>
                         <span class="badge {% if pkg.shipment_booking.tracking_status == 'DELIVERED' %}bg-success{% elif pkg.shipment_booking.tracking_status == 'IN TRANSIT' %}bg-primary{% else %}bg-secondary{% endif %} text-white">
@@ -169,6 +174,9 @@
                             <i class="bi bi-box-arrow-up-right"></i>
                           </a>
                         {% endif %}
+                        {% if pkg.shipment_booking.is_mock %}
+                          <span class="badge bg-secondary-subtle text-muted ms-1" style="font-size: 10px;">MOCK</span>
+                        {% endif %}
                       </div>
                     {% else %}
                       <span class="small text-muted fst-italic">Awaiting courier booking</span>
@@ -176,13 +184,62 @@
                   </td>
                   <td class="text-end">
                     <div class="d-flex justify-content-end gap-1 flex-wrap">
-                      <a href="{% url 'custom_admin:order_package_packing_slip' order_id=order.pk pk=pkg.pk %}" class="btn btn-sm btn-outline-primary" target="_blank" title="Print Packing Slip">
-                        <i class="bi bi-printer"></i> Slip
-                      </a>
+                      <!-- 1. Accept / Process Order -->
+                      {% if pkg.status == 'pending' %}
+                        <form method="post" action="{% url 'custom_admin:order_package_update_status' order_id=order.pk pk=pkg.pk %}" class="d-inline">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="process">
+                          <button type="submit" class="btn btn-sm btn-outline-primary" title="Accept and process package">
+                            <i class="bi bi-play-circle"></i> Accept
+                          </button>
+                        </form>
+                      {% endif %}
+
+                      <!-- 2. Print Packing Slip -->
+                      {% if pkg.status != 'cancelled' %}
+                        <a href="{% url 'custom_admin:order_package_packing_slip' order_id=order.pk pk=pkg.pk %}" class="btn btn-sm btn-outline-secondary" target="_blank" title="Print Packing Slip">
+                          <i class="bi bi-printer"></i> Slip
+                        </a>
+                      {% endif %}
+
+                      <!-- 3. Mark as Packed -->
+                      {% if pkg.status == 'pending' or pkg.status == 'processing' %}
+                        <form method="post" action="{% url 'custom_admin:order_package_update_status' order_id=order.pk pk=pkg.pk %}" class="d-inline">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="packed">
+                          <button type="submit" class="btn btn-sm btn-outline-warning" title="Mark as Packed / Ready for Pickup">
+                            <i class="bi bi-box-seam"></i> Pack
+                          </button>
+                        </form>
+                      {% endif %}
+
+                      <!-- 4. Ship with Shiprocket -->
+                      {% if not pkg.shipment_booking and pkg.status != 'cancelled' and pkg.status != 'delivered' %}
+                        <form method="post" action="{% url 'custom_admin:order_package_dispatch_shipment' order_id=order.pk pk=pkg.pk %}" class="d-inline">
+                          {% csrf_token %}
+                          <button type="submit" class="btn btn-sm btn-primary" title="Book Courier Shipment via Shiprocket">
+                            <i class="bi bi-truck"></i> Ship with Shiprocket
+                          </button>
+                        </form>
+                      {% endif %}
+
                       {% if pkg.shipment_booking %}
+                        <!-- 5. Print Shipping Label -->
                         <a href="{% url 'custom_admin:order_package_shipping_label' order_id=order.pk pk=pkg.pk %}" class="btn btn-sm btn-dark" target="_blank" title="Print Shipping Label (4x6)">
                           <i class="bi bi-tag"></i> Label
                         </a>
+
+                        <!-- 6. Schedule Courier Pickup -->
+                        {% if pkg.shipment_booking.pickup_status in 'not_requested,requested,failed' %}
+                          <form method="post" action="{% url 'custom_admin:order_package_schedule_pickup' order_id=order.pk pk=pkg.pk %}" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-warning text-dark" title="Schedule Courier Pickup">
+                              <i class="bi bi-calendar-check"></i> Schedule Pickup
+                            </button>
+                          </form>
+                        {% endif %}
+
+                        <!-- 7. Tracking Sync & Delivery Controls -->
                         <form method="post" action="{% url 'custom_admin:shipment_sync_tracking' shipment_id=pkg.shipment_booking.pk %}" class="d-inline">
                           {% csrf_token %}
                           <button type="submit" class="btn btn-sm btn-outline-secondary" title="Sync live tracking">

@@ -1874,6 +1874,93 @@ def create_or_dispatch_shipment(
         return booking
 
 
+def schedule_shipment_pickup(
+    booking_or_package: Any,
+    user: Any = None,
+    client: ShiprocketClient | None = None,
+) -> tuple[bool, str, Any]:
+    """
+    Schedules physical carrier pickup from origin warehouse facility for a booked package.
+    Works for both mock mode (simulated token & schedule) and live Shiprocket API.
+    Guarantees:
+    - Row-level database concurrency locking on ShipmentBooking.
+    - Idempotency: Returns existing schedule if pickup is already confirmed.
+    - Updates pickup_status, pickup_scheduled_date, and pickup_token_number.
+    - Appends an audit event in booking tracking history.
+    """
+    from core.models import SellerOrder, ShipmentBooking
+
+    active_client = client or ShiprocketClient()
+
+    if isinstance(booking_or_package, SellerOrder):
+        package = booking_or_package
+        booking = getattr(package, "shipment_booking", None)
+    elif isinstance(booking_or_package, ShipmentBooking):
+        booking = booking_or_package
+        package = booking.package
+    elif isinstance(booking_or_package, (int, str)):
+        booking = ShipmentBooking.objects.filter(pk=booking_or_package).first()
+        if not booking:
+            booking = ShipmentBooking.objects.filter(package_id=booking_or_package).first()
+        package = booking.package if booking else None
+    else:
+        raise ShiprocketValidationError("Input must be a SellerOrder, ShipmentBooking, or valid identifier.")
+
+    if not booking:
+        return False, "No courier shipment booking exists for this package. Book shipment first.", None
+
+    if not booking.shipment_id:
+        return False, "Shipment has no provider shipment ID. Cannot request carrier pickup.", booking
+
+    with transaction.atomic():
+        locked_booking = ShipmentBooking.objects.select_for_update().select_related("package").get(pk=booking.pk)
+
+        if locked_booking.pickup_status == ShipmentBooking.PICKUP_SCHEDULED and locked_booking.pickup_token_number:
+            date_str = locked_booking.pickup_scheduled_date.strftime("%d %b %Y, %I:%M %p") if locked_booking.pickup_scheduled_date else "Scheduled"
+            return True, f"Carrier pickup is already scheduled for {date_str} (Token: {locked_booking.pickup_token_number}).", locked_booking
+
+        try:
+            pk_res = active_client.request_pickup(shipment_id=locked_booking.shipment_id)
+            sched_status = pk_res.get("pickup_status") or ShipmentBooking.PICKUP_SCHEDULED
+            sched_date = pk_res.get("pickup_scheduled_date")
+            token_num = pk_res.get("pickup_token_number", "")
+
+            locked_booking.pickup_status = sched_status
+            if sched_date:
+                locked_booking.pickup_scheduled_date = sched_date
+            if token_num:
+                locked_booking.pickup_token_number = token_num
+
+            actor_name = user.username if user and user.is_authenticated else "system"
+            locked_booking.record_tracking_event(
+                status="PICKUP_SCHEDULED",
+                activity=f"Carrier pickup scheduled by {actor_name}. Token: {token_num or 'Confirmed'}",
+                location=locked_booking.pickup_nickname or "Origin Facility",
+            )
+            locked_booking.save(update_fields=[
+                "pickup_status",
+                "pickup_scheduled_date",
+                "pickup_token_number",
+                "status_history",
+            ])
+
+            # Optional email notification
+            try:
+                from core.emails import send_seller_pickup_scheduled_email
+                send_seller_pickup_scheduled_email(locked_booking.package)
+            except Exception:
+                pass
+
+            msg = f"Pickup scheduled successfully with courier partner! Token: {token_num or 'Confirmed'}."
+            return True, msg, locked_booking
+
+        except Exception as exc:
+            logger.error("Failed to schedule pickup for shipment %s: %s", locked_booking.shipment_id, exc)
+            locked_booking.pickup_status = ShipmentBooking.PICKUP_FAILED
+            locked_booking.save(update_fields=["pickup_status"])
+            return False, f"Carrier pickup scheduling failed: {exc}", locked_booking
+
+
 # ==============================================================================
 # LIVE TRACKING SYNCHRONIZATION & STATUS TRANSITIONS
 # ==============================================================================

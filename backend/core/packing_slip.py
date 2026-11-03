@@ -635,6 +635,13 @@ def generate_courier_shipping_label_pdf(package: Any, page_size: str = "4x6") ->
         fontSize=7 * scale,
         leading=9 * scale,
     )
+    sm_warning_bold = ParagraphStyle(
+        "LabelSmWarningBold",
+        parent=styles["Normal"],
+        fontName="Helvetica-Bold",
+        fontSize=6 * scale,
+        leading=7.5 * scale,
+    )
     sm_reg = ParagraphStyle(
         "LabelSmReg",
         parent=styles["Normal"],
@@ -677,7 +684,7 @@ def generate_courier_shipping_label_pdf(package: Any, page_size: str = "4x6") ->
         c_name = getattr(booking, "courier_name", "Delhivery Surface")
         head_left = [
             Paragraph("<b>FITMEEZO DISPATCH</b>", bold_title),
-            Paragraph("<b>[SIMULATED DISPATCH &bull; NOT A CARRIER LABEL]</b>", sm_bold),
+            Paragraph("<b>[SIMULATED DISPATCH &bull; NOT A CARRIER LABEL]</b>", sm_warning_bold),
             Paragraph(f"Simulated Carrier: {c_name}", sm_reg),
         ]
     else:

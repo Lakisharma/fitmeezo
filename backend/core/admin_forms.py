@@ -742,6 +742,18 @@ class AdminOrderStatusForm(forms.Form):
                 f"Permitted next steps: {', '.join([dict(Order.STATUS_CHOICES).get(s, s) for s in allowed]) or 'None (Terminal state)'}."
             )
 
+        # Package Consistency Validation
+        packages = list(self.order.seller_orders.all())
+        if packages:
+            all_cancelled = all(p.status == "cancelled" for p in packages)
+            if all_cancelled and new_status in (Order.STATUS_PROCESSING, Order.STATUS_SHIPPED, Order.STATUS_DELIVERED):
+                raise ValidationError("Cannot update order status because all shipment packages have been Cancelled / Rejected.")
+
+            if new_status == Order.STATUS_SHIPPED:
+                has_shippable = any(p.status in ("ready_to_ship", "shipped", "delivered") for p in packages)
+                if not has_shippable:
+                    raise ValidationError("Cannot mark order as Shipped because no shipment package has been packed or dispatched.")
+
         return new_status
 
 

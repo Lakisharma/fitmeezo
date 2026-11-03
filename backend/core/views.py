@@ -121,6 +121,7 @@ from .shiprocket import (
     create_mock_shipment_booking,
     check_booking_eligibility,
     create_or_dispatch_shipment,
+    schedule_shipment_pickup,
     sync_shipment_tracking,
     handle_shiprocket_webhook,
     register_seller_pickup_location,
@@ -3964,6 +3965,9 @@ def seller_order_update_status_view(request, pk):
                     f"Package #{locked.sub_order_number} status updated to '{locked.get_status_display()}'.",
                 )
 
+            # Reconcile parent order status
+            locked.order.sync_status_from_packages()
+
         return redirect("core:seller_order_detail", pk=package.pk)
     else:
         err_msg = "; ".join(f"{', '.join(v)}" for v in form.errors.values())
@@ -5330,6 +5334,7 @@ def seller_order_dispatch_shipment_view(request, pk):
                 "tracking_url": booking.tracking_url,
                 "message": msg,
             })
+        package.order.sync_status_from_packages()
         messages.success(request, msg)
     except ShiprocketError as err:
         logger.warning(
@@ -5346,6 +5351,35 @@ def seller_order_dispatch_shipment_view(request, pk):
         if request.headers.get("x-requested-with") == "XMLHttpRequest":
             return JsonResponse({"error": "An unexpected error occurred while dispatching shipment."}, status=500)
         messages.error(request, "An unexpected error occurred while dispatching shipment. Please try again.")
+
+    return redirect("core:seller_order_detail", pk=package.pk)
+
+
+@seller_required
+@require_POST
+def seller_order_schedule_pickup_view(request, pk):
+    """
+    Authorized seller endpoint to schedule or re-request courier pickup from Shiprocket.
+    """
+    seller = getattr(request.user, "seller_profile", None)
+    if not seller:
+        messages.warning(request, "You do not have an active seller profile.")
+        return redirect("core:seller_register")
+
+    package = get_object_or_404(SellerOrder, pk=pk, seller=seller)
+
+    if not package.is_booked:
+        messages.error(request, f"Cannot schedule pickup: Package #{package.sub_order_number} has not been booked with a carrier yet.")
+        return redirect("core:seller_order_detail", pk=package.pk)
+
+    success, msg, _ = schedule_shipment_pickup(
+        booking_or_package=package.shipment_booking,
+        user=request.user,
+    )
+    if success:
+        messages.success(request, msg)
+    else:
+        messages.error(request, msg)
 
     return redirect("core:seller_order_detail", pk=package.pk)
 

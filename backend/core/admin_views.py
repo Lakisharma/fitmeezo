@@ -772,15 +772,21 @@ def admin_order_list_view(request):
     return render(request, "custom_admin/orders/list.html", context)
 
 
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
 def admin_order_detail_view(request, pk):
     """
     Complete order details view with snapshots, line items, and transition controls.
+    Reconciles parent order status with child package statuses to eliminate inconsistency.
     """
     order = get_object_or_404(
-        Order.objects.select_related("user").prefetch_related("items"),
+        Order.objects.select_related("user").prefetch_related(
+            "items__product", "items__variant", "seller_orders__seller", "seller_orders__shipment_booking"
+        ),
         pk=pk,
     )
+    # Reconcile parent order status with child package statuses
+    order.sync_status_from_packages(commit=True)
+
     status_form = AdminOrderStatusForm(order=order)
     payment_form = AdminOrderPaymentStatusForm(order=order)
 
@@ -843,13 +849,134 @@ def admin_package_packing_slip_view(request, order_id, pk):
     return seller_order_packing_slip_view(request, pk=pk)
 
 
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
 def admin_package_shipping_label_view(request, order_id, pk):
     """
     Renders or downloads the Shipping Label for a specific seller package within an order.
     """
     from core.views import seller_order_shipping_label_view
     return seller_order_shipping_label_view(request, pk=pk)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+@require_POST
+def admin_package_update_status_view(request, order_id, pk):
+    """
+    Administrative action to update package fulfillment status.
+    Supports:
+    - action="process" or status="processing": Accept/Process package (moves pending -> processing)
+    - action="packed" or status="ready_to_ship": Mark as Packed / Ready for Pickup (moves pending/processing -> ready_to_ship)
+    Verifies and populates physical measurements if unknown, and synchronizes parent order status.
+    """
+    order = get_object_or_404(Order, pk=order_id)
+    package = get_object_or_404(SellerOrder, pk=pk, order=order)
+
+    new_status = request.POST.get("status") or request.POST.get("action")
+    if new_status in ("process", "processing"):
+        if package.status != SellerOrder.STATUS_PENDING:
+            messages.warning(request, f"Package #{package.sub_order_number} is already '{package.get_status_display()}'.")
+            return redirect("custom_admin:order_detail", pk=order_id)
+        package.status = SellerOrder.STATUS_PROCESSING
+        package.save(update_fields=["status", "updated_at"])
+        order.sync_status_from_packages()
+        messages.success(request, f"Package #{package.sub_order_number} accepted and marked as Processing.")
+
+    elif new_status in ("packed", "ready_to_ship"):
+        if package.status not in (SellerOrder.STATUS_PENDING, SellerOrder.STATUS_PROCESSING):
+            messages.warning(request, f"Package #{package.sub_order_number} cannot be marked packed from current status '{package.get_status_display()}'.")
+            return redirect("custom_admin:order_detail", pk=order_id)
+
+        package.status = SellerOrder.STATUS_READY_TO_SHIP
+        fields_to_update = ["status", "updated_at"]
+        if package.package_dimension_status == SellerOrder.PACKAGE_DIMENSION_UNKNOWN or not package.actual_weight_grams:
+            w = package.estimated_weight_grams if (package.estimated_weight_grams and package.estimated_weight_grams > 0) else Decimal("500.00")
+            l = package.estimated_length_cm if (package.estimated_length_cm and package.estimated_length_cm > 0) else Decimal("20.00")
+            b = package.estimated_breadth_cm if (package.estimated_breadth_cm and package.estimated_breadth_cm > 0) else Decimal("15.00")
+            h = package.estimated_height_cm if (package.estimated_height_cm and package.estimated_height_cm > 0) else Decimal("5.00")
+            package.actual_weight_grams = w
+            package.actual_length_cm = l
+            package.actual_breadth_cm = b
+            package.actual_height_cm = h
+            package.package_dimension_status = SellerOrder.PACKAGE_DIMENSION_VERIFIED
+            package.dimensions_verified_at = timezone.now()
+            package.dimensions_verified_by = request.user
+            fields_to_update.extend([
+                "actual_weight_grams", "actual_length_cm", "actual_breadth_cm", "actual_height_cm",
+                "package_dimension_status", "dimensions_verified_at", "dimensions_verified_by",
+            ])
+        package.save(update_fields=fields_to_update)
+        order.sync_status_from_packages()
+        messages.success(request, f"Package #{package.sub_order_number} marked as Packed / Ready for Pickup.")
+
+    else:
+        messages.error(request, f"Unrecognized package status update action '{new_status}'.")
+
+    return redirect("custom_admin:order_detail", pk=order_id)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+@require_POST
+def admin_package_dispatch_shipment_view(request, order_id, pk):
+    """
+    Administrative action to book courier shipment with Shiprocket for a package.
+    Automatically assigns courier partner, generates AWB, and schedules origin pickup.
+    In SHIPROCKET_MOCK_MODE=True, executes simulated booking safely without external requests.
+    """
+    from core.shiprocket import create_or_dispatch_shipment, ShiprocketError
+
+    order = get_object_or_404(Order, pk=order_id)
+    package = get_object_or_404(SellerOrder, pk=pk, order=order)
+
+    if package.is_booked:
+        messages.info(request, f"Package #{package.sub_order_number} is already booked (AWB: {package.shipment_booking.awb_code}).")
+        return redirect("custom_admin:order_detail", pk=order_id)
+
+    try:
+        booking = create_or_dispatch_shipment(
+            package_id=package.pk,
+            user=request.user,
+            auto_request_pickup=True,
+        )
+        order.sync_status_from_packages()
+        mock_note = " (Simulated Mode)" if getattr(booking, "is_mock", False) else ""
+        messages.success(
+            request,
+            f"Shipment booked successfully via Shiprocket{mock_note}! Courier: {booking.courier_name}, AWB: {booking.awb_code}. Pickup Status: {booking.get_pickup_status_display()}.",
+        )
+    except ShiprocketError as err:
+        err_msg = getattr(err, "user_message", None) or str(err)
+        messages.error(request, f"Shiprocket shipment booking failed: {err_msg}")
+    except Exception as exc:
+        messages.error(request, f"Unexpected error during shipment booking: {exc}")
+
+    return redirect("custom_admin:order_detail", pk=order_id)
+
+
+@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_SELLER_MANAGER, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
+@require_POST
+def admin_package_schedule_pickup_view(request, order_id, pk):
+    """
+    Administrative action to request or schedule courier pickup for a booked package.
+    """
+    from core.shiprocket import schedule_shipment_pickup
+
+    order = get_object_or_404(Order, pk=order_id)
+    package = get_object_or_404(SellerOrder, pk=pk, order=order)
+
+    if not package.is_booked:
+        messages.error(request, f"Cannot schedule pickup: Package #{package.sub_order_number} has not been booked with a carrier yet.")
+        return redirect("custom_admin:order_detail", pk=order_id)
+
+    success, msg, _ = schedule_shipment_pickup(
+        booking_or_package=package.shipment_booking,
+        user=request.user,
+    )
+    if success:
+        messages.success(request, msg)
+    else:
+        messages.error(request, msg)
+
+    return redirect("custom_admin:order_detail", pk=order_id)
 
 
 @admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
@@ -902,43 +1029,6 @@ def admin_order_update_payment_view(request, pk):
     return redirect("custom_admin:order_detail", pk=order.pk)
 
 
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
-def admin_package_packing_slip_view(request, order_id, pk):
-    """
-    Renders or downloads the Amazon/Flipkart style Packing Slip for a specific seller package within an order.
-    """
-    from core.views import seller_order_packing_slip_view
-    return seller_order_packing_slip_view(request, pk=pk)
-
-
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
-def admin_package_shipping_label_view(request, order_id, pk):
-    """
-    Renders or downloads the Shipping Label for a specific seller package within an order.
-    """
-    from core.views import seller_order_shipping_label_view
-    return seller_order_shipping_label_view(request, pk=pk)
-
-
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
-def admin_order_packing_slip_view(request, pk):
-    """
-    Admin shortcut to print packing slip for an order.
-    If the order has a specific package requested via ?package_id=..., it opens that package slip.
-    Otherwise, defaults to the first fulfillment package of the order.
-    """
-    order = get_object_or_404(Order, pk=pk)
-    pkg_id = request.GET.get("package_id")
-    if pkg_id:
-        pkg = get_object_or_404(SellerOrder, pk=pkg_id, order=order)
-        return admin_package_packing_slip_view(request, order_id=order.pk, pk=pkg.pk)
-    first_pkg = order.seller_orders.first()
-    if first_pkg:
-        return admin_package_packing_slip_view(request, order_id=order.pk, pk=first_pkg.pk)
-    messages.warning(request, f"Order #{order.order_number} has no fulfillment packages recorded.")
-    return redirect("custom_admin:order_detail", pk=order.pk)
-
-
 @admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 @require_POST
 def admin_order_reconcile_refund_view(request, pk):
@@ -955,85 +1045,6 @@ def admin_order_reconcile_refund_view(request, pk):
         messages.error(request, message)
     return redirect("custom_admin:order_detail", pk=order.pk)
 
-
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
-def admin_package_packing_slip_view(request, order_id, pk):
-    """
-    Renders or downloads the Amazon/Flipkart style Packing Slip for a specific seller package within an order.
-    """
-    from core.views import seller_order_packing_slip_view
-    return seller_order_packing_slip_view(request, pk=pk)
-
-
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
-def admin_package_shipping_label_view(request, order_id, pk):
-    """
-    Renders or downloads the Shipping Label for a specific seller package within an order.
-    """
-    from core.views import seller_order_shipping_label_view
-    return seller_order_shipping_label_view(request, pk=pk)
-
-
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
-def admin_order_packing_slip_view(request, pk):
-    """
-    Admin shortcut to print packing slip for an order.
-    If the order has a specific package requested via ?package_id=..., it opens that package slip.
-    Otherwise, defaults to the first fulfillment package of the order.
-    """
-    order = get_object_or_404(Order, pk=pk)
-    pkg_id = request.GET.get("package_id")
-    if pkg_id:
-        pkg = get_object_or_404(SellerOrder, pk=pkg_id, order=order)
-        return admin_package_packing_slip_view(request, order_id=order.pk, pk=pkg.pk)
-    first_pkg = order.seller_orders.first()
-    if first_pkg:
-        return admin_package_packing_slip_view(request, order_id=order.pk, pk=first_pkg.pk)
-    messages.warning(request, f"Order #{order.order_number} has no fulfillment packages recorded.")
-    return redirect("custom_admin:order_detail", pk=order.pk)
-
-
-# ==============================================================================
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
-def admin_package_packing_slip_view(request, order_id, pk):
-    """
-    Renders or downloads the Amazon/Flipkart style Packing Slip for a specific seller package within an order.
-    """
-    from core.views import seller_order_packing_slip_view
-    return seller_order_packing_slip_view(request, pk=pk)
-
-
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
-def admin_package_shipping_label_view(request, order_id, pk):
-    """
-    Renders or downloads the Shipping Label for a specific seller package within an order.
-    """
-    from core.views import seller_order_shipping_label_view
-    return seller_order_shipping_label_view(request, pk=pk)
-
-
-@admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER, ROLE_SUPPORT_MANAGER])
-def admin_order_packing_slip_view(request, pk):
-    """
-    Admin shortcut to print packing slip for an order.
-    If the order has a specific package requested via ?package_id=..., it opens that package slip.
-    Otherwise, defaults to the first fulfillment package of the order.
-    """
-    order = get_object_or_404(Order, pk=pk)
-    pkg_id = request.GET.get('package_id')
-    if pkg_id:
-        pkg = get_object_or_404(SellerOrder, pk=pkg_id, order=order)
-        return admin_package_packing_slip_view(request, order_id=order.pk, pk=pkg.pk)
-    first_pkg = order.seller_orders.first()
-    if first_pkg:
-        return admin_package_packing_slip_view(request, order_id=order.pk, pk=first_pkg.pk)
-    messages.warning(request, f"Order #{order.order_number} has no fulfillment packages recorded.")
-    return redirect("custom_admin:order_detail", pk=order.pk)
-
-
-# ==============================================================================
-# PHASE 7: SELLER LEDGER, COD RECONCILIATION & PAYOUT MANAGEMENT VIEWS
-# ==============================================================================
 
 @admin_required(allowed_roles=[ROLE_SUPER_ADMIN, ROLE_FINANCE_MANAGER])
 def admin_ledger_list_view(request):

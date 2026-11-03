@@ -82,6 +82,9 @@ class PackingSlipAndShippingLabelWorkflowTests(TestCase):
             status=Seller.STATUS_APPROVED,
             is_active=True,
             registered_mobile="9876543210",
+            pickup_contact_name="Vikram Singh",
+            pickup_contact_phone="9876543210",
+            support_phone="9876543210",
             pickup_address="Plot 102, Phase 3, GIDC Industrial Estate",
             pickup_city="Mumbai",
             pickup_state="Maharashtra",
@@ -106,6 +109,9 @@ class PackingSlipAndShippingLabelWorkflowTests(TestCase):
             status=Seller.STATUS_APPROVED,
             is_active=True,
             registered_mobile="9123456789",
+            pickup_contact_name="Ananya Deshmukh",
+            pickup_contact_phone="9123456789",
+            support_phone="9123456789",
             pickup_address="45 Handloom Complex, Cotton Market",
             pickup_city="Bengaluru",
             pickup_state="Karnataka",
@@ -490,7 +496,7 @@ class PackingSlipAndShippingLabelWorkflowTests(TestCase):
             user=self.customer_user,
             order_number="FM-COD-112233",
             status=Order.STATUS_PENDING,
-            payment_status=Order.PAYMENT_STATUS_PENDING,
+            payment_status=Order.PAYMENT_STATUS_UNPAID,
             payment_method=Order.PAYMENT_METHOD_COD,
             subtotal=Decimal("999.00"),
             total_amount=Decimal("999.00"),
@@ -516,7 +522,7 @@ class PackingSlipAndShippingLabelWorkflowTests(TestCase):
             user=self.customer_user,
             order_number="FM-ONLINE-UNPAID",
             status=Order.STATUS_PENDING,
-            payment_status=Order.PAYMENT_STATUS_PENDING,
+            payment_status=Order.PAYMENT_STATUS_UNPAID,
             payment_method=Order.PAYMENT_METHOD_RAZORPAY,
             subtotal=Decimal("999.00"),
             total_amount=Decimal("999.00"),
@@ -584,3 +590,123 @@ class PackingSlipAndShippingLabelWorkflowTests(TestCase):
 
         resp_admin_label = self.client.get(label_url)
         self.assertEqual(resp_admin_label.status_code, 200)
+
+    @override_settings(SHIPROCKET_MOCK_MODE=True)
+    def test_13_admin_package_fulfillment_actions_and_status_reconciliation(self):
+        """Verify Admin Order Detail displays package actions and status updates reconcile parent order."""
+        self.client.force_login(self.admin_user)
+        detail_url = reverse("custom_admin:order_detail", kwargs={"pk": self.order.pk})
+        resp = self.client.get(detail_url)
+        self.assertEqual(resp.status_code, 200)
+
+        # Multi-seller table should contain packages
+        self.assertContains(resp, self.package_a.sub_order_number)
+        self.assertContains(resp, self.package_b.sub_order_number)
+
+        # 1. Admin accepts/processes Package A
+        update_url = reverse(
+            "custom_admin:order_package_update_status",
+            kwargs={"order_id": self.order.pk, "pk": self.package_a.pk},
+        )
+        post_resp = self.client.post(update_url, data={"action": "process"})
+        self.assertEqual(post_resp.status_code, 302)
+
+        self.package_a.refresh_from_db()
+        self.assertEqual(self.package_a.status, SellerOrder.STATUS_PROCESSING)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.STATUS_PROCESSING)
+
+        # 2. Admin marks Package A as Packed
+        pack_resp = self.client.post(update_url, data={"action": "packed"})
+        self.assertEqual(pack_resp.status_code, 302)
+        self.package_a.refresh_from_db()
+        self.assertEqual(self.package_a.status, SellerOrder.STATUS_READY_TO_SHIP)
+        self.assertEqual(self.package_a.package_dimension_status, SellerOrder.PACKAGE_DIMENSION_VERIFIED)
+
+    @override_settings(SHIPROCKET_MOCK_MODE=True)
+    def test_14_admin_package_dispatch_and_schedule_pickup(self):
+        """Verify Admin can dispatch shipment via Shiprocket mock and schedule carrier pickup."""
+        self.client.force_login(self.admin_user)
+
+        self.package_a.status = SellerOrder.STATUS_READY_TO_SHIP
+        self.package_a.save(update_fields=["status"])
+
+        # 1. Admin dispatches shipment
+        dispatch_url = reverse(
+            "custom_admin:order_package_dispatch_shipment",
+            kwargs={"order_id": self.order.pk, "pk": self.package_a.pk},
+        )
+        disp_resp = self.client.post(dispatch_url)
+        self.assertEqual(disp_resp.status_code, 302)
+
+        self.package_a.refresh_from_db()
+        self.assertTrue(self.package_a.is_booked)
+        booking = self.package_a.shipment_booking
+        self.assertTrue(booking.awb_code.startswith("MOCK-AWB-"))
+
+        # 2. Admin schedules pickup
+        pickup_url = reverse(
+            "custom_admin:order_package_schedule_pickup",
+            kwargs={"order_id": self.order.pk, "pk": self.package_a.pk},
+        )
+        pickup_resp = self.client.post(pickup_url)
+        self.assertEqual(pickup_resp.status_code, 302)
+
+        booking.refresh_from_db()
+        self.assertEqual(booking.pickup_status, ShipmentBooking.PICKUP_SCHEDULED)
+        self.assertIsNotNone(booking.pickup_token_number)
+
+        # 3. Admin accesses shipping label
+        label_url = reverse(
+            "custom_admin:order_package_shipping_label",
+            kwargs={"order_id": self.order.pk, "pk": self.package_a.pk},
+        )
+        label_resp = self.client.get(label_url)
+        self.assertEqual(label_resp.status_code, 200)
+        self.assertTrue(label_resp.content.startswith(b"%PDF-1.4"))
+
+    def test_15_inconsistent_order_status_sync_and_validation_guard(self):
+        """Verify that inconsistent Order statuses are reconciled and prevented."""
+        from core.admin_forms import AdminOrderStatusForm
+
+        # Cancel all packages
+        self.package_a.status = SellerOrder.STATUS_CANCELLED
+        self.package_a.save(update_fields=["status"])
+        self.package_b.status = SellerOrder.STATUS_CANCELLED
+        self.package_b.save(update_fields=["status"])
+
+        # Set parent order to Shipped (the inconsistent state reported by user)
+        self.order.status = Order.STATUS_SHIPPED
+        self.order.save(update_fields=["status"])
+
+        # sync_status_from_packages should automatically fix parent status to cancelled
+        synced_status = self.order.sync_status_from_packages(commit=True)
+        self.assertEqual(synced_status, Order.STATUS_CANCELLED)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.status, Order.STATUS_CANCELLED)
+
+        # AdminOrderStatusForm should prevent marking order Shipped if all packages are cancelled
+        form = AdminOrderStatusForm(order=self.order, data={"status": Order.STATUS_SHIPPED})
+        self.assertFalse(form.is_valid())
+        self.assertIn("status", form.errors)
+
+    @override_settings(SHIPROCKET_MOCK_MODE=True)
+    def test_16_seller_schedule_pickup_endpoint(self):
+        """Verify authorized seller can schedule courier pickup for their booked package."""
+        self.client.force_login(self.seller_a_user)
+
+        self.package_a.status = SellerOrder.STATUS_READY_TO_SHIP
+        self.package_a.save(update_fields=["status"])
+
+        # Book mock shipment first
+        from core.shiprocket import create_or_dispatch_shipment
+        booking = create_or_dispatch_shipment(package_id=self.package_a.pk, user=self.seller_a_user)
+        booking.pickup_status = ShipmentBooking.PICKUP_NOT_REQUESTED
+        booking.save(update_fields=["pickup_status"])
+
+        pickup_url = reverse("core:seller_order_schedule_pickup", kwargs={"pk": self.package_a.pk})
+        resp = self.client.post(pickup_url)
+        self.assertEqual(resp.status_code, 302)
+
+        booking.refresh_from_db()
+        self.assertEqual(booking.pickup_status, ShipmentBooking.PICKUP_SCHEDULED)

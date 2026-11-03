@@ -2863,6 +2863,59 @@ class Order(models.Model):
         """Returns all return requests associated with this order."""
         return self.return_requests.select_related("seller_order", "seller").all().order_by("-created_at")
 
+    def sync_status_from_packages(self, commit: bool = True) -> str:
+        """
+        Synchronizes parent Order status with its child SellerOrder packages.
+        Prevents contradictions where Order is marked Shipped but packages are Cancelled/Pending.
+        Rules:
+        - If no packages exist: return current status.
+        - If ALL packages are cancelled: Order status becomes cancelled.
+        - If ALL active (non-cancelled) packages are delivered: Order status becomes delivered.
+        - If ANY active package is shipped or delivered: Order status becomes shipped.
+        - If ANY active package is ready_to_ship or processing: Order status becomes processing.
+        - If ALL active packages are pending: Order status becomes pending.
+        """
+        packages = list(self.seller_orders.all())
+        if not packages:
+            return self.status
+
+        all_cancelled = all(p.status == "cancelled" for p in packages)
+        if all_cancelled:
+            if self.status != self.STATUS_CANCELLED:
+                self.status = self.STATUS_CANCELLED
+                if not self.cancelled_at:
+                    self.cancelled_at = timezone.now()
+                if not self.cancellation_reason:
+                    self.cancellation_reason = "All shipment packages were cancelled or rejected."
+                if commit:
+                    self.save(update_fields=["status", "cancelled_at", "cancellation_reason", "updated_at"])
+            return self.status
+
+        active_pkgs = [p for p in packages if p.status != "cancelled"]
+        if not active_pkgs:
+            return self.status
+
+        all_delivered = all(p.status == "delivered" for p in active_pkgs)
+        any_shipped_or_delivered = any(p.status in ("shipped", "delivered") for p in active_pkgs)
+        any_processing_or_ready = any(p.status in ("processing", "ready_to_ship") for p in active_pkgs)
+
+        new_status = self.status
+        if all_delivered:
+            new_status = self.STATUS_DELIVERED
+        elif any_shipped_or_delivered:
+            new_status = self.STATUS_SHIPPED
+        elif any_processing_or_ready:
+            new_status = self.STATUS_PROCESSING
+        else:
+            new_status = self.STATUS_PENDING
+
+        if new_status != self.status:
+            self.status = new_status
+            if commit:
+                self.save(update_fields=["status", "updated_at"])
+
+        return self.status
+
 
 class OrderStatusHistory(models.Model):
     """

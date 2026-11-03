@@ -646,6 +646,14 @@
                   </div>
 
                   <div class="d-grid gap-1 mt-2">
+                    {% if shipment_booking.pickup_status in 'not_requested,requested,failed' %}
+                      <form method="post" action="{% url 'core:seller_order_schedule_pickup' package.pk %}" class="mb-1">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-warning btn-sm w-100" id="btn-schedule-pickup">
+                          <i class="bi bi-calendar-check me-1"></i> Schedule Courier Pickup
+                        </button>
+                      </form>
+                    {% endif %}
                     <form method="post" action="{% url 'core:seller_order_sync_tracking' package.pk %}" class="mb-1">
                       {% csrf_token %}
                       <button type="submit" class="btn btn-outline-primary btn-sm w-100">
