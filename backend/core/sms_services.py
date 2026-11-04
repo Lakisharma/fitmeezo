@@ -168,6 +168,12 @@ class MSG91SMSProvider(BaseSMSProvider):
             "template_id": self.template_id,
             "mobile": clean_mobile,
             "otp": otp,
+            "OTP": otp,
+            "var1": otp,
+            "VAR1": otp,
+            "var": otp,
+            "code": otp,
+            "company": getattr(settings, "BRAND_NAME", "Fitmeezo"),
             "otp_expiry": 5,
         }).encode("utf-8")
 
@@ -184,7 +190,8 @@ class MSG91SMSProvider(BaseSMSProvider):
                 except Exception:
                     data = {}
 
-                if resp.status == 200 or data.get("type") == "success":
+                resp_type = str(data.get("type", "")).strip().lower()
+                if resp_type == "success" or (200 <= resp.status < 300 and resp_type != "error" and "error" not in str(data.get("message", "")).lower()):
                     logger.info(f"MSG91 OTP dispatched successfully to {mask_phone_number(clean_mobile)}")
                     return True, "OTP sent successfully to your registered mobile number."
                 else:
@@ -295,24 +302,26 @@ class Fast2SMSProvider(BaseSMSProvider):
 
     def __init__(self):
         self.api_key = _get_credential("FAST2SMS_API_KEY", "SMS_API_KEY", "SMS_AUTH_KEY")
+        self.route = _get_credential("FAST2SMS_ROUTE", default="otp").lower()
 
     def send_otp(self, mobile: str, otp: str) -> tuple[bool, str]:
         if not self.api_key:
             logger.error("Fast2SMS API key missing in environment variables.")
             return False, "SMS provider is not properly configured. Please contact platform support."
 
+        clean_mobile = mobile[-10:]
         try:
-            clean_mobile = mobile[-10:]
             url = "https://www.fast2sms.com/dev/bulkV2"
             payload = json.dumps({
                 "variables_values": otp,
-                "route": "otp",
+                "route": self.route,
                 "numbers": clean_mobile,
             }).encode("utf-8")
 
             req = urllib.request.Request(url, data=payload, method="POST")
             req.add_header("authorization", self.api_key)
             req.add_header("Content-Type", "application/json")
+            req.add_header("Accept", "application/json")
 
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read().decode("utf-8", errors="ignore"))
@@ -320,9 +329,30 @@ class Fast2SMSProvider(BaseSMSProvider):
                     logger.info(f"Fast2SMS OTP dispatched to {mask_phone_number(clean_mobile)}")
                     return True, "OTP sent successfully to your registered mobile number."
                 else:
-                    err_msg = data.get("message") or "Provider rejected request"
+                    err_msg = data.get("message")
+                    if isinstance(err_msg, list):
+                        err_msg = ", ".join(err_msg)
+                    err_msg = err_msg or "Provider rejected request"
                     logger.error(f"Fast2SMS response error: {err_msg}")
                     return False, f"Failed to deliver SMS: {err_msg}."
+
+        except urllib.error.HTTPError as http_err:
+            try:
+                err_body = http_err.read().decode("utf-8", errors="ignore")
+                err_data = json.loads(err_body)
+                err_msg = err_data.get("message")
+                if isinstance(err_msg, list):
+                    err_msg = ", ".join(err_msg)
+                err_msg = err_msg or f"HTTP {http_err.code}"
+            except Exception:
+                err_msg = f"HTTP {http_err.code} Error"
+
+            logger.error(f"Fast2SMS HTTP error {http_err.code} for {mask_phone_number(clean_mobile)}: {err_msg}")
+            return False, f"SMS gateway reported error: {err_msg}. Please try again shortly or use password login."
+
+        except urllib.error.URLError as url_err:
+            logger.error(f"Fast2SMS network timeout/error: {str(url_err.reason)}")
+            return False, "SMS delivery failed due to network timeout. Please try again shortly or use password login."
 
         except Exception as exc:
             logger.error(f"Fast2SMS dispatch exception: {type(exc).__name__}: {str(exc)}")
@@ -434,13 +464,18 @@ def get_sms_provider() -> BaseSMSProvider:
 
     # 3. Auto-detection by configured credentials if SMS_PROVIDER is blank
     if not provider_name:
-        if _get_credential("MSG91_AUTH_KEY", "SMS_TEMPLATE_ID"):
+        has_msg91 = bool(_get_credential("MSG91_AUTH_KEY") or (_get_credential("SMS_AUTH_KEY", "SMS_API_KEY") and _get_credential("SMS_TEMPLATE_ID", "MSG91_TEMPLATE_ID")))
+        has_fast2sms = bool(_get_credential("FAST2SMS_API_KEY"))
+        has_textlocal = bool(_get_credential("TEXTLOCAL_API_KEY"))
+        has_twilio = bool(_get_credential("TWILIO_ACCOUNT_SID") and _get_credential("TWILIO_AUTH_TOKEN"))
+
+        if has_msg91:
             return MSG91SMSProvider()
-        if _get_credential("TEXTLOCAL_API_KEY"):
-            return TextlocalSMSProvider()
-        if _get_credential("FAST2SMS_API_KEY"):
+        if has_fast2sms:
             return Fast2SMSProvider()
-        if _get_credential("TWILIO_ACCOUNT_SID"):
+        if has_textlocal:
+            return TextlocalSMSProvider()
+        if has_twilio:
             return TwilioSMSProvider()
 
     # 4. Default fallback logic

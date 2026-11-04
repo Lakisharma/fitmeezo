@@ -160,9 +160,10 @@ def generate_and_send_seller_otp(
     expires_at = now + datetime.timedelta(minutes=OTP_VALIDITY_MINUTES)
 
     # 7. Create OTP record with PBKDF2 hash (NEVER plaintext)
+    target_mobile = seller.registered_mobile or clean_mobile
     otp_record = SellerLoginOTP(
         seller=seller,
-        mobile=clean_mobile,
+        mobile=target_mobile,
         expires_at=expires_at,
         ip_address=ip_address or None,
         user_agent=user_agent or "",
@@ -170,9 +171,9 @@ def generate_and_send_seller_otp(
     otp_record.set_otp(raw_otp)
     otp_record.save()
 
-    # 8. Dispatch via configured SMS provider
+    # 8. Dispatch via configured SMS provider to the seller's registered mobile
     provider = get_sms_provider()
-    sent_ok, send_msg = provider.send_otp(clean_mobile, raw_otp)
+    sent_ok, send_msg = provider.send_otp(target_mobile, raw_otp)
 
     if not sent_ok:
         # Invalidate OTP record if dispatch failed
@@ -230,7 +231,10 @@ def verify_seller_otp_code(
         return False, msg, None
 
     seller = otp_record.seller
-    # Re-verify that the seller remains approved and active
+    # Re-verify that the seller remains approved, not suspended, and active
+    if seller.status == Seller.STATUS_SUSPENDED:
+        return False, f"Your seller account '{seller.store_name}' is currently suspended. Please contact platform administration.", None
+
     if (
         seller.status != Seller.STATUS_APPROVED
         or not seller.is_active

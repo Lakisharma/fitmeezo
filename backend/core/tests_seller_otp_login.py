@@ -623,3 +623,78 @@ class SellerMobileOTPLoginTests(TestCase):
             self.assertTrue(success)
             self.assertIn("OTP sent successfully", msg)
 
+
+
+    @patch("urllib.request.urlopen")
+    def test_msg91_provider_failure_on_type_error_with_http_200(self, mock_urlopen):
+        """MSG91 returning HTTP 200 with JSON type:error is correctly treated as failure."""
+        import os
+        mock_resp = MagicMock()
+        mock_resp.status = 200
+        mock_resp.read.return_value = b'{"message": "Insufficient SMS wallet balance", "type": "error"}'
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        with patch.dict(os.environ, {
+            "MSG91_AUTH_KEY": "test_key",
+            "MSG91_TEMPLATE_ID": "template_123",
+        }):
+            provider = MSG91SMSProvider()
+            success, msg = provider.send_otp("9876543210", "123456")
+            self.assertFalse(success)
+            self.assertIn("Insufficient SMS wallet balance", msg)
+
+    @patch("urllib.request.urlopen")
+    def test_fast2sms_http_error_handled_cleanly(self, mock_urlopen):
+        """Fast2SMS HTTP 400 error is caught cleanly and returns formatted error message."""
+        import os
+        import urllib.error
+        import io
+
+        err_body = b'{"return": false, "message": "Invalid API Authorization Key"}'
+        http_err = urllib.error.HTTPError(
+            url="https://www.fast2sms.com/dev/bulkV2",
+            code=400,
+            msg="Bad Request",
+            hdrs={},
+            fp=io.BytesIO(err_body),
+        )
+        mock_urlopen.side_effect = http_err
+
+        with patch.dict(os.environ, {"FAST2SMS_API_KEY": "invalid_key"}):
+            provider = Fast2SMSProvider()
+            success, msg = provider.send_otp("9876543210", "123456")
+            self.assertFalse(success)
+            self.assertIn("Invalid API Authorization Key", msg)
+
+    def test_verify_otp_suspended_seller_explicit_message(self):
+        """If a seller account is suspended, verify_seller_otp_code returns explicit suspended message."""
+        raw_otp = "852963"
+        otp_obj = SellerLoginOTP.objects.create(
+            seller=self.seller,
+            mobile="9876543210",
+            expires_at=timezone.now() + datetime.timedelta(minutes=5),
+        )
+        otp_obj.set_otp(raw_otp)
+        otp_obj.save()
+
+        # Suspend seller
+        self.seller.status = Seller.STATUS_SUSPENDED
+        self.seller.save()
+
+        valid, msg, returned_seller = verify_seller_otp_code("9876543210", raw_otp)
+        self.assertFalse(valid)
+        self.assertIn("currently suspended", msg)
+        self.assertIsNone(returned_seller)
+
+    def test_management_command_test_seller_sms_dry_run(self):
+        """Management command test_seller_sms runs safely in dry-run mode without external calls."""
+        import io
+        from django.core.management import call_command
+
+        out = io.StringIO()
+        call_command("test_seller_sms", "--dry-run", "--mobile", "9876543210", stdout=out)
+        output = out.getvalue()
+        self.assertIn("Fitmeezo SMS Gateway Diagnostics", output)
+        self.assertIn("Target mobile: +91 ******3210", output)
+        self.assertIn("[DRY RUN] Inspection complete", output)
