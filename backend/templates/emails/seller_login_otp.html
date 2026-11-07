@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Your Fitmeezo Seller Hub Verification Code</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px; color: #1e293b; }
+    .container { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+    .header { background: #0A192F; padding: 26px 24px; text-align: center; }
+    .header h1 { margin: 0; font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: 1.5px; }
+    .header p { margin: 4px 0 0; font-size: 11px; color: #94a3b8; letter-spacing: 2px; }
+    .body { padding: 32px 24px; }
+    .otp-box { background: #f8fafc; border: 2px dashed #0A192F; border-radius: 8px; padding: 22px; text-align: center; margin: 24px 0; }
+    .otp-code { font-size: 38px; font-weight: 800; letter-spacing: 10px; color: #0A192F; font-family: 'Courier New', Courier, monospace; }
+    .meta-box { background: #f1f5f9; border-radius: 6px; padding: 14px 18px; font-size: 13px; line-height: 1.6; color: #334155; margin: 20px 0; }
+    .security-note { font-size: 12px; color: #64748b; line-height: 1.5; border-top: 1px solid #e2e8f0; padding-top: 18px; margin-top: 24px; }
+    .footer { background: #f8fafc; padding: 18px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>FITMEEZO</h1>
+      <p>SHOP SMART • LIVE BETTER</p>
+    </div>
+    <div class="body">
+      <h2 style="margin: 0 0 12px; font-size: 19px; color: #0A192F;">Seller Hub Login Verification</h2>
+      <p style="margin: 0 0 16px; font-size: 14px; color: #334155;">
+        Hello <strong>{{ store_name }}</strong>,
+      </p>
+      <p style="margin: 0 0 16px; font-size: 14px; color: #334155; line-height: 1.5;">
+        You requested a one-time verification code to sign in to your <strong>Fitmeezo Seller Hub</strong>. Enter the following code to continue:
+      </p>
+
+      <div class="otp-box">
+        <div style="font-size: 12px; text-transform: uppercase; color: #64748b; letter-spacing: 1px; margin-bottom: 6px;">Your One-Time Password</div>
+        <div class="otp-code">{{ otp }}</div>
+        <div style="font-size: 12px; color: #b91c1c; font-weight: 600; margin-top: 8px;">
+          ⏱ Valid for {{ expiry_minutes|default:5 }} minutes only
+        </div>
+      </div>
+
+      <div class="meta-box">
+        <div><strong>Account:</strong> {{ store_name }}</div>
+        <div><strong>Recipient Email:</strong> {{ recipient_email }}</div>
+        {% if ip_address %}
+        <div><strong>Requested from IP:</strong> {{ ip_address }}</div>
+        {% endif %}
+      </div>
+
+      <div class="security-note">
+        <p style="margin: 0 0 8px; font-weight: 600; color: #0A192F;">Security Notice:</p>
+        <p style="margin: 0 0 6px;">• Fitmeezo representatives will <strong>never</strong> ask you for your OTP code or password.</p>
+        <p style="margin: 0 0 6px;">• This code expires automatically after 5 minutes and can only be used once.</p>
+        <p style="margin: 0;">• If you did not initiate this login request, your account credentials may be compromised. Please change your password immediately or contact <a href="mailto:{{ support_email }}" style="color: #0A192F; text-decoration: underline;">{{ support_email }}</a>.</p>
+      </div>
+    </div>
+    <div class="footer">
+      <div>Fitmeezo Seller Operations • <a href="https://fitmeezo.com" style="color: #64748b; text-decoration: underline;">fitmeezo.com</a></div>
+      <div style="margin-top: 4px;">Need assistance? Email us at {{ support_email }}</div>
+    </div>
+  </div>
+</body>
+</html>

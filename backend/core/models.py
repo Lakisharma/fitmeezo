@@ -852,7 +852,7 @@ class Seller(models.Model):
 
 class SellerLoginOTP(models.Model):
     """
-    Cryptographically hashed, single-use One-Time Password for Seller Mobile Login.
+    Cryptographically hashed, single-use One-Time Password for Seller Hub Login (Email / Mobile).
     OTPs are never stored or logged in plain text. Expire strictly after 5 minutes.
     """
     seller = models.ForeignKey(
@@ -861,10 +861,19 @@ class SellerLoginOTP(models.Model):
         related_name="login_otps",
         help_text="Seller account requesting login authentication.",
     )
+    email = models.EmailField(
+        max_length=254,
+        blank=True,
+        default="",
+        db_index=True,
+        help_text="Registered seller email address to which OTP was dispatched.",
+    )
     mobile = models.CharField(
         max_length=15,
+        blank=True,
+        default="",
         db_index=True,
-        help_text="10-digit mobile number to which OTP was dispatched.",
+        help_text="Optional mobile number if dispatched via SMS.",
     )
     otp_hash = models.CharField(
         max_length=255,
@@ -910,14 +919,15 @@ class SellerLoginOTP(models.Model):
         verbose_name = "Seller Login OTP"
         verbose_name_plural = "Seller Login OTPs"
         indexes = [
+            models.Index(fields=["email", "-created_at"], name="seller_otp_email_created_idx"),
             models.Index(fields=["mobile", "-created_at"], name="seller_otp_mobile_created_idx"),
             models.Index(fields=["seller", "is_used"], name="seller_otp_seller_used_idx"),
         ]
 
     def __str__(self):
-        from core.sms_services import mask_phone_number
         status = "Used" if self.is_used else "Active"
-        return f"OTP for {self.seller.store_name} ({mask_phone_number(self.mobile)}) - {status}"
+        target = self.email or self.mobile
+        return f"OTP for {self.seller.store_name} ({target}) - {status}"
 
     def set_otp(self, raw_otp: str):
         from django.contrib.auth.hashers import make_password

@@ -26,6 +26,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.csrf import csrf_exempt
+
 from django.views.decorators.http import require_GET, require_POST
 from rest_framework import status
 from rest_framework.decorators import api_view
@@ -55,6 +56,8 @@ from .forms import (
     SellerRegistrationForm,
     PublicSellerRegistrationForm,
     SellerLoginForm,
+    SellerEmailOTPRequestForm,
+    SellerEmailOTPVerifyForm,
     SellerMobileOTPRequestForm,
     SellerMobileOTPVerifyForm,
     SellerStandaloneInventoryForm,
@@ -91,6 +94,9 @@ from .models import (
     CarouselImage,
 )
 from .otp_services import (
+    generate_and_send_seller_email_otp,
+    verify_seller_email_otp_code,
+    mask_email_address,
     generate_and_send_seller_otp,
     verify_seller_otp_code,
     get_client_ip,
@@ -3035,14 +3041,16 @@ def seller_login_view(request):
     else:
         form = SellerLoginForm()
 
-    otp_request_form = SellerMobileOTPRequestForm()
-    otp_verify_form = SellerMobileOTPVerifyForm()
+    otp_request_form = SellerEmailOTPRequestForm()
+    otp_verify_form = SellerEmailOTPVerifyForm()
+    active_otp_email = request.session.get("seller_otp_email", "")
     active_otp_mobile = request.session.get("seller_otp_mobile", "")
 
     return render(request, "seller/login.html", {
         "form": form,
         "otp_request_form": otp_request_form,
         "otp_verify_form": otp_verify_form,
+        "active_otp_email": active_otp_email,
         "active_otp_mobile": active_otp_mobile,
         "next": next_url,
         "brand_name": getattr(settings, "BRAND_NAME", "Fitmeezo"),
@@ -3053,32 +3061,53 @@ def seller_login_view(request):
 def seller_send_otp_view(request):
     """
     API/Form endpoint to request a 6-digit login OTP for an approved seller.
+    Prioritizes registered email OTP (falling back to mobile if explicitly provided).
     Enforces format validation, 60s resend cooldown, and hourly rate limits.
     """
+    email = request.POST.get("email", "").strip()
     mobile = request.POST.get("mobile", "").strip()
     ip_addr = get_client_ip(request)
     user_agent = get_client_user_agent(request)
 
-    success, message, cooldown = generate_and_send_seller_otp(
-        mobile=mobile,
-        ip_address=ip_addr,
-        user_agent=user_agent,
-    )
+    is_email = bool(email or ("@" in mobile))
+    target_identifier = email or mobile
+
+    if is_email:
+        success, message, cooldown = generate_and_send_seller_email_otp(
+            email=target_identifier,
+            ip_address=ip_addr,
+            user_agent=user_agent,
+        )
+    else:
+        success, message, cooldown = generate_and_send_seller_otp(
+            mobile=target_identifier,
+            ip_address=ip_addr,
+            user_agent=user_agent,
+        )
 
     is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in request.headers.get("Accept", "")
 
     if is_ajax:
         status_code = 200 if success else 400
-        return JsonResponse({
+        response_data = {
             "success": success,
             "message": message,
             "cooldown": cooldown,
-            "mobile": mobile,
-        }, status=status_code)
+            "is_email": is_email,
+        }
+        if is_email:
+            response_data["email"] = target_identifier
+            response_data["masked_email"] = mask_email_address(target_identifier)
+        else:
+            response_data["mobile"] = target_identifier
+        return JsonResponse(response_data, status=status_code)
 
     if success:
         messages.success(request, message)
-        request.session["seller_otp_mobile"] = mobile
+        if is_email:
+            request.session["seller_otp_email"] = target_identifier
+        else:
+            request.session["seller_otp_mobile"] = target_identifier
     else:
         messages.error(request, message)
 
@@ -3089,14 +3118,22 @@ def seller_send_otp_view(request):
 def seller_verify_otp_view(request):
     """
     API/Form endpoint to verify the 6-digit OTP and establish an authenticated Django session.
+    Supports email OTP and mobile OTP.
     Redirects to the Seller Dashboard for approved and active sellers.
     """
+    email = request.POST.get("email", "").strip() or request.session.get("seller_otp_email", "")
     mobile = request.POST.get("mobile", "").strip() or request.session.get("seller_otp_mobile", "")
     otp = request.POST.get("otp", "").strip()
     remember_me = request.POST.get("remember_me") in ("true", "1", "on", True)
     next_url = request.POST.get("next") or request.GET.get("next") or ""
 
-    success, message, seller = verify_seller_otp_code(mobile=mobile, raw_otp=otp)
+    is_email = bool(email or ("@" in mobile))
+    target_identifier = email or mobile
+
+    if is_email:
+        success, message, seller = verify_seller_email_otp_code(email=target_identifier, raw_otp=otp)
+    else:
+        success, message, seller = verify_seller_otp_code(mobile=target_identifier, raw_otp=otp)
 
     is_ajax = request.headers.get("x-requested-with") == "XMLHttpRequest" or "application/json" in request.headers.get("Accept", "")
 
@@ -3115,6 +3152,8 @@ def seller_verify_otp_view(request):
     else:
         request.session.set_expiry(1209600)
 
+    if "seller_otp_email" in request.session:
+        del request.session["seller_otp_email"]
     if "seller_otp_mobile" in request.session:
         del request.session["seller_otp_mobile"]
 

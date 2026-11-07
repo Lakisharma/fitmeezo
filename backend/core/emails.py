@@ -507,3 +507,53 @@ def send_customer_tracking_update_email(seller_order, current_status: str, locat
         logger.warning("Failed to send tracking update email for package #%s: %s", seller_order.sub_order_number, exc)
         return False
 
+
+def send_seller_login_otp_email(seller, otp: str, recipient_email: str = None, ip_address: str = "") -> tuple[bool, str]:
+    """
+    Sends a 6-digit login verification OTP to the seller's registered email address.
+    Uses Django's configured EmailBackend (SMTP via Gmail or in-memory/console in test/dev).
+    Returns (success: bool, message: str).
+    """
+    if not recipient_email:
+        user_email = getattr(seller.user, "email", "") if getattr(seller, "user", None) else ""
+        support_email_val = getattr(seller, "support_email", "")
+        recipient_email = (user_email or support_email_val or "").strip()
+
+    if not recipient_email:
+        logger.error("Cannot dispatch seller OTP email: no recipient email found for seller '%s'", getattr(seller, "store_name", "Unknown"))
+        return False, "No valid email address found on file for this seller account."
+
+    brand_name = getattr(settings, "BRAND_NAME", "Fitmeezo")
+    from_email = getattr(settings, "DEFAULT_FROM_EMAIL", f"{brand_name} <support@fitmeezo.com>")
+    support_email = getattr(settings, "SUPPORT_EMAIL", "support@fitmeezo.com")
+    subject = f"Your {brand_name} Seller Hub Verification Code: {otp}"
+
+    context = {
+        "seller": seller,
+        "store_name": getattr(seller, "store_name", "Valued Merchant"),
+        "otp": otp,
+        "recipient_email": recipient_email,
+        "expiry_minutes": 5,
+        "ip_address": ip_address,
+        "brand_name": brand_name,
+        "support_email": support_email,
+    }
+
+    try:
+        html_content = render_to_string("emails/seller_login_otp.html", context)
+        text_content = render_to_string("emails/seller_login_otp.txt", context)
+
+        msg = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content,
+            from_email=from_email,
+            to=[recipient_email],
+        )
+        msg.attach_alternative(html_content, "text/html")
+        msg.send(fail_silently=False)
+        logger.info("Seller login OTP email successfully dispatched to %s", recipient_email)
+        return True, "Verification code sent to your registered seller email."
+    except Exception as exc:
+        logger.error("Failed to send seller login OTP email to %s: %s", recipient_email, exc, exc_info=True)
+        return False, f"Failed to deliver verification email: {str(exc)}"
+

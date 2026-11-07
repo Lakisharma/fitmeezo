@@ -1286,6 +1286,77 @@ class SellerLoginForm(forms.Form):
     )
 
 
+class SellerEmailOTPRequestForm(forms.Form):
+    """
+    Form validating the registered seller email for requesting a Seller login OTP.
+    """
+    email = forms.EmailField(
+        required=True,
+        label="Registered Seller Email",
+        widget=forms.EmailInput(
+            attrs={
+                "class": "form-control fm-input",
+                "placeholder": "Enter registered seller email",
+                "autocomplete": "email",
+                "required": True,
+            }
+        ),
+    )
+
+    def clean_email(self):
+        from core.otp_services import normalize_email_address
+        raw = self.cleaned_data.get("email", "").strip()
+        normalized = normalize_email_address(raw)
+        if not normalized:
+            raise ValidationError("Please enter a valid email address.")
+        return normalized
+
+
+class SellerEmailOTPVerifyForm(forms.Form):
+    """
+    Form validating the 6-digit Email OTP and remember_me flag for Seller Hub login.
+    """
+    email = forms.EmailField(
+        required=True,
+        widget=forms.HiddenInput(),
+    )
+    otp = forms.CharField(
+        max_length=6,
+        min_length=6,
+        required=True,
+        label="6-Digit Verification Code",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control fm-input text-center fw-bold fs-4",
+                "placeholder": "Enter 6-digit OTP",
+                "maxlength": "6",
+                "autocomplete": "one-time-code",
+                "required": True,
+            }
+        ),
+    )
+    remember_me = forms.BooleanField(
+        required=False,
+        initial=True,
+        label="Remember me on this browser",
+        widget=forms.CheckboxInput(attrs={"class": "form-check-input"}),
+    )
+
+    def clean_email(self):
+        from core.otp_services import normalize_email_address
+        raw = self.cleaned_data.get("email", "").strip()
+        normalized = normalize_email_address(raw)
+        if not normalized:
+            raise ValidationError("Invalid email address.")
+        return normalized
+
+    def clean_otp(self):
+        raw = re.sub(r"[^\d]", "", str(self.cleaned_data.get("otp", "")).strip())
+        if len(raw) != 6:
+            raise ValidationError("Verification code must be exactly 6 digits.")
+        return raw
+
+
 class SellerMobileOTPRequestForm(forms.Form):
     """
     Form validating the 10-digit Indian mobile number for requesting a Seller login OTP.

@@ -468,6 +468,7 @@ EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "").strip()
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "").strip()
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in ("true", "1", "t", "yes")
 EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "False").lower() in ("true", "1", "t", "yes")
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "15"))
 
 # Auto-switch to smtp backend whenever host user & password are provided (both locally and production)
 # Otherwise fall back to console backend when DEBUG=True

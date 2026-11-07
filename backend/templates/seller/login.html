@@ -63,7 +63,7 @@
           <ul class="nav nav-pills nav-fill bg-light p-1 rounded-3 mb-4" id="sellerAuthTabs" role="tablist">
             <li class="nav-item" role="presentation">
               <button class="nav-link active fw-semibold py-2 rounded-2 small" id="tab-otp-btn" data-bs-toggle="pill" data-bs-target="#tab-otp" type="button" role="tab" aria-controls="tab-otp" aria-selected="true">
-                <i class="bi bi-phone-vibrate me-1"></i> Mobile OTP
+                <i class="bi bi-envelope-check me-1"></i> Email OTP
               </button>
             </li>
             <li class="nav-item" role="presentation">
@@ -75,11 +75,11 @@
 
           <div class="tab-content" id="sellerAuthTabContent">
             <!-- ============================================================= -->
-            <!-- TAB 1: MOBILE OTP LOGIN                                       -->
+            <!-- TAB 1: EMAIL OTP LOGIN                                        -->
             <!-- ============================================================= -->
             <div class="tab-pane fade show active" id="tab-otp" role="tabpanel" aria-labelledby="tab-otp-btn">
-              <!-- STEP 1: Enter Mobile Number -->
-              <div id="otpStep1">
+              <!-- STEP 1: Enter Registered Seller Email -->
+              <div id="otpStep1" class="{% if active_otp_email %}d-none{% endif %}">
                 <form id="sendOtpForm" method="post" action="{% url 'core:seller_send_otp' %}" novalidate>
                   {% csrf_token %}
                   {% if next %}
@@ -87,62 +87,60 @@
                   {% endif %}
 
                   <div class="mb-3">
-                    <label for="sellerMobileInput" class="form-label fw-semibold small text-dark">
-                      Registered Mobile Number <span class="text-danger">*</span>
+                    <label for="sellerEmailInput" class="form-label fw-semibold small text-dark">
+                      Registered Seller Email <span class="text-danger">*</span>
                     </label>
                     <div class="input-group">
-                      <span class="input-group-text bg-light border-end-0 fw-semibold text-muted px-3">
-                        🇮🇳 +91
+                      <span class="input-group-text bg-light border-end-0 text-muted px-3">
+                        <i class="bi bi-envelope"></i>
                       </span>
                       <input
-                        type="tel"
-                        name="mobile"
-                        id="sellerMobileInput"
+                        type="email"
+                        name="email"
+                        id="sellerEmailInput"
                         class="form-control fm-input"
-                        placeholder="Enter 10-digit mobile"
-                        maxlength="16"
-                        pattern="[6-9][0-9]{9}"
-                        value="{{ active_otp_mobile }}"
+                        placeholder="e.g. vendor@yourstore.in"
+                        value="{{ active_otp_email }}"
                         required
-                        autocomplete="tel"
+                        autocomplete="email"
                       >
                     </div>
                     <div class="form-text small text-muted">
-                      We'll send a 6-digit verification code to your registered seller phone.
+                      We'll send a 6-digit verification code to your registered seller email address.
                     </div>
                   </div>
 
                   <button type="submit" id="sendOtpBtn" class="btn w-100 py-2 fw-semibold text-white shadow-sm mb-3" style="background: linear-gradient(135deg, #0A192F 0%, #112B52 100%); border: 1px solid #060D1A;">
-                    <span id="sendOtpBtnText">Send Login OTP <i class="bi bi-arrow-right ms-1"></i></span>
+                    <span id="sendOtpBtnText">Send Login Code <i class="bi bi-arrow-right ms-1"></i></span>
                     <span id="sendOtpBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
                   </button>
                 </form>
               </div>
 
               <!-- STEP 2: Enter & Verify OTP -->
-              <div id="otpStep2" class="{% if not active_otp_mobile %}d-none{% endif %}">
+              <div id="otpStep2" class="{% if not active_otp_email %}d-none{% endif %}">
                 <div class="p-3 bg-light rounded-3 mb-3 border d-flex align-items-center justify-content-between">
                   <div>
-                    <div class="small text-muted">Registered Mobile:</div>
-                    <div class="fw-bold text-dark" id="displayMaskedMobile">
-                      +91 {% if active_otp_mobile %}******{{ active_otp_mobile|slice:"-4:" }}{% else %}••••••••••{% endif %}
+                    <div class="small text-muted">Registered Email:</div>
+                    <div class="fw-bold text-dark text-break" id="displayMaskedEmail">
+                      {% if active_otp_email %}{{ active_otp_email }}{% else %}••••••••••{% endif %}
                     </div>
                   </div>
-                  <button type="button" id="editMobileBtn" class="btn btn-sm btn-outline-secondary">
+                  <button type="button" id="editEmailBtn" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-pencil-square me-1"></i> Edit
                   </button>
                 </div>
 
                 <form id="verifyOtpForm" method="post" action="{% url 'core:seller_verify_otp' %}" novalidate>
                   {% csrf_token %}
-                  <input type="hidden" name="mobile" id="verifyMobileHidden" value="{{ active_otp_mobile }}">
+                  <input type="hidden" name="email" id="verifyEmailHidden" value="{{ active_otp_email }}">
                   {% if next %}
                     <input type="hidden" name="next" value="{{ next }}">
                   {% endif %}
 
                   <div class="mb-3 text-center">
                     <label for="sellerOtpInput" class="form-label fw-semibold small text-dark">
-                      Enter 6-Digit OTP Code <span class="text-danger">*</span>
+                      Enter 6-Digit Verification Code <span class="text-danger">*</span>
                     </label>
                     <input
                       type="text"
@@ -168,7 +166,7 @@
                       Resend code in <strong id="countdownTimer" class="text-dark">60</strong>s
                     </span>
                     <button type="button" id="resendOtpBtn" class="btn btn-link btn-sm text-decoration-none fw-semibold p-0 d-none" style="color: #0A192F;">
-                      <i class="bi bi-arrow-repeat me-1"></i> Resend OTP
+                      <i class="bi bi-arrow-repeat me-1"></i> Resend Code
                     </button>
                   </div>
 
@@ -292,20 +290,23 @@
 <script>
 document.addEventListener("DOMContentLoaded", function () {
   const sendForm = document.getElementById("sendOtpForm");
-  const verifyForm = document.getElementById("verifyOtpForm");
-  const mobileInput = document.getElementById("sellerMobileInput");
-  const verifyMobileHidden = document.getElementById("verifyMobileHidden");
-  const otpInput = document.getElementById("sellerOtpInput");
-  const otpStep1 = document.getElementById("otpStep1");
-  const otpStep2 = document.getElementById("otpStep2");
-  const displayMaskedMobile = document.getElementById("displayMaskedMobile");
-  const editMobileBtn = document.getElementById("editMobileBtn");
+  const emailInput = document.getElementById("sellerEmailInput");
   const sendOtpBtn = document.getElementById("sendOtpBtn");
   const sendOtpBtnText = document.getElementById("sendOtpBtnText");
   const sendOtpBtnSpinner = document.getElementById("sendOtpBtnSpinner");
+
+  const otpStep1 = document.getElementById("otpStep1");
+  const otpStep2 = document.getElementById("otpStep2");
+  const displayMaskedEmail = document.getElementById("displayMaskedEmail");
+  const editEmailBtn = document.getElementById("editEmailBtn");
+
+  const verifyForm = document.getElementById("verifyOtpForm");
+  const verifyEmailHidden = document.getElementById("verifyEmailHidden");
+  const otpInput = document.getElementById("sellerOtpInput");
   const verifyOtpBtn = document.getElementById("verifyOtpBtn");
   const verifyOtpBtnText = document.getElementById("verifyOtpBtnText");
   const verifyOtpBtnSpinner = document.getElementById("verifyOtpBtnSpinner");
+
   const countdownContainer = document.getElementById("countdownContainer");
   const countdownTimer = document.getElementById("countdownTimer");
   const resendOtpBtn = document.getElementById("resendOtpBtn");
@@ -346,28 +347,14 @@ document.addEventListener("DOMContentLoaded", function () {
     }, 1000);
   }
 
-  function maskMobile(num) {
-    const clean = num.replace(/\D/g, "");
-    if (clean.length >= 4) {
-      return "******" + clean.slice(-4);
-    }
-    return "******" + clean;
-  }
-
-  // Auto-format mobile number on paste/input
-  if (mobileInput) {
-    mobileInput.addEventListener("input", function () {
-      let val = this.value.replace(/\D/g, "");
-      if (val.length === 12 && val.startsWith("91")) {
-        val = val.slice(2);
-      } else if (val.length === 11 && val.startsWith("0")) {
-        val = val.slice(1);
-      }
-      if (val.length > 10) {
-        val = val.slice(0, 10);
-      }
-      this.value = val;
-    });
+  function maskEmail(email) {
+    if (!email || !email.includes("@")) return email || "";
+    const parts = email.split("@");
+    const u = parts[0];
+    const d = parts[1];
+    if (u.length <= 2) return u[0] + "*@" + d;
+    if (u.length <= 4) return u[0] + "**" + u[u.length - 1] + "@" + d;
+    return u[0] + "***" + u[u.length - 1] + "@" + d;
   }
 
   // Handle Send OTP
@@ -376,12 +363,12 @@ document.addEventListener("DOMContentLoaded", function () {
       e.preventDefault();
       hideDynamicAlert();
 
-      const rawMobile = mobileInput.value.trim();
-      const cleanMobile = rawMobile.replace(/\D/g, "");
+      const rawEmail = (emailInput ? emailInput.value : "").trim().toLowerCase();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-      if (cleanMobile.length < 10 || !["6", "7", "8", "9"].includes(cleanMobile.slice(-10)[0])) {
-        showDynamicAlert("Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.", true);
-        mobileInput.focus();
+      if (!rawEmail || !emailRegex.test(rawEmail)) {
+        showDynamicAlert("Please enter a valid email address (e.g. merchant@yourstore.in).", true);
+        if (emailInput) emailInput.focus();
         return;
       }
 
@@ -409,15 +396,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
           if (ok && data.success) {
             showDynamicAlert(data.message, false);
-            verifyMobileHidden.value = cleanMobile.slice(-10);
-            displayMaskedMobile.textContent = "+91 " + maskMobile(cleanMobile.slice(-10));
+            if (verifyEmailHidden) verifyEmailHidden.value = rawEmail;
+            if (displayMaskedEmail) {
+              displayMaskedEmail.textContent = data.masked_email || maskEmail(rawEmail);
+            }
             otpStep1.classList.add("d-none");
             otpStep2.classList.remove("d-none");
             otpInput.value = "";
             otpInput.focus();
             startCountdown(data.cooldown || 60);
           } else {
-            showDynamicAlert(data.message || "Failed to send OTP. Please check your number.", true);
+            showDynamicAlert(data.message || "Failed to send verification code. Please check your email.", true);
             if (data.cooldown) {
               startCountdown(data.cooldown);
             }
@@ -427,18 +416,18 @@ document.addEventListener("DOMContentLoaded", function () {
           sendOtpBtn.disabled = false;
           sendOtpBtnText.classList.remove("d-none");
           sendOtpBtnSpinner.classList.add("d-none");
-          showDynamicAlert("Network error while requesting OTP. Please try again.", true);
+          showDynamicAlert("Network error while requesting verification code. Please try again.", true);
         });
     });
   }
 
-  // Handle Edit Mobile Number
-  if (editMobileBtn) {
-    editMobileBtn.addEventListener("click", function () {
+  // Handle Edit Email
+  if (editEmailBtn) {
+    editEmailBtn.addEventListener("click", function () {
       hideDynamicAlert();
       otpStep2.classList.add("d-none");
       otpStep1.classList.remove("d-none");
-      mobileInput.focus();
+      if (emailInput) emailInput.focus();
     });
   }
 
@@ -446,12 +435,12 @@ document.addEventListener("DOMContentLoaded", function () {
   if (resendOtpBtn) {
     resendOtpBtn.addEventListener("click", function () {
       hideDynamicAlert();
-      const mobileVal = verifyMobileHidden.value;
-      if (!mobileVal) {
-        editMobileBtn.click();
+      const emailVal = verifyEmailHidden ? verifyEmailHidden.value : "";
+      if (!emailVal) {
+        if (editEmailBtn) editEmailBtn.click();
         return;
       }
-      mobileInput.value = mobileVal;
+      if (emailInput) emailInput.value = emailVal;
       sendForm.dispatchEvent(new Event("submit", { cancelable: true }));
     });
   }
@@ -494,7 +483,7 @@ document.addEventListener("DOMContentLoaded", function () {
             verifyOtpBtn.disabled = false;
             verifyOtpBtnText.classList.remove("d-none");
             verifyOtpBtnSpinner.classList.add("d-none");
-            showDynamicAlert(data.message || "Invalid or expired OTP. Please try again.", true);
+            showDynamicAlert(data.message || "Invalid or expired verification code. Please try again.", true);
             otpInput.select();
           }
         })
@@ -507,7 +496,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  {% if active_otp_mobile %}
+  {% if active_otp_email %}
   startCountdown(60);
   {% endif %}
 });
